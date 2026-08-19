@@ -114,8 +114,10 @@ const DepositTab = ({ onSuccess, onClose }) => {
 
 const WithdrawTab = ({ currentBalance, onSuccess, onClose }) => {
   const [amount, setAmount] = useState("");
+  const [vpa, setVpa] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [pendingMessage, setPendingMessage] = useState("");
 
   const handleWithdraw = async (e) => {
     e.preventDefault();
@@ -126,17 +128,42 @@ const WithdrawTab = ({ currentBalance, onSuccess, onClose }) => {
     setError("");
     setLoading(true);
     try {
-      const res = await apiService.post("/wallet/withdraw", {
+      const res = await apiService.cashier.createPayoutRequest({
         amount: Number(amount),
+        method: "upi",
+        destination: { vpa },
       });
       setLoading(false);
-      onSuccess(res.data.balance);
-      onClose();
+      setPendingMessage(
+        "Payout requested — funds are held while the team reviews it."
+      );
+      if (res.data.balance !== undefined) {
+        onSuccess(res.data.balance);
+      }
     } catch (err) {
       setLoading(false);
-      setError(err.response?.data?.error || "Withdrawal failed");
+      setError(
+        err.response?.data?.error ||
+          err.response?.data?.message ||
+          "Payout request failed"
+      );
     }
   };
+
+  if (pendingMessage) {
+    return (
+      <div className="flex flex-col gap-4 text-center">
+        <p className="text-text-primary text-sm">{pendingMessage}</p>
+        <button
+          type="button"
+          className="bg-interactive-primary hover:bg-interactive-primaryHover text-white font-bold py-3 rounded-lg transition-transform transform hover:scale-105"
+          onClick={onClose}
+        >
+          Done
+        </button>
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={handleWithdraw} className="flex flex-col gap-4">
@@ -150,6 +177,14 @@ const WithdrawTab = ({ currentBalance, onSuccess, onClose }) => {
         required
         autoFocus
       />
+      <input
+        type="text"
+        className="p-3 rounded-lg bg-background-surface border-2 border-border-primary text-text-primary focus:border-interactive-primary outline-none transition-colors"
+        placeholder="Your UPI ID (yourname@bank)"
+        value={vpa}
+        onChange={(e) => setVpa(e.target.value)}
+        required
+      />
       {error && (
         <div className="text-interactive-error text-sm text-center">
           {error}
@@ -158,10 +193,17 @@ const WithdrawTab = ({ currentBalance, onSuccess, onClose }) => {
       <button
         type="submit"
         className="bg-interactive-primary hover:bg-interactive-primaryHover text-white font-bold py-3 rounded-lg transition-transform transform hover:scale-105 disabled:opacity-50"
-        disabled={loading || !amount}
+        disabled={loading || !amount || !vpa}
       >
-        {loading ? <LoadingSpinner size="sm" showText={false} /> : "Withdraw"}
+        {loading ? (
+          <LoadingSpinner size="sm" showText={false} />
+        ) : (
+          "Request Payout"
+        )}
       </button>
+      <p className="text-xs text-text-tertiary text-center">
+        Payouts are reviewed before funds leave your wallet.
+      </p>
     </form>
   );
 };
