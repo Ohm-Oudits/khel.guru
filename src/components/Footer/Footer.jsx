@@ -8,26 +8,58 @@ const Footer = () => {
   const location = useLocation();
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-white/5 bg-[linear-gradient(180deg,_rgba(9,13,11,0.9)_0%,_rgba(9,13,11,0.98)_100%)] px-2 py-2 backdrop-blur xl:hidden">
-      <div className="grid grid-cols-5 gap-1">
-        {mobileNavigation.map((item) => {
-          const active = isNavigationActive(item, location.pathname);
+    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex justify-center px-3 pb-[calc(env(safe-area-inset-bottom,0px)+14px)] xl:hidden">
+      <div className="pointer-events-auto relative w-full max-w-[420px]">
+        <div className="absolute inset-x-10 bottom-1 h-12 rounded-full bg-brand-primary/20 blur-2xl" />
+        <div className="relative overflow-hidden rounded-[30px] border border-white/12 bg-[linear-gradient(180deg,_rgba(24,30,28,0.82)_0%,_rgba(12,16,15,0.94)_100%)] px-2 py-2 shadow-[0_24px_60px_rgba(0,0,0,0.38)] backdrop-blur-2xl">
+          <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-white/18" />
+          <div className="grid grid-cols-5 items-end gap-1">
+            {mobileNavigation.map((item) => {
+              const active = isNavigationActive(item, location.pathname);
+              const isHome = item.label === "Home";
 
-          return (
-            <Link
-              key={item.label}
-              to={item.path}
-              className={`flex flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] transition ${
-                active
-                  ? "bg-brand-primary text-text-inverse"
-                  : "text-text-tertiary hover:bg-white/5 hover:text-white"
-              }`}
-            >
-              <item.icon className="text-base" />
-              {item.label}
-            </Link>
-          );
-        })}
+              return (
+                <Link
+                  key={item.label}
+                  to={item.path}
+                  className={`group relative flex min-h-[68px] flex-col items-center justify-center gap-1 rounded-[24px] px-1.5 py-2 text-[10px] font-semibold uppercase tracking-[0.16em] transition duration-300 ${
+                    active
+                      ? "-translate-y-1"
+                      : "text-text-tertiary hover:text-white"
+                  }`}
+                >
+                  <span
+                    className={`absolute inset-x-1 inset-y-1 rounded-[22px] transition duration-300 ${
+                      active
+                        ? "bg-white/[0.06] opacity-100"
+                        : "opacity-0 group-hover:bg-white/[0.04] group-hover:opacity-100"
+                    }`}
+                  />
+                  <span
+                    className={`relative flex items-center justify-center rounded-[18px] border transition duration-300 ${
+                      isHome ? "h-12 w-12" : "h-10 w-10"
+                    } ${
+                      active
+                        ? "border-emerald-300/30 bg-[linear-gradient(180deg,_rgba(25,214,182,0.9)_0%,_rgba(17,167,145,0.82)_100%)] text-text-inverse shadow-[0_12px_26px_rgba(15,199,170,0.28)]"
+                        : "border-white/8 bg-white/[0.04] text-white/72 group-hover:border-white/14 group-hover:bg-white/[0.08] group-hover:text-white"
+                    }`}
+                  >
+                    <item.icon className={isHome ? "text-lg" : "text-base"} />
+                  </span>
+                  <span
+                    className={`relative whitespace-nowrap transition duration-300 ${
+                      active
+                        ? "text-white"
+                        : "text-white/68 group-hover:text-white"
+                    }`}
+                  >
+                    {item.label}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
       </div>
     </div>
   );

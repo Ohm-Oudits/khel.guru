@@ -19,7 +19,7 @@ const Layout = ({ children }) => {
           <Header />
         </div>
 
-        <main className="min-h-screen pt-[84px]">{children}</main>
+        <main className="min-h-screen pb-28 pt-[84px] xl:pb-0">{children}</main>
         <Footer />
       </div>
     </div>
