@@ -1,18 +1,68 @@
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import EventCard from "../../components/Sports/EventCard";
 import PlatformFeatureTile from "../../components/platform/PlatformFeatureTile";
 import PlatformHero from "../../components/platform/PlatformHero";
 import PlatformPage from "../../components/platform/PlatformPage";
 import PlatformPanel from "../../components/platform/PlatformPanel";
+import { apiService } from "../../config/api";
 import { sportsbookBrowseLinks } from "../../config/platformNavigation";
 
 const SportsbookHub = () => {
+  const [liveEvents, setLiveEvents] = useState([]);
+  const [upcomingEvents, setUpcomingEvents] = useState([]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      try {
+        const [liveRes, upcomingRes] = await Promise.all([
+          apiService.sports.getEvents({ status: "live", hydrate: 1, limit: 6 }),
+          apiService.sports.getEvents({
+            status: "upcoming",
+            hydrate: 1,
+            limit: 6,
+          }),
+        ]);
+        if (cancelled) return;
+        setLiveEvents(liveRes.data?.events || []);
+        setUpcomingEvents(upcomingRes.data?.events || []);
+      } catch (error) {
+        console.error("Failed to load sportsbook hub events:", error);
+      }
+    };
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <PlatformPage>
       <PlatformHero
         eyebrow="Sportsbook"
         title="Cricket-first market discovery with faster entry into live and upcoming action."
-        description="The current Khel Guru codebase already has sport-specific pages, but this hub gives them the stronger top-level structure Stake uses: major categories, in-play emphasis, and promotion-led market entry."
+        description="Live odds, real fixtures, and in-play scoreboards across cricket, football, tennis, and badminton — updated as the feed moves."
         tone="sportsbook"
       />
+
+      {liveEvents.length > 0 && (
+        <section>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="flex items-center gap-2 text-xl font-black text-white">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
+              Live now
+            </h2>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {liveEvents.map((event) => (
+              <EventCard key={event._id} event={event} />
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {sportsbookBrowseLinks.map((item) => (
@@ -26,57 +76,34 @@ const SportsbookHub = () => {
         ))}
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-3">
-        <PlatformPanel className="xl:col-span-2">
-          <p className="text-xs uppercase tracking-[0.22em] text-brand-accent">
-            What changed
-          </p>
-          <h2 className="mt-2 text-2xl font-black text-white">
-            Sports is now a real top-level product surface
-          </h2>
-          <div className="mt-5 grid gap-4 md:grid-cols-2">
-            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-              <h3 className="text-lg font-bold text-white">Before</h3>
-              <p className="mt-2 text-sm text-text-secondary">
-                Sports existed mostly as deep pages and route branches.
-              </p>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-              <h3 className="text-lg font-bold text-white">Now</h3>
-              <p className="mt-2 text-sm text-text-secondary">
-                Sports has a dedicated landing hub, category cards, and clearer
-                entry points for users comparing us against Stake.
-              </p>
-            </div>
+      {upcomingEvents.length > 0 && (
+        <section>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-xl font-black text-white">Upcoming</h2>
+            <Link
+              to="/sports/cricket"
+              className="text-sm text-brand-accent hover:underline"
+            >
+              Browse all
+            </Link>
           </div>
-        </PlatformPanel>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {upcomingEvents.map((event) => (
+              <EventCard key={event._id} event={event} />
+            ))}
+          </div>
+        </section>
+      )}
 
+      {liveEvents.length === 0 && upcomingEvents.length === 0 && (
         <PlatformPanel>
-          <p className="text-xs uppercase tracking-[0.22em] text-brand-accent">
-            Launch Bias
+          <p className="text-sm text-text-secondary">
+            No events in the feed yet. Once the sportsbook scheduler is running
+            (or an ingest is triggered), live and upcoming fixtures appear here
+            automatically.
           </p>
-          <div className="mt-4 space-y-3">
-            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-              <h3 className="text-lg font-bold text-white">Cricket</h3>
-              <p className="mt-1 text-sm text-text-secondary">
-                First-class route and positioning for India-first launch.
-              </p>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-              <h3 className="text-lg font-bold text-white">In-play</h3>
-              <p className="mt-1 text-sm text-text-secondary">
-                Future odds and live-state work will anchor here.
-              </p>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-              <h3 className="text-lg font-bold text-white">Promotions</h3>
-              <p className="mt-1 text-sm text-text-secondary">
-                Reward-led market surfacing is now part of the shell.
-              </p>
-            </div>
-          </div>
         </PlatformPanel>
-      </section>
+      )}
     </PlatformPage>
   );
 };
