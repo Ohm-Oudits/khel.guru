@@ -1,11 +1,8 @@
-import { useState } from "react";
 import Footer from "../Footer/Footer";
 import Header from "../Header/Header";
 import Sidebar from "../Header/Sidebar";
 
 const Layout = ({ children }) => {
-  const [sideOpen, setSideOpen] = useState(false);
-
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-background-primary text-text-primary">
       <div className="pointer-events-none fixed inset-0 -z-10">
@@ -15,11 +12,11 @@ const Layout = ({ children }) => {
         <div className="absolute inset-0 bg-[linear-gradient(180deg,_rgba(255,255,255,0.02)_0%,_transparent_22%)]" />
       </div>
 
-      <Sidebar sideOpen={sideOpen} setSideOpen={setSideOpen} />
+      <Sidebar />
 
       <div className="relative z-10 xl:pl-[288px]">
-        <div className="fixed inset-x-0 top-0 z-40 xl:left-[288px]">
-          <Header setSideOpen={setSideOpen} />
+        <div className="fixed inset-x-0 top-0 z-40">
+          <Header />
         </div>
 
         <main className="min-h-screen pt-[84px]">{children}</main>

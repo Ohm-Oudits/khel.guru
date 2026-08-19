@@ -7,26 +7,12 @@ import {
   supportLinks,
 } from "../../config/platformNavigation";
 
-const Sidebar = ({ sideOpen, setSideOpen }) => {
+const Sidebar = () => {
   const location = useLocation();
 
-  const closeDrawer = () => setSideOpen(false);
-
   return (
-    <>
-      {sideOpen && (
-        <button
-          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm xl:hidden"
-          onClick={closeDrawer}
-        />
-      )}
-
-      <aside
-        className={`fixed inset-y-0 left-0 z-50 w-[288px] border-r border-white/5 bg-[linear-gradient(180deg,_rgba(9,13,11,1)_0%,_rgba(13,18,16,0.98)_100%)] shadow-[24px_0_80px_rgba(0,0,0,0.26)] transition-transform duration-300 xl:translate-x-0 ${
-          sideOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
-      >
-        <div className="flex h-full flex-col overflow-y-auto px-4 pb-8 pt-24 xl:pt-28">
+    <aside className="fixed left-0 top-[84px] z-30 hidden h-[calc(100vh-84px)] w-[288px] border-r border-white/5 bg-[linear-gradient(180deg,_rgba(9,13,11,1)_0%,_rgba(13,18,16,0.98)_100%)] shadow-[24px_0_80px_rgba(0,0,0,0.26)] xl:block">
+      <div className="flex h-full flex-col overflow-y-auto px-4 pb-8 pt-8">
           <div className="space-y-2">
             {primaryNavigation.map((item) => {
               const active = isNavigationActive(item, location.pathname);
@@ -40,7 +26,6 @@ const Sidebar = ({ sideOpen, setSideOpen }) => {
                       ? "bg-brand-primary text-text-inverse"
                       : "bg-white/5 text-text-secondary hover:bg-white/10 hover:text-white"
                   }`}
-                  onClick={closeDrawer}
                 >
                   <item.icon />
                   {item.label}
@@ -59,7 +44,6 @@ const Sidebar = ({ sideOpen, setSideOpen }) => {
                   key={item.label}
                   to={item.path}
                   className="flex items-center gap-3 rounded-2xl px-3 py-3 text-sm font-semibold text-text-secondary transition hover:bg-white/5 hover:text-white"
-                  onClick={closeDrawer}
                 >
                   <item.icon className="text-brand-primary" />
                   {item.label}
@@ -78,7 +62,6 @@ const Sidebar = ({ sideOpen, setSideOpen }) => {
                   key={item.label}
                   to={item.path}
                   className="flex items-center gap-3 rounded-2xl px-3 py-3 text-sm font-semibold text-text-secondary transition hover:bg-white/5 hover:text-white"
-                  onClick={closeDrawer}
                 >
                   <item.icon className="text-brand-primary" />
                   {item.label}
@@ -97,7 +80,6 @@ const Sidebar = ({ sideOpen, setSideOpen }) => {
                   key={item.title}
                   to="/support"
                   className="flex items-center gap-3 rounded-2xl px-3 py-3 text-sm font-semibold text-text-secondary transition hover:bg-white/5 hover:text-white"
-                  onClick={closeDrawer}
                 >
                   <item.icon className="text-brand-primary" />
                   {item.title}
@@ -105,9 +87,8 @@ const Sidebar = ({ sideOpen, setSideOpen }) => {
               ))}
             </div>
           </div>
-        </div>
-      </aside>
-    </>
+      </div>
+    </aside>
   );
 };
 

@@ -2,11 +2,8 @@ import React, { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import {
-  FaBars,
   FaChevronDown,
   FaCoins,
-  FaGift,
-  FaLifeRing,
   FaSearch,
   FaSignOutAlt,
   FaUser,
@@ -17,21 +14,15 @@ import apiService from "../../config/api";
 import LoadingSpinner from "../LoadingSpinner";
 import SetupWalletModal from "../Modals/SetupWalletModal";
 import WalletActionsModal from "../Modals/WalletActionsModal";
-import {
-  isNavigationActive,
-  primaryNavigation,
-} from "../../config/platformNavigation";
 import { logout } from "../../store/slices/authSlice";
 
 const accountLinks = [
   { label: "Wallet", path: "/wallet", icon: FaWallet },
-  { label: "Rewards", path: "/rewards", icon: FaGift },
-  { label: "Support", path: "/support", icon: FaLifeRing },
   { label: "My Bets", path: "/casino/my-bets", icon: FaCoins },
   { label: "Settings", path: "/settings", icon: FaUser },
 ];
 
-const Header = ({ setSideOpen }) => {
+const Header = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const location = useLocation();
@@ -113,15 +104,9 @@ const Header = ({ setSideOpen }) => {
 
   return (
     <>
-      <div className="border-b border-white/5 bg-[linear-gradient(180deg,_rgba(9,13,11,0.95)_0%,_rgba(9,13,11,0.8)_100%)] px-4 py-3 shadow-[0_14px_40px_rgba(0,0,0,0.22)] backdrop-blur md:px-6 xl:px-8">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
+      <div className="border-b border-white/5 bg-[linear-gradient(180deg,_rgba(9,13,11,0.95)_0%,_rgba(9,13,11,0.8)_100%)] px-4 py-3 shadow-[0_14px_40px_rgba(0,0,0,0.22)] backdrop-blur md:px-6 xl:px-6">
+        <div className="flex w-full items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <button
-              className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white transition hover:bg-white/10 xl:hidden"
-              onClick={() => setSideOpen(true)}
-            >
-              <FaBars />
-            </button>
             <Link to="/" className="flex items-center gap-3">
               <img
                 src={logo}
@@ -138,26 +123,6 @@ const Header = ({ setSideOpen }) => {
               </div>
             </Link>
           </div>
-
-          <nav className="hidden items-center gap-2 xl:flex">
-            {primaryNavigation.map((item) => {
-              const active = isNavigationActive(item, location.pathname);
-
-              return (
-                <Link
-                  key={item.label}
-                  to={item.path}
-                  className={`rounded-2xl px-4 py-2 text-sm font-semibold transition ${
-                    active
-                      ? "bg-brand-primary text-text-inverse"
-                      : "bg-white/5 text-text-secondary hover:bg-white/10 hover:text-white"
-                  }`}
-                >
-                  {item.label}
-                </Link>
-              );
-            })}
-          </nav>
 
           <div className="flex items-center gap-2">
             <button

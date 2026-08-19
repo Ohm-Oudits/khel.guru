@@ -60,11 +60,11 @@ export const primaryNavigation = [
 ];
 
 export const mobileNavigation = [
-  primaryNavigation[0],
-  primaryNavigation[1],
-  primaryNavigation[4],
-  primaryNavigation[2],
   primaryNavigation[5],
+  primaryNavigation[1],
+  primaryNavigation[0],
+  primaryNavigation[2],
+  primaryNavigation[4],
 ];
 
 export const casinoBrowseLinks = [
