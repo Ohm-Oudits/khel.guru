@@ -11,23 +11,23 @@ import { walletActionCards } from "../../config/platformNavigation";
 const WalletHub = () => {
   const navigate = useNavigate();
   const user = useSelector((state) => state.auth?.user);
-  const [balance, setBalance] = useState(null);
+  const [walletOverview, setWalletOverview] = useState(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!user) {
-      setBalance(null);
+      setWalletOverview(null);
       return;
     }
 
     setLoading(true);
     apiService.wallet
-      .getBalance()
+      .getAccounts()
       .then((response) => {
-        setBalance(response.data.balance);
+        setWalletOverview(response.data);
       })
       .catch(() => {
-        setBalance(null);
+        setWalletOverview(null);
       })
       .finally(() => {
         setLoading(false);
@@ -72,24 +72,54 @@ const WalletHub = () => {
         <section className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
           <PlatformPanel>
             <p className="text-xs uppercase tracking-[0.22em] text-brand-accent">
-              Account Balance
+              Wallet Overview
             </p>
             <div className="mt-3 flex items-end gap-3">
               <h2 className="text-4xl font-black text-white">
                 {loading
                   ? "Loading..."
-                  : balance !== null
-                  ? balance.toFixed(2)
+                  : walletOverview?.cashBalance !== undefined
+                  ? walletOverview.cashBalance.toFixed(2)
                   : "Unavailable"}
               </h2>
               <span className="pb-2 text-sm font-semibold text-text-tertiary">
-                wallet units
+                {walletOverview?.currency || "INR"}
               </span>
             </div>
             <p className="mt-3 text-sm text-text-secondary">
-              This is still backed by the current wallet service. Later phases
-              will swap it onto the ledger-first cashier model.
+              Cash, vault, and demo balances now resolve from the wallet account
+              overview instead of an old single-balance endpoint.
             </p>
+            {walletOverview ? (
+              <div className="mt-5 grid gap-3 md:grid-cols-3">
+                {[
+                  {
+                    title: "Cash",
+                    value: walletOverview.cashBalance,
+                  },
+                  {
+                    title: "Vault",
+                    value: walletOverview.vaultBalance,
+                  },
+                  {
+                    title: "Demo",
+                    value: walletOverview.demoBalance,
+                  },
+                ].map((entry) => (
+                  <div
+                    key={entry.title}
+                    className="rounded-2xl border border-white/10 bg-black/20 p-4"
+                  >
+                    <p className="text-xs uppercase tracking-[0.18em] text-text-tertiary">
+                      {entry.title}
+                    </p>
+                    <p className="mt-2 text-2xl font-black text-white">
+                      {Number(entry.value || 0).toFixed(2)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : null}
             <div className="mt-5 flex flex-wrap gap-3">
               <button
                 className="rounded-2xl bg-brand-primary px-5 py-3 text-sm font-bold text-text-inverse transition hover:bg-interactive-primaryHover"
@@ -116,6 +146,20 @@ const WalletHub = () => {
             <p className="text-xs uppercase tracking-[0.22em] text-brand-accent">
               Quick Actions
             </p>
+            <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
+              <p className="text-sm font-semibold text-white">
+                Total available:{" "}
+                {walletOverview?.totals?.available !== undefined
+                  ? walletOverview.totals.available.toFixed(2)
+                  : "Unavailable"}
+              </p>
+              <p className="mt-1 text-xs text-text-tertiary">
+                Locked:{" "}
+                {walletOverview?.totals?.locked !== undefined
+                  ? walletOverview.totals.locked.toFixed(2)
+                  : "Unavailable"}
+              </p>
+            </div>
             <div className="mt-5 grid gap-3">
               {walletActionCards.map((card) => (
                 <button

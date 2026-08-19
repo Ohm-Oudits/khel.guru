@@ -75,16 +75,12 @@ apiClient.interceptors.response.use(
 export const API_ENDPOINTS = {
   // Auth endpoints
   AUTH: {
-    LOGIN: "/user/login",
-    REGISTER: "/user/register",
-    LOGOUT: "/user/logout",
-    REFRESH: "/user/refresh",
-    PROFILE: "/user/profile",
-    UPDATE_PROFILE: "/user/profile",
-    CHANGE_PASSWORD: "/user/change-password",
-    FORGOT_PASSWORD: "/user/forgot-password",
-    RESET_PASSWORD: "/user/reset-password",
-    VERIFY_EMAIL: "/user/verify-email",
+    LOGIN: "/auth/login",
+    REGISTER: "/auth/register",
+    LOGOUT: "/auth/logout",
+    PROFILE: "/auth/me",
+    FORGOT_PASSWORD: "/auth/forgot-password",
+    RESET_PASSWORD: "/auth/reset-password",
   },
 
   // Game endpoints
@@ -100,20 +96,33 @@ export const API_ENDPOINTS = {
 
   // Sports endpoints
   SPORTS: {
-    EVENTS: "/sport/events",
-    LIVE_EVENTS: "/sport/live",
-    BET: "/sport/bet",
-    BET_HISTORY: "/sport/bet-history",
-    ODDS: "/sport/odds",
+    CATALOG: "/sports/catalog",
+    EVENTS: "/sports/events",
+    BET: "/bets/single",
+    BET_HISTORY: "/bets/history",
   },
 
   // Wallet endpoints
   WALLET: {
-    BALANCE: "/user/balance",
-    DEPOSIT: "/user/deposit",
-    WITHDRAW: "/user/withdraw",
-    TRANSACTIONS: "/user/transactions",
-    PAYMENT_METHODS: "/user/payment-methods",
+    BALANCE: "/wallet/balance",
+    ACCOUNTS: "/wallet/accounts",
+    DEPOSIT: "/wallet/deposit",
+    WITHDRAW: "/wallet/withdraw",
+    TRANSACTIONS: "/wallet/transactions",
+    LEDGER: "/wallet/ledger",
+  },
+
+  ACCOUNT: {
+    OVERVIEW: "/account/overview",
+    KYC: "/account/kyc",
+    RESPONSIBLE_GAMING: "/account/responsible-gaming",
+    RESPONSIBLE_GAMING_LIMITS: "/account/responsible-gaming/limits",
+    SELF_EXCLUSIONS: "/account/self-exclusions",
+  },
+
+  SECURITY: {
+    OVERVIEW: "/security/overview",
+    SESSIONS: "/security/sessions",
   },
 
   // Admin endpoints (if applicable)
@@ -145,16 +154,10 @@ export const apiService = {
       apiClient.post(API_ENDPOINTS.AUTH.REGISTER, userData),
     logout: () => apiClient.post(API_ENDPOINTS.AUTH.LOGOUT),
     getProfile: () => apiClient.get(API_ENDPOINTS.AUTH.PROFILE),
-    updateProfile: (data) =>
-      apiClient.put(API_ENDPOINTS.AUTH.UPDATE_PROFILE, data),
-    changePassword: (data) =>
-      apiClient.post(API_ENDPOINTS.AUTH.CHANGE_PASSWORD, data),
     forgotPassword: (email) =>
       apiClient.post(API_ENDPOINTS.AUTH.FORGOT_PASSWORD, { email }),
     resetPassword: (data) =>
       apiClient.post(API_ENDPOINTS.AUTH.RESET_PASSWORD, data),
-    verifyEmail: (token) =>
-      apiClient.post(API_ENDPOINTS.AUTH.VERIFY_EMAIL, { token }),
   },
 
   // Game services
@@ -173,27 +176,49 @@ export const apiService = {
 
   // Sports services
   sports: {
+    getCatalog: () => apiClient.get(API_ENDPOINTS.SPORTS.CATALOG),
     getEvents: (params) =>
       apiClient.get(API_ENDPOINTS.SPORTS.EVENTS, { params }),
-    getLiveEvents: () => apiClient.get(API_ENDPOINTS.SPORTS.LIVE_EVENTS),
+    getLiveEvents: () =>
+      apiClient.get(API_ENDPOINTS.SPORTS.EVENTS, { params: { status: "live" } }),
+    getEvent: (eventId) => apiClient.get(`${API_ENDPOINTS.SPORTS.EVENTS}/${eventId}`),
+    getEventMarkets: (eventId) =>
+      apiClient.get(`${API_ENDPOINTS.SPORTS.EVENTS}/${eventId}/markets`),
     placeBet: (betData) => apiClient.post(API_ENDPOINTS.SPORTS.BET, betData),
     getBetHistory: (params) =>
       apiClient.get(API_ENDPOINTS.SPORTS.BET_HISTORY, { params }),
-    getOdds: (eventId) =>
-      apiClient.get(`${API_ENDPOINTS.SPORTS.ODDS}/${eventId}`),
   },
 
   // Wallet services
   wallet: {
     getBalance: () => apiClient.get(API_ENDPOINTS.WALLET.BALANCE),
+    getAccounts: () => apiClient.get(API_ENDPOINTS.WALLET.ACCOUNTS),
     deposit: (amount, method) =>
       apiClient.post(API_ENDPOINTS.WALLET.DEPOSIT, { amount, method }),
     withdraw: (amount, method) =>
       apiClient.post(API_ENDPOINTS.WALLET.WITHDRAW, { amount, method }),
     getTransactions: (params) =>
       apiClient.get(API_ENDPOINTS.WALLET.TRANSACTIONS, { params }),
-    getPaymentMethods: () =>
-      apiClient.get(API_ENDPOINTS.WALLET.PAYMENT_METHODS),
+    getLedger: () => apiClient.get(API_ENDPOINTS.WALLET.LEDGER),
+  },
+
+  account: {
+    getOverview: () => apiClient.get(API_ENDPOINTS.ACCOUNT.OVERVIEW),
+    getKycProfile: () => apiClient.get(API_ENDPOINTS.ACCOUNT.KYC),
+    updateKycProfile: (data) => apiClient.put(API_ENDPOINTS.ACCOUNT.KYC, data),
+    getResponsibleGaming: () =>
+      apiClient.get(API_ENDPOINTS.ACCOUNT.RESPONSIBLE_GAMING),
+    updateResponsibleGamingLimits: (data) =>
+      apiClient.put(API_ENDPOINTS.ACCOUNT.RESPONSIBLE_GAMING_LIMITS, data),
+    getSelfExclusions: () =>
+      apiClient.get(API_ENDPOINTS.ACCOUNT.SELF_EXCLUSIONS),
+    createSelfExclusion: (data) =>
+      apiClient.post(API_ENDPOINTS.ACCOUNT.SELF_EXCLUSIONS, data),
+  },
+
+  security: {
+    getOverview: () => apiClient.get(API_ENDPOINTS.SECURITY.OVERVIEW),
+    getSessions: () => apiClient.get(API_ENDPOINTS.SECURITY.SESSIONS),
   },
 };
 
