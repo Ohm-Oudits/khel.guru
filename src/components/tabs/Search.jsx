@@ -193,37 +193,37 @@ const Search = () => {
         className="w-full max-w-4xl overflow-hidden rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_top,_rgba(54,94,76,0.34)_0%,_rgba(17,20,19,0.98)_42%,_rgba(10,12,11,1)_100%)] shadow-[0_30px_120px_rgba(0,0,0,0.55)]"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="px-4 pb-5 pt-6 md:px-6 md:pb-6 md:pt-8">
-          <div className="mx-auto max-w-3xl rounded-[30px] bg-black/20 px-4 py-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] md:px-6 md:py-6">
-            <div className="flex flex-col items-center gap-4 text-center">
+        <div className="px-4 pb-5 pt-4 md:px-6 md:pb-6 md:pt-5">
+          <div className="rounded-[28px] border border-white/10 bg-black/20 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] md:p-4">
+            <div className="flex items-center gap-3">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand-primary/15 text-lg text-brand-primary">
                 <FaSearch />
               </div>
 
-              <div className="w-full">
+              <div className="min-w-0 flex-1">
                 <input
                   type="text"
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                   onKeyDown={handleSearchKeyDown}
                   autoFocus
-                  className="w-full appearance-none border-0 bg-transparent text-center text-lg font-semibold text-white outline-none ring-0 placeholder:text-text-tertiary focus:border-0 focus:outline-none focus:ring-0 focus-visible:outline-none md:text-2xl"
+                  className="w-full appearance-none border-0 bg-transparent text-lg font-semibold text-white outline-none ring-0 placeholder:text-text-tertiary focus:border-0 focus:outline-none focus:ring-0 focus-visible:outline-none md:text-2xl"
                   placeholder="Games, sports, support, rewards, pages"
                 />
               </div>
 
-              <div className="hidden items-center justify-center gap-2 md:flex">
-                <span className="rounded-xl bg-white/5 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-text-tertiary">
+              <div className="hidden items-center gap-2 md:flex">
+                <span className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-text-tertiary">
                   Esc
                 </span>
-                <span className="rounded-xl bg-white/5 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-text-tertiary">
+                <span className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-text-tertiary">
                   Enter
                 </span>
               </div>
             </div>
           </div>
 
-          <div className="mt-4 flex flex-wrap justify-center gap-2">
+          <div className="mt-4 flex flex-wrap gap-2">
             {FILTERS.map((filter) => {
               const active = selectedFilter === filter.key;
 
