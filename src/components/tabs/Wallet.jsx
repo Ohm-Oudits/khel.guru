@@ -32,12 +32,15 @@ const Wallet = () => {
               Lets setup your wallet & get started!
             </h1>
             <p className="text-base mt-2 text-zinc-400">
-              Confirm your email & quickly verify your account details to get
-              started using Stake. This will allow you to deposit & withdraw
-              your funds seamlessly.
+              The cashier handles UPI and crypto deposits, withdrawals with
+              review protection, and your full transaction history — all from
+              one place.
             </p>
-            <button className="mt-5 w-full py-2 bg-ter active:scale-[0.9] transition">
-              Setup Wallet
+            <button
+              onClick={() => navigate("/wallet")}
+              className="mt-5 w-full py-2 bg-ter active:scale-[0.9] transition"
+            >
+              Open Cashier
             </button>
           </div>
         </div>

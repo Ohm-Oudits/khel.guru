@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { originals } from "../../../constants";
-import { coins } from "../Vault";
+
+const currencies = ["INR"];
 
 export const StatisticsSection = () => {
   const [type, settype] = useState("All");
@@ -48,16 +49,14 @@ export const StatisticsSection = () => {
             className="w-full mt-2 h-full rounded bg-secondry outline-none bg-gray-900 text-white px-3 pr-6 py-1"
             value={currency}
             id="risk"
-            onChange={(e) => setcurr(e.target.value)}
+            onChange={(e) => setcurrency(e.target.value)}
           >
             <option value="All">All</option>
-            {coins.map((i, index) => {
-              return (
-                <option key={index} value={i.name}>
-                  {i.name}
-                </option>
-              );
-            })}
+            {currencies.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
           </select>
         </div>
       </div>

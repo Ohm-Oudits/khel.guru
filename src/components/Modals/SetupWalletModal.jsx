@@ -1,32 +1,14 @@
-import React, { useState } from "react";
-import apiService from "../../config/api";
-import LoadingSpinner from "../LoadingSpinner";
+import React from "react";
+import { useNavigate } from "react-router-dom";
 
-const SetupWalletModal = ({ onClose, onSuccess }) => {
-  const [amount, setAmount] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+// Wallet accounts are provisioned automatically at signup; deposits run
+// through the cashier's payment-intent flow rather than an instant credit.
+const SetupWalletModal = ({ onClose }) => {
+  const navigate = useNavigate();
 
-  const handleSetup = async (e) => {
-    e.preventDefault();
-    if (Number(amount) <= 0) {
-      setError("Initial deposit must be greater than zero.");
-      return;
-    }
-    setError("");
-    setLoading(true);
-    try {
-      const res = await apiService.post("/wallet/deposit", {
-        amount: Number(amount),
-      });
-      setLoading(false);
-      setAmount("");
-      onSuccess(res.data.balance);
-      onClose();
-    } catch (err) {
-      setLoading(false);
-      setError(err.response?.data?.error || "Wallet setup failed");
-    }
+  const openCashier = () => {
+    onClose();
+    navigate("/wallet");
   };
 
   return (
@@ -39,39 +21,19 @@ const SetupWalletModal = ({ onClose, onSuccess }) => {
           &times;
         </button>
         <h2 className="text-2xl font-bold mb-2 text-text-primary text-center">
-          Setup Your Wallet
+          Your Wallet Is Ready
         </h2>
         <p className="text-center text-text-tertiary mb-6">
-          Make your first deposit to get started.
+          Make your first deposit from the cashier — UPI sandbox or crypto
+          testnet, your pick.
         </p>
-        <form onSubmit={handleSetup} className="flex flex-col gap-4">
-          <input
-            type="number"
-            min="1"
-            className="p-3 rounded-lg bg-background-surface border-2 border-border-primary text-text-primary focus:border-interactive-primary outline-none transition-colors"
-            placeholder="Enter initial deposit amount"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            required
-            autoFocus
-          />
-          {error && (
-            <div className="text-interactive-error text-sm text-center">
-              {error}
-            </div>
-          )}
-          <button
-            type="submit"
-            className="bg-interactive-primary hover:bg-interactive-primaryHover text-white font-bold py-3 rounded-lg transition-transform transform hover:scale-105 disabled:opacity-50"
-            disabled={loading || !amount}
-          >
-            {loading ? (
-              <LoadingSpinner size="sm" showText={false} />
-            ) : (
-              "Create & Deposit"
-            )}
-          </button>
-        </form>
+        <button
+          type="button"
+          onClick={openCashier}
+          className="w-full bg-interactive-primary hover:bg-interactive-primaryHover text-white font-bold py-3 rounded-lg transition-transform transform hover:scale-105"
+        >
+          Open Cashier
+        </button>
       </div>
     </div>
   );

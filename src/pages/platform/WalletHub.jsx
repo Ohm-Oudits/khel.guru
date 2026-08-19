@@ -9,6 +9,16 @@ import CryptoDepositPanel from "../../components/platform/CryptoDepositPanel";
 import apiService from "../../config/api";
 import { getSocket } from "../../socket/socket";
 import { walletActionCards } from "../../config/platformNavigation";
+import {
+  onWalletRefresh,
+  requestWalletRefresh,
+} from "../../utils/walletEvents";
+
+const CASHIER_TABS = [
+  { key: "upi", label: "Deposit · UPI" },
+  { key: "crypto", label: "Deposit · Crypto" },
+  { key: "withdraw", label: "Withdraw" },
+];
 
 const INTENT_POLL_MS = 2000;
 const INTENT_POLL_MAX_MS = 60000;
@@ -35,6 +45,12 @@ const WalletHub = () => {
   const [payerVpa, setPayerVpa] = useState("");
   const [confirmingPayment, setConfirmingPayment] = useState(false);
   const [countdown, setCountdown] = useState("");
+  const [cashierTab, setCashierTab] = useState("upi");
+  const [payoutAmount, setPayoutAmount] = useState("");
+  const [payoutVpa, setPayoutVpa] = useState("");
+  const [payoutMessage, setPayoutMessage] = useState("");
+  const [payoutError, setPayoutError] = useState("");
+  const [submittingPayout, setSubmittingPayout] = useState(false);
   const pollStartedAtRef = useRef(null);
 
   const loadWalletOverview = async () => {
@@ -58,10 +74,12 @@ const WalletHub = () => {
   useEffect(() => {
     if (!user) {
       setWalletOverview(null);
-      return;
+      return undefined;
     }
 
     loadWalletOverview();
+    // Bets, settlements, and other surfaces broadcast refresh requests.
+    return onWalletRefresh(loadWalletOverview);
   }, [user]);
 
   const openTab = (tab) => {
@@ -76,6 +94,7 @@ const WalletHub = () => {
         `Deposit of ${Number(intent.amount).toFixed(2)} credited successfully.`
       );
       loadWalletOverview();
+      requestWalletRefresh();
     } else if (intent.status === "failed") {
       setCashierMessage(
         intent.failureReason === "amount_mismatch"
@@ -138,6 +157,35 @@ const WalletHub = () => {
       );
     } finally {
       setConfirmingPayment(false);
+    }
+  };
+
+  const handlePayoutRequest = async (event) => {
+    event.preventDefault();
+    setPayoutError("");
+    setPayoutMessage("");
+    setSubmittingPayout(true);
+
+    try {
+      await apiService.cashier.createPayoutRequest({
+        amount: Number(payoutAmount),
+        method: "upi",
+        destination: { vpa: payoutVpa },
+      });
+      setPayoutAmount("");
+      setPayoutMessage(
+        "Payout requested — funds are held while the team reviews it."
+      );
+      loadWalletOverview();
+      requestWalletRefresh();
+    } catch (error) {
+      setPayoutError(
+        error.response?.data?.error ||
+          error.response?.data?.message ||
+          "Payout request failed."
+      );
+    } finally {
+      setSubmittingPayout(false);
     }
   };
 
@@ -248,6 +296,14 @@ const WalletHub = () => {
                 {walletOverview?.currency || "INR"}
               </span>
             </div>
+            {user?.accountUid ? (
+              <p className="mt-2 text-xs text-text-tertiary">
+                Account ID:{" "}
+                <span className="font-mono text-text-secondary">
+                  {user.accountUid}
+                </span>
+              </p>
+            ) : null}
             <p className="mt-3 text-sm text-text-secondary">
               Cash, vault, and demo balances now resolve from the wallet account
               overview instead of an old single-balance endpoint.
@@ -302,8 +358,26 @@ const WalletHub = () => {
                 Transaction History
               </button>
             </div>
+            <div className="mt-6 flex flex-wrap gap-2">
+              {CASHIER_TABS.map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setCashierTab(tab.key)}
+                  className={`rounded-full px-4 py-2 text-sm font-bold transition ${
+                    cashierTab === tab.key
+                      ? "bg-brand-primary text-text-inverse"
+                      : "border border-white/10 bg-white/5 text-white hover:bg-white/10"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+            {cashierTab === "upi" ? (
+            <>
             <form
-              className="mt-6 grid gap-3 rounded-2xl border border-white/10 bg-black/20 p-4 md:grid-cols-[1fr_180px_auto]"
+              className="mt-4 grid gap-3 rounded-2xl border border-white/10 bg-black/20 p-4 md:grid-cols-[1fr_180px_auto]"
               onSubmit={handleCashDeposit}
             >
               <label className="text-sm text-text-secondary">
@@ -405,7 +479,72 @@ const WalletHub = () => {
             {cashierMessage ? (
               <p className="mt-3 text-sm text-text-secondary">{cashierMessage}</p>
             ) : null}
-            <CryptoDepositPanel onDepositCredited={loadWalletOverview} />
+            </>
+            ) : null}
+            {cashierTab === "crypto" ? (
+              <CryptoDepositPanel onDepositCredited={loadWalletOverview} />
+            ) : null}
+            {cashierTab === "withdraw" ? (
+              <form
+                className="mt-4 grid gap-3 rounded-2xl border border-white/10 bg-black/20 p-4"
+                onSubmit={handlePayoutRequest}
+              >
+                <p className="text-sm font-bold text-white">
+                  Withdraw via UPI payout request
+                </p>
+                <p className="text-xs text-text-tertiary">
+                  Funds are held from your cash balance and released after the
+                  review team approves the payout. Verified KYC is required.
+                </p>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <label className="text-sm text-text-secondary">
+                    Amount
+                    <input
+                      type="number"
+                      min="1"
+                      step="0.01"
+                      value={payoutAmount}
+                      onChange={(event) => setPayoutAmount(event.target.value)}
+                      className="mt-2 w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none transition focus:border-brand-primary/40"
+                      required
+                    />
+                  </label>
+                  <label className="text-sm text-text-secondary">
+                    Your UPI ID
+                    <input
+                      type="text"
+                      value={payoutVpa}
+                      onChange={(event) => setPayoutVpa(event.target.value)}
+                      placeholder="yourname@bank"
+                      className="mt-2 w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none transition focus:border-brand-primary/40"
+                      required
+                    />
+                  </label>
+                </div>
+                {payoutError ? (
+                  <p className="text-sm text-red-400">{payoutError}</p>
+                ) : null}
+                {payoutMessage ? (
+                  <p className="text-sm text-green-400">{payoutMessage}</p>
+                ) : null}
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    type="submit"
+                    disabled={submittingPayout}
+                    className="rounded-2xl bg-brand-primary px-5 py-3 text-sm font-bold text-text-inverse transition hover:bg-interactive-primaryHover disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    {submittingPayout ? "Requesting..." : "Request Payout"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigate("/transactions/withdrawals")}
+                    className="rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-bold text-white transition hover:bg-white/10"
+                  >
+                    Withdrawal History
+                  </button>
+                </div>
+              </form>
+            ) : null}
           </PlatformPanel>
 
           <PlatformPanel>

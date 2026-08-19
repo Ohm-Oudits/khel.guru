@@ -111,6 +111,7 @@ export const API_ENDPOINTS = {
     DEPOSIT: "/wallet/deposit",
     DEMO_TOP_UP: "/wallet/demo/top-up",
     WITHDRAW: "/wallet/withdraw",
+    VAULT_TRANSFER: "/wallet/vault/transfer",
     TRANSACTIONS: "/wallet/transactions",
     LEDGER: "/wallet/ledger",
     CRYPTO_ADDRESSES: "/wallet/crypto/addresses",
@@ -225,6 +226,11 @@ export const apiService = {
       }),
     withdraw: (amount, method) =>
       apiClient.post(API_ENDPOINTS.WALLET.WITHDRAW, { amount, method }),
+    vaultTransfer: (amount, direction) =>
+      apiClient.post(API_ENDPOINTS.WALLET.VAULT_TRANSFER, {
+        amount,
+        direction,
+      }),
     getTransactions: (params) =>
       apiClient.get(API_ENDPOINTS.WALLET.TRANSACTIONS, { params }),
     getLedger: () => apiClient.get(API_ENDPOINTS.WALLET.LEDGER),

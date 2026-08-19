@@ -58,7 +58,7 @@ const Withdrawls = () => {
 
   return (
     <main className="m p-6 max-w-[1200px] flex justify-between mx-auto text-white">
-      <TransactionType type={"Withdrawls"} />
+      <TransactionType type={"Withdrawals"} />
       <section className="max-w-[900px] w-full mx-auto bg-gray-900 p-4 py-6 rounded-md">
         <h2 className="px-2 text-lg font-bold">Withdrawals</h2>
         <div className=" rounded-lg mt-4">

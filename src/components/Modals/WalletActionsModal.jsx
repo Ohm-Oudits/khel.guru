@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import apiService from "../../config/api";
 import LoadingSpinner from "../LoadingSpinner";
 
@@ -48,7 +49,7 @@ const WalletActionsModal = ({ initialBalance, onClose, onSuccess }) => {
         </div>
 
         {activeTab === "deposit" && (
-          <DepositTab onSuccess={onSuccess} onClose={onClose} />
+          <DepositTab onClose={onClose} />
         )}
         {activeTab === "withdraw" && (
           <WithdrawTab
@@ -62,53 +63,30 @@ const WalletActionsModal = ({ initialBalance, onClose, onSuccess }) => {
   );
 };
 
-const DepositTab = ({ onSuccess, onClose }) => {
-  const [amount, setAmount] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+// Deposits run through the cashier's payment-intent flow (UPI sandbox or
+// crypto testnet) — the legacy instant-credit endpoint is dev-gated.
+const DepositTab = ({ onClose }) => {
+  const navigate = useNavigate();
 
-  const handleDeposit = async (e) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
-    try {
-      const res = await apiService.post("/wallet/deposit", {
-        amount: Number(amount),
-      });
-      setLoading(false);
-      onSuccess(res.data.balance);
-      onClose();
-    } catch (err) {
-      setLoading(false);
-      setError(err.response?.data?.error || "Deposit failed");
-    }
+  const openCashier = () => {
+    onClose();
+    navigate("/wallet");
   };
 
   return (
-    <form onSubmit={handleDeposit} className="flex flex-col gap-4">
-      <input
-        type="number"
-        min="1"
-        className="p-3 rounded-lg bg-background-surface border-2 border-border-primary text-text-primary focus:border-interactive-primary outline-none transition-colors"
-        placeholder="Enter deposit amount"
-        value={amount}
-        onChange={(e) => setAmount(e.target.value)}
-        required
-        autoFocus
-      />
-      {error && (
-        <div className="text-interactive-error text-sm text-center">
-          {error}
-        </div>
-      )}
+    <div className="flex flex-col gap-4 text-center">
+      <p className="text-text-tertiary text-sm">
+        Deposits are handled in the cashier — UPI, bank transfer, or crypto,
+        with live status tracking.
+      </p>
       <button
-        type="submit"
-        className="bg-interactive-primary hover:bg-interactive-primaryHover text-white font-bold py-3 rounded-lg transition-transform transform hover:scale-105 disabled:opacity-50"
-        disabled={loading || !amount}
+        type="button"
+        onClick={openCashier}
+        className="bg-interactive-primary hover:bg-interactive-primaryHover text-white font-bold py-3 rounded-lg transition-transform transform hover:scale-105"
       >
-        {loading ? <LoadingSpinner size="sm" showText={false} /> : "Deposit"}
+        Open Cashier
       </button>
-    </form>
+    </div>
   );
 };
 
