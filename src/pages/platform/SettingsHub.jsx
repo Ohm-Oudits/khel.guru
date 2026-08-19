@@ -14,6 +14,27 @@ const SettingsHub = () => {
   const user = useSelector((state) => state.auth?.user);
   const [overview, setOverview] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [demoTopUpAmount, setDemoTopUpAmount] = useState("10000");
+  const [submittingDemoTopUp, setSubmittingDemoTopUp] = useState(false);
+  const [demoMessage, setDemoMessage] = useState("");
+
+  const loadOverview = async () => {
+    if (!user) {
+      setOverview(null);
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const response = await apiService.account.getOverview();
+      setOverview(response.data);
+    } catch {
+      setOverview(null);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!user) {
@@ -21,19 +42,26 @@ const SettingsHub = () => {
       return;
     }
 
-    setLoading(true);
-    apiService.account
-      .getOverview()
-      .then((response) => {
-        setOverview(response.data);
-      })
-      .catch(() => {
-        setOverview(null);
-      })
-      .finally(() => {
-        setLoading(false);
-      });
+    loadOverview();
   }, [user]);
+
+  const handleDemoTopUp = async (event) => {
+    event.preventDefault();
+    setSubmittingDemoTopUp(true);
+    setDemoMessage("");
+
+    try {
+      await apiService.wallet.topUpDemo(demoTopUpAmount, "profile");
+      await loadOverview();
+      setDemoMessage("Demo balance credited successfully.");
+    } catch (error) {
+      setDemoMessage(
+        error.response?.data?.error || error.response?.data?.message || "Demo top up failed."
+      );
+    } finally {
+      setSubmittingDemoTopUp(false);
+    }
+  };
 
   return (
     <PlatformPage>
@@ -114,6 +142,48 @@ const SettingsHub = () => {
                 </p>
               </div>
             </div>
+            <form
+              className="mt-5 rounded-2xl border border-white/10 bg-black/20 p-4"
+              onSubmit={handleDemoTopUp}
+            >
+              <div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-end">
+                <label className="text-sm text-text-secondary">
+                  Add dummy money from profile
+                  <input
+                    type="number"
+                    min="1"
+                    step="0.01"
+                    value={demoTopUpAmount}
+                    onChange={(event) => setDemoTopUpAmount(event.target.value)}
+                    className="mt-2 w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none transition focus:border-brand-primary/40"
+                  />
+                </label>
+                <button
+                  type="submit"
+                  disabled={submittingDemoTopUp}
+                  className="rounded-2xl bg-brand-primary px-5 py-3 text-sm font-bold text-text-inverse transition hover:bg-interactive-primaryHover disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  {submittingDemoTopUp ? "Adding..." : "Add Demo Funds"}
+                </button>
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-4 text-sm text-text-secondary">
+                <span>
+                  Demo balance:{" "}
+                  {overview?.wallet?.demoBalance !== undefined
+                    ? overview.wallet.demoBalance.toFixed(2)
+                    : "Unavailable"}
+                </span>
+                <span>
+                  Cash balance:{" "}
+                  {overview?.wallet?.cashBalance !== undefined
+                    ? overview.wallet.cashBalance.toFixed(2)
+                    : "Unavailable"}
+                </span>
+              </div>
+              {demoMessage ? (
+                <p className="mt-3 text-sm text-text-secondary">{demoMessage}</p>
+              ) : null}
+            </form>
           </PlatformPanel>
 
           <PlatformPanel>
@@ -144,6 +214,13 @@ const SettingsHub = () => {
                   {overview?.responsibleGaming?.sessionLimitMinutes ??
                     "Not set"}{" "}
                   minutes
+                </p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                <h3 className="text-lg font-bold text-white">Hybrid Wallet</h3>
+                <p className="mt-2 text-sm text-text-secondary">
+                  Profile-side demo credits and wallet-side cash deposits can now
+                  coexist without mixing sandbox and live balances.
                 </p>
               </div>
             </div>

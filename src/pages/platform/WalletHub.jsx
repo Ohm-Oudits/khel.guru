@@ -13,6 +13,28 @@ const WalletHub = () => {
   const user = useSelector((state) => state.auth?.user);
   const [walletOverview, setWalletOverview] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [depositAmount, setDepositAmount] = useState("1000");
+  const [depositMethod, setDepositMethod] = useState("upi");
+  const [submittingDeposit, setSubmittingDeposit] = useState(false);
+  const [cashierMessage, setCashierMessage] = useState("");
+
+  const loadWalletOverview = async () => {
+    if (!user) {
+      setWalletOverview(null);
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const response = await apiService.wallet.getAccounts();
+      setWalletOverview(response.data);
+    } catch {
+      setWalletOverview(null);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!user) {
@@ -20,22 +42,29 @@ const WalletHub = () => {
       return;
     }
 
-    setLoading(true);
-    apiService.wallet
-      .getAccounts()
-      .then((response) => {
-        setWalletOverview(response.data);
-      })
-      .catch(() => {
-        setWalletOverview(null);
-      })
-      .finally(() => {
-        setLoading(false);
-      });
+    loadWalletOverview();
   }, [user]);
 
   const openTab = (tab) => {
     navigate({ pathname: "/wallet", search: `?tab=${tab}` });
+  };
+
+  const handleCashDeposit = async (event) => {
+    event.preventDefault();
+    setSubmittingDeposit(true);
+    setCashierMessage("");
+
+    try {
+      await apiService.wallet.deposit(depositAmount, depositMethod, "hybrid-wallet");
+      await loadWalletOverview();
+      setCashierMessage("Cash deposit credited successfully.");
+    } catch (error) {
+      setCashierMessage(
+        error.response?.data?.error || error.response?.data?.message || "Cash deposit failed."
+      );
+    } finally {
+      setSubmittingDeposit(false);
+    }
   };
 
   return (
@@ -140,6 +169,46 @@ const WalletHub = () => {
                 Transaction History
               </button>
             </div>
+            <form
+              className="mt-6 grid gap-3 rounded-2xl border border-white/10 bg-black/20 p-4 md:grid-cols-[1fr_180px_auto]"
+              onSubmit={handleCashDeposit}
+            >
+              <label className="text-sm text-text-secondary">
+                Real-money deposit amount
+                <input
+                  type="number"
+                  min="1"
+                  step="0.01"
+                  value={depositAmount}
+                  onChange={(event) => setDepositAmount(event.target.value)}
+                  className="mt-2 w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none transition focus:border-brand-primary/40"
+                />
+              </label>
+              <label className="text-sm text-text-secondary">
+                Deposit method
+                <select
+                  value={depositMethod}
+                  onChange={(event) => setDepositMethod(event.target.value)}
+                  className="mt-2 w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none transition focus:border-brand-primary/40"
+                >
+                  <option value="upi">UPI</option>
+                  <option value="bank_transfer">Bank Transfer</option>
+                  <option value="card">Card</option>
+                </select>
+              </label>
+              <div className="flex items-end">
+                <button
+                  type="submit"
+                  disabled={submittingDeposit}
+                  className="w-full rounded-2xl bg-brand-primary px-5 py-3 text-sm font-bold text-text-inverse transition hover:bg-interactive-primaryHover disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  {submittingDeposit ? "Depositing..." : "Deposit Cash"}
+                </button>
+              </div>
+            </form>
+            {cashierMessage ? (
+              <p className="mt-3 text-sm text-text-secondary">{cashierMessage}</p>
+            ) : null}
           </PlatformPanel>
 
           <PlatformPanel>
@@ -158,6 +227,10 @@ const WalletHub = () => {
                 {walletOverview?.totals?.locked !== undefined
                   ? walletOverview.totals.locked.toFixed(2)
                   : "Unavailable"}
+              </p>
+              <p className="mt-3 text-xs text-text-tertiary">
+                Demo funds are managed from the profile side so sandbox play stays
+                separate from live-money deposits.
               </p>
             </div>
             <div className="mt-5 grid gap-3">

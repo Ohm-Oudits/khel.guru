@@ -109,6 +109,7 @@ export const API_ENDPOINTS = {
     BALANCE: "/wallet/balance",
     ACCOUNTS: "/wallet/accounts",
     DEPOSIT: "/wallet/deposit",
+    DEMO_TOP_UP: "/wallet/demo/top-up",
     WITHDRAW: "/wallet/withdraw",
     TRANSACTIONS: "/wallet/transactions",
     LEDGER: "/wallet/ledger",
@@ -202,8 +203,17 @@ export const apiService = {
   wallet: {
     getBalance: () => apiClient.get(API_ENDPOINTS.WALLET.BALANCE),
     getAccounts: () => apiClient.get(API_ENDPOINTS.WALLET.ACCOUNTS),
-    deposit: (amount, method) =>
-      apiClient.post(API_ENDPOINTS.WALLET.DEPOSIT, { amount, method }),
+    deposit: (amount, method = "upi", provider = "manual") =>
+      apiClient.post(API_ENDPOINTS.WALLET.DEPOSIT, {
+        amount,
+        method,
+        provider,
+      }),
+    topUpDemo: (amount, source = "profile") =>
+      apiClient.post(API_ENDPOINTS.WALLET.DEMO_TOP_UP, {
+        amount,
+        source,
+      }),
     withdraw: (amount, method) =>
       apiClient.post(API_ENDPOINTS.WALLET.WITHDRAW, { amount, method }),
     getTransactions: (params) =>
