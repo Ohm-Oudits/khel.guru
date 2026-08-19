@@ -118,6 +118,12 @@ export const API_ENDPOINTS = {
     CRYPTO_SIMULATE: "/wallet/crypto/deposits/simulate",
   },
 
+  // Cashier endpoints (payment intents + payout requests)
+  CASHIER: {
+    DEPOSIT_INTENTS: "/cashier/deposit-intents",
+    PAYOUT_REQUESTS: "/cashier/payout-requests",
+  },
+
   ACCOUNT: {
     OVERVIEW: "/account/overview",
     KYC: "/account/kyc",
@@ -231,6 +237,28 @@ export const apiService = {
         chain,
         amountCrypto,
       }),
+  },
+
+  cashier: {
+    createDepositIntent: (data) =>
+      apiClient.post(API_ENDPOINTS.CASHIER.DEPOSIT_INTENTS, data),
+    listDepositIntents: (params) =>
+      apiClient.get(API_ENDPOINTS.CASHIER.DEPOSIT_INTENTS, { params }),
+    getDepositIntent: (intentId) =>
+      apiClient.get(`${API_ENDPOINTS.CASHIER.DEPOSIT_INTENTS}/${intentId}`),
+    simulateDepositIntent: (intentId, data) =>
+      apiClient.post(
+        `${API_ENDPOINTS.CASHIER.DEPOSIT_INTENTS}/${intentId}/simulate`,
+        data
+      ),
+    createPayoutRequest: (data) =>
+      apiClient.post(API_ENDPOINTS.CASHIER.PAYOUT_REQUESTS, data),
+    listPayoutRequests: (params) =>
+      apiClient.get(API_ENDPOINTS.CASHIER.PAYOUT_REQUESTS, { params }),
+    cancelPayoutRequest: (payoutId) =>
+      apiClient.post(
+        `${API_ENDPOINTS.CASHIER.PAYOUT_REQUESTS}/${payoutId}/cancel`
+      ),
   },
 
   account: {

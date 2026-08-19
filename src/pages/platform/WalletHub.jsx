@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import PlatformHero from "../../components/platform/PlatformHero";
@@ -7,7 +7,19 @@ import PlatformPanel from "../../components/platform/PlatformPanel";
 import PlatformStateCard from "../../components/platform/PlatformStateCard";
 import CryptoDepositPanel from "../../components/platform/CryptoDepositPanel";
 import apiService from "../../config/api";
+import { getSocket } from "../../socket/socket";
 import { walletActionCards } from "../../config/platformNavigation";
+
+const INTENT_POLL_MS = 2000;
+const INTENT_POLL_MAX_MS = 60000;
+
+const formatCountdown = (expiresAt) => {
+  const remainingMs = new Date(expiresAt).getTime() - Date.now();
+  if (remainingMs <= 0) return "expired";
+  const minutes = Math.floor(remainingMs / 60000);
+  const seconds = Math.floor((remainingMs % 60000) / 1000);
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+};
 
 const WalletHub = () => {
   const navigate = useNavigate();
@@ -18,6 +30,12 @@ const WalletHub = () => {
   const [depositMethod, setDepositMethod] = useState("upi");
   const [submittingDeposit, setSubmittingDeposit] = useState(false);
   const [cashierMessage, setCashierMessage] = useState("");
+  const [activeIntent, setActiveIntent] = useState(null);
+  const [checkout, setCheckout] = useState(null);
+  const [payerVpa, setPayerVpa] = useState("");
+  const [confirmingPayment, setConfirmingPayment] = useState(false);
+  const [countdown, setCountdown] = useState("");
+  const pollStartedAtRef = useRef(null);
 
   const loadWalletOverview = async () => {
     if (!user) {
@@ -50,23 +68,137 @@ const WalletHub = () => {
     navigate({ pathname: "/wallet", search: `?tab=${tab}` });
   };
 
+  const applyIntentUpdate = (intent, balance) => {
+    setActiveIntent(intent);
+
+    if (intent.status === "succeeded") {
+      setCashierMessage(
+        `Deposit of ${Number(intent.amount).toFixed(2)} credited successfully.`
+      );
+      loadWalletOverview();
+    } else if (intent.status === "failed") {
+      setCashierMessage(
+        intent.failureReason === "amount_mismatch"
+          ? "Deposit failed: amount mismatch reported by provider."
+          : "Deposit failed. You can retry with a new deposit."
+      );
+    } else if (intent.status === "expired") {
+      setCashierMessage("Deposit intent expired before payment. Start a new one.");
+    }
+
+    if (balance !== undefined && balance !== null) {
+      setWalletOverview((current) =>
+        current ? { ...current, cashBalance: balance } : current
+      );
+    }
+  };
+
   const handleCashDeposit = async (event) => {
     event.preventDefault();
     setSubmittingDeposit(true);
     setCashierMessage("");
+    setActiveIntent(null);
+    setCheckout(null);
+    setPayerVpa("");
 
     try {
-      await apiService.wallet.deposit(depositAmount, depositMethod, "hybrid-wallet");
-      await loadWalletOverview();
-      setCashierMessage("Cash deposit credited successfully.");
+      const response = await apiService.cashier.createDepositIntent({
+        amount: depositAmount,
+        method: depositMethod,
+      });
+      setActiveIntent(response.data.intent);
+      setCheckout(response.data.checkout);
+      pollStartedAtRef.current = Date.now();
     } catch (error) {
       setCashierMessage(
-        error.response?.data?.error || error.response?.data?.message || "Cash deposit failed."
+        error.response?.data?.error ||
+          error.response?.data?.message ||
+          "Could not start the deposit."
       );
     } finally {
       setSubmittingDeposit(false);
     }
   };
+
+  const handleConfirmPayment = async () => {
+    if (!activeIntent) return;
+    setConfirmingPayment(true);
+
+    try {
+      const response = await apiService.cashier.simulateDepositIntent(
+        activeIntent.id,
+        { payerVpa }
+      );
+      applyIntentUpdate(response.data.intent, response.data.balance);
+    } catch (error) {
+      setCashierMessage(
+        error.response?.data?.error ||
+          error.response?.data?.message ||
+          "Payment confirmation failed."
+      );
+    } finally {
+      setConfirmingPayment(false);
+    }
+  };
+
+  const intentPending = activeIntent?.status === "processing";
+
+  // Poll the intent while a payment is pending; the socket push below is a
+  // faster path but polling is the reliable one.
+  useEffect(() => {
+    if (!intentPending) return undefined;
+
+    const interval = setInterval(async () => {
+      if (Date.now() - (pollStartedAtRef.current || 0) > INTENT_POLL_MAX_MS) {
+        clearInterval(interval);
+        return;
+      }
+
+      try {
+        const response = await apiService.cashier.getDepositIntent(
+          activeIntent.id
+        );
+        if (response.data.intent.status !== "processing") {
+          applyIntentUpdate(response.data.intent);
+        }
+      } catch {
+        // transient poll failures are fine; next tick retries
+      }
+    }, INTENT_POLL_MS);
+
+    return () => clearInterval(interval);
+  }, [intentPending, activeIntent?.id]);
+
+  useEffect(() => {
+    if (!intentPending) return undefined;
+
+    const tick = setInterval(
+      () => setCountdown(formatCountdown(activeIntent.expiresAt)),
+      1000
+    );
+    setCountdown(formatCountdown(activeIntent.expiresAt));
+
+    return () => clearInterval(tick);
+  }, [intentPending, activeIntent?.expiresAt]);
+
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return undefined;
+
+    const onDepositIntent = (payload) => {
+      if (!payload?.intentId) return;
+      setActiveIntent((current) => {
+        if (!current || current.id !== payload.intentId) return current;
+        return { ...current, status: payload.status };
+      });
+      if (payload.status === "succeeded") {
+        loadWalletOverview();
+      }
+    };
+
+    socket.on("wallet:deposit_intent", onDepositIntent);
+    return () => socket.off("wallet:deposit_intent", onDepositIntent);
+  }, [user]);
 
   return (
     <PlatformPage>
@@ -203,10 +335,73 @@ const WalletHub = () => {
                   disabled={submittingDeposit}
                   className="w-full rounded-2xl bg-brand-primary px-5 py-3 text-sm font-bold text-text-inverse transition hover:bg-interactive-primaryHover disabled:cursor-not-allowed disabled:opacity-70"
                 >
-                  {submittingDeposit ? "Depositing..." : "Deposit Cash"}
+                  {submittingDeposit ? "Starting..." : "Deposit Cash"}
                 </button>
               </div>
             </form>
+            {intentPending && checkout ? (
+              <div className="mt-4 rounded-2xl border border-brand-primary/30 bg-black/30 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm font-bold text-white">
+                    UPI payment pending — {Number(activeIntent.amount).toFixed(2)}{" "}
+                    {activeIntent.currency}
+                  </p>
+                  <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-text-tertiary">
+                    Expires in {countdown}
+                  </span>
+                </div>
+                <p className="mt-2 text-xs text-text-tertiary">
+                  Pay to <span className="font-mono text-white">{checkout.payeeVpa}</span>
+                </p>
+                <button
+                  type="button"
+                  className="mt-2 max-w-full truncate rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-left font-mono text-xs text-text-secondary transition hover:border-brand-primary/40"
+                  onClick={() => navigator.clipboard.writeText(checkout.intentUrl)}
+                  title="Copy UPI intent link"
+                >
+                  {checkout.intentUrl}
+                </button>
+                <div className="mt-3 grid gap-3 md:grid-cols-[1fr_auto]">
+                  <label className="text-sm text-text-secondary">
+                    Your UPI ID
+                    <input
+                      type="text"
+                      value={payerVpa}
+                      onChange={(event) => setPayerVpa(event.target.value)}
+                      placeholder="yourname@bank"
+                      className="mt-2 w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none transition focus:border-brand-primary/40"
+                    />
+                  </label>
+                  <div className="flex items-end">
+                    <button
+                      type="button"
+                      disabled={confirmingPayment}
+                      onClick={handleConfirmPayment}
+                      className="w-full rounded-2xl bg-brand-primary px-5 py-3 text-sm font-bold text-text-inverse transition hover:bg-interactive-primaryHover disabled:cursor-not-allowed disabled:opacity-70"
+                    >
+                      {confirmingPayment ? "Confirming..." : "I have paid"}
+                    </button>
+                  </div>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {[checkout.successVpa, checkout.failureVpa]
+                    .filter(Boolean)
+                    .map((vpa) => (
+                      <button
+                        key={vpa}
+                        type="button"
+                        onClick={() => setPayerVpa(vpa)}
+                        className="rounded-full border border-white/10 bg-white/5 px-3 py-1 font-mono text-[11px] text-text-tertiary transition hover:border-brand-primary/40"
+                      >
+                        {vpa}
+                      </button>
+                    ))}
+                  <span className="py-1 text-[11px] text-text-tertiary">
+                    sandbox hint VPAs
+                  </span>
+                </div>
+              </div>
+            ) : null}
             {cashierMessage ? (
               <p className="mt-3 text-sm text-text-secondary">{cashierMessage}</p>
             ) : null}
