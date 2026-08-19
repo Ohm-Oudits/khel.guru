@@ -1,5 +1,5 @@
 /* eslint-disable */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import "../../../styles/Frame.css";
 import "../../../styles/Wheel.css";
 import FairnessModal from "../../Frame/FairnessModal";
@@ -17,9 +17,13 @@ import {
   disconnectPumpSocket,
   getPumpSocket,
   initializePumpSocket,
+  placePumpBet,
+  cashOutPump,
+  bustPump,
 } from "../../../socket/games/pump";
 import { useSelector } from "react-redux";
 import { toast } from "react-toastify";
+import { requestWalletRefresh } from "../../../utils/walletEvents";
 
 const Frame = () => {
   // main states
@@ -79,11 +83,54 @@ const Frame = () => {
 
   const navigate = useNavigate();
   const token = useSelector((state) => state.auth?.token);
+
+  // True while a stake is committed to the running round and not yet
+  // settled (cashed out / popped / rejected). Guards against emitting a
+  // second debit or a second settlement for the same round.
+  const activeBetRef = useRef(false);
+
+  // Attach wallet settlement listeners once per socket instance.
+  const attachWalletHandlers = () => {
+    const pumpSocket = getPumpSocket();
+    if (!pumpSocket || pumpSocket.__walletHandlersBound) return;
+    pumpSocket.__walletHandlersBound = true;
+
+    pumpSocket.on("bet_placed", () => {
+      // Stake debited server-side; refresh the balance readout.
+      requestWalletRefresh();
+    });
+
+    pumpSocket.on("cashout_success", ({ payout, multiplier }) => {
+      activeBetRef.current = false;
+      toast.success(
+        `Cashed out at ${Number(multiplier).toFixed(2)}x for ${Number(
+          payout
+        ).toFixed(2)}`
+      );
+      requestWalletRefresh();
+    });
+
+    pumpSocket.on("bet_busted", () => {
+      activeBetRef.current = false;
+      requestWalletRefresh();
+    });
+
+    pumpSocket.on("error", ({ message }) => {
+      // A rejected bet (e.g. insufficient balance) left no stake in the
+      // round; reset the bet state and resync the balance readout.
+      toast.error(message);
+      activeBetRef.current = false;
+      setBettingStarted(false);
+      requestWalletRefresh();
+    });
+  };
+
   const initSocket = () => {
     const pumpSocket = getPumpSocket();
     if (!pumpSocket) {
       initializePumpSocket(token);
     }
+    attachWalletHandlers();
   };
 
   useEffect(() => {
@@ -132,6 +179,24 @@ const Frame = () => {
     }
 
     initSocket();
+
+    const betAmount = parseFloat(bet);
+    if (!betAmount || betAmount <= 0) {
+      toast.error("Please enter a valid bet amount");
+      return;
+    }
+
+    if (activeBetRef.current) {
+      return;
+    }
+
+    // Commit the stake for this round exactly once (demo wallet).
+    if (!placePumpBet(betAmount, "demo")) {
+      toast.error("Failed to place bet. Please try again.");
+      return;
+    }
+    activeBetRef.current = true;
+
     setBettingStarted(true);
     startGame();
   };
@@ -154,11 +219,21 @@ const Frame = () => {
   };
 
   const handleCheckout = () => {
+    // Capture the cashout multiplier before the balloon resets.
+    const cashoutMultiplier = Number(balloonNumber);
+
+    // Cash out the committed stake exactly once (server credits
+    // stake x multiplier and rejects a second attempt).
+    if (activeBetRef.current) {
+      activeBetRef.current = false;
+      cashOutPump(cashoutMultiplier);
+    }
+
     setBalloonNumber(1.01);
     setCurrentHistory((prev) => [
       ...prev,
       {
-        result: Number(balloonNumber),
+        result: cashoutMultiplier,
         color: "green",
       },
     ]);
@@ -176,6 +251,15 @@ const Frame = () => {
       setStartAutoBet(false);
     }
   };
+
+  // The balloon popped with our stake still in play: forfeit it (bust).
+  useEffect(() => {
+    if (isPopped && activeBetRef.current) {
+      activeBetRef.current = false;
+      bustPump();
+      requestWalletRefresh();
+    }
+  }, [isPopped]);
 
   const [number, setNumber] = useState(null);
   const [finalNumber, setFinalNumber] = useState(null);

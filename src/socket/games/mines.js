@@ -43,3 +43,10 @@ export const disconnectMinesSocket = () => {
     minesSocket = null;
   }
 };
+
+// Start a round: commits the stake (debited server-side from walletType).
+export const addMinesGame = (betAmount, mines, walletType = "demo") => {
+  if (!minesSocket) return false;
+  minesSocket.emit("add_game", { betAmount, mines, walletType });
+  return true;
+};

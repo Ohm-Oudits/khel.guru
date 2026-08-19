@@ -9,6 +9,7 @@ import {
   onError,
   removeAllListeners,
 } from "../../../socket/games/roulette";
+import { requestWalletRefresh } from "../../../utils/walletEvents";
 import { useEffect, useState, useCallback, useRef } from "react";
 
 function Game({
@@ -54,6 +55,8 @@ function Game({
 
     onBetResult((result) => {
       console.log("[Roulette Game] Received bet result:", result);
+      // Reflect the debit/credit in the in-game balance readout.
+      requestWalletRefresh();
       if (result.success) {
         setGameResult(result);
         setBettingStarted(false);
@@ -114,6 +117,9 @@ function Game({
     onError((error) => {
       console.error("[Roulette Game] Socket error:", error);
       toast.error(error);
+      // A rejected bet (e.g. insufficient balance) left the wallet untouched;
+      // resync the readout in case it drifted.
+      requestWalletRefresh();
       setBettingStarted(false);
       setIsProcessing(false);
       setProcessingState?.(false);
@@ -191,23 +197,28 @@ function Game({
         setProcessingState?.(true);
         setIsBettingEnabled(false);
         setBettingEnabledState?.(false);
-        placeBet(currentBets, totalAmount, (result) => {
-          console.log("[Roulette Game] Bet placement callback:", result);
-          if (!result.success) {
-            console.error(
-              "[Roulette Game] Failed to place bet:",
-              result.message
-            );
-            setIsProcessing(false);
-            setProcessingState?.(false);
-            setBettingStarted(false);
-            setIsBettingEnabled(true);
-            setBettingEnabledState?.(true);
-            toast.error(
-              result.message || "Failed to place bet. Please try again."
-            );
-          }
-        });
+        placeBet(
+          currentBets,
+          totalAmount,
+          (result) => {
+            console.log("[Roulette Game] Bet placement callback:", result);
+            if (!result.success) {
+              console.error(
+                "[Roulette Game] Failed to place bet:",
+                result.message
+              );
+              setIsProcessing(false);
+              setProcessingState?.(false);
+              setBettingStarted(false);
+              setIsBettingEnabled(true);
+              setBettingEnabledState?.(true);
+              toast.error(
+                result.message || "Failed to place bet. Please try again."
+              );
+            }
+          },
+          "demo"
+        );
       } else {
         console.warn("[Roulette Game] No bets placed");
         toast.error("Please place a bet first");

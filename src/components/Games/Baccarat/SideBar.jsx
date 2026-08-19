@@ -1,4 +1,6 @@
 import { useState, useRef } from "react";
+import GameBalanceBadge from "../shared/GameBalanceBadge";
+
 const SideBar = ({
   theatreMode,
   setBetMode,
@@ -68,6 +70,7 @@ const SideBar = ({
           </div>
 
           <>
+            <GameBalanceBadge className="mb-2" />
             {/* Chip Selector */}
             <div className="mb-4">
               <span className="flex">

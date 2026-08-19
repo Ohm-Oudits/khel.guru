@@ -110,13 +110,15 @@ export const startGame = (
   betAmount,
   isAutoBet = false,
   numberOfBets = 0,
-  callback
+  callback,
+  walletType = "demo"
 ) => {
   if (scratchSocket) {
     scratchSocket.emit("start_game", {
       betAmount: parseFloat(betAmount),
       isAutoBet,
       numberOfBets: isAutoBet ? parseInt(numberOfBets) : 0,
+      walletType,
     });
     if (callback) {
       scratchSocket.once("game_started", callback);

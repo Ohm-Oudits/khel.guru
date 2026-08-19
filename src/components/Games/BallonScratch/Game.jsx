@@ -16,6 +16,7 @@ import {
   removeAllGameListeners,
 } from "../../../socket/games/scratch";
 import { toast } from "react-toastify";
+import { requestWalletRefresh } from "../../../utils/walletEvents";
 
 const Game = ({
   betStarted,
@@ -126,6 +127,8 @@ const Game = ({
             isAutoBet: game.isAutoBet,
             grid: game.grid,
           });
+          // The stake was just debited: refresh the balance readout.
+          requestWalletRefresh();
           setActiveGame(game);
           setGrid(game.grid);
           setDiamondCounts(game.diamondCounts);
@@ -156,6 +159,8 @@ const Game = ({
         onError(({ message }) => {
           console.error("❌ Game error:", message);
           toast.error(message);
+          // A rejected bet left the wallet untouched; resync the readout.
+          requestWalletRefresh();
           setLoading(false);
           setBettingStarted(false);
           setGameState("idle");
@@ -227,22 +232,30 @@ const Game = ({
         numberOfBets: startAutoBet ? parseInt(nbets) : 0,
       });
 
-      startGame(betAmountNum, startAutoBet, nbets, (response) => {
-        console.log("📥 Game start response:", response);
-        if (response.error) {
-          console.error("❌ Game start error:", response.error);
-          toast.error(response.error);
-          setLoading(false);
-          setBettingStarted(false);
-          setGameState("idle");
-        } else {
-          console.log("✅ Game start successful:", response);
-        }
-      });
+      startGame(
+        betAmountNum,
+        startAutoBet,
+        nbets,
+        (response) => {
+          console.log("📥 Game start response:", response);
+          if (response.error) {
+            console.error("❌ Game start error:", response.error);
+            toast.error(response.error);
+            setLoading(false);
+            setBettingStarted(false);
+            setGameState("idle");
+          } else {
+            console.log("✅ Game start successful:", response);
+          }
+        },
+        "demo"
+      );
 
       const errorHandler = ({ message }) => {
         console.error("❌ Game start error:", message);
         toast.error(message);
+        // A rejected bet left the wallet untouched; resync the readout.
+        requestWalletRefresh();
         setLoading(false);
         setBettingStarted(false);
         setGameState("idle");
@@ -503,33 +516,39 @@ const Game = ({
       setGameState("starting");
       setLoading(true);
 
-      startGame(betAmount, true, remainingAutoBets, async (response) => {
-        if (response.error) {
-          console.error("❌ Auto bet game error:", response.error);
-          toast.error(response.error);
-          setStartAutoBet(false);
+      startGame(
+        betAmount,
+        true,
+        remainingAutoBets,
+        async (response) => {
+          if (response.error) {
+            console.error("❌ Auto bet game error:", response.error);
+            toast.error(response.error);
+            setStartAutoBet(false);
+            setLoading(false);
+            return;
+          }
+
+          console.log("✅ Auto bet game started:", response);
           setLoading(false);
-          return;
-        }
 
-        console.log("✅ Auto bet game started:", response);
-        setLoading(false);
+          await new Promise((resolve) => setTimeout(resolve, 500));
 
-        await new Promise((resolve) => setTimeout(resolve, 500));
+          if (response.game) {
+            await autoRevealBoxes(response.game._id, response.game.grid);
+          }
 
-        if (response.game) {
-          await autoRevealBoxes(response.game._id, response.game.grid);
-        }
+          await new Promise((resolve) => setTimeout(resolve, 4000));
 
-        await new Promise((resolve) => setTimeout(resolve, 4000));
-
-        setRemainingAutoBets((prev) => prev - 1);
-        if (remainingAutoBets > 1) {
-          runAutoBetGame();
-        } else {
-          setStartAutoBet(false);
-        }
-      });
+          setRemainingAutoBets((prev) => prev - 1);
+          if (remainingAutoBets > 1) {
+            runAutoBetGame();
+          } else {
+            setStartAutoBet(false);
+          }
+        },
+        "demo"
+      );
     };
 
     runAutoBetGame();
@@ -543,6 +562,9 @@ const Game = ({
       hasNewGame: !!newGame,
       remainingBets: remainingAutoBets,
     });
+
+    // The round just settled (win credited / loss kept): refresh the balance.
+    requestWalletRefresh();
 
     if (completedGame.winAmount > 0) {
       toast.success(`You won ${completedGame.winAmount}!`);

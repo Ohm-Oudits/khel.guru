@@ -26,6 +26,7 @@ import {
   removeErrorListener,
 } from "../../../socket/games/limbo";
 import { getGameHistory, addToGameHistory } from "../../../utils/gameHistory";
+import { requestWalletRefresh } from "../../../utils/walletEvents";
 import { useSelector } from "react-redux";
 import { toast } from "react-toastify";
 import { motion } from "framer-motion";
@@ -168,6 +169,9 @@ const Frame = () => {
       onError(({ message }) => {
         console.error("Game error:", message);
         toast.error(message);
+        // A rejected bet (e.g. insufficient balance) left the wallet
+        // untouched; resync the readout in case it drifted.
+        requestWalletRefresh();
         handleBetError();
         stopNumberAnimation();
         setIsAutoBetting(false);
@@ -175,6 +179,8 @@ const Frame = () => {
 
       onBetResult((result) => {
         console.log("Bet result received:", result);
+        // Reflect the debit/credit in the in-game balance readout.
+        requestWalletRefresh();
         stopNumberAnimation();
         setFinalNumber(result.number);
         setNumber(result.number);
@@ -224,9 +230,14 @@ const Frame = () => {
     if (!bettingStarted) {
       setBettingStarted(true);
       startNumberAnimation();
-      placeBet(parseFloat(bet), parseFloat(targetMultiplier), (result) => {
-        console.log("Bet placed successfully");
-      });
+      placeBet(
+        parseFloat(bet),
+        parseFloat(targetMultiplier),
+        (result) => {
+          console.log("Bet placed successfully");
+        },
+        "demo"
+      );
     }
   };
 
@@ -284,20 +295,25 @@ const Frame = () => {
 
     console.log("Placing bet...");
     startNumberAnimation();
-    placeBet(parseFloat(bet), parseFloat(targetMultiplier), (result) => {
-      console.log("Bet placed, remaining bets:", remainingBets - 1);
+    placeBet(
+      parseFloat(bet),
+      parseFloat(targetMultiplier),
+      (result) => {
+        console.log("Bet placed, remaining bets:", remainingBets - 1);
 
-      setTimeout(() => {
-        if (remainingBets > 1) {
-          console.log("Scheduling next bet...");
-          autoBet(remainingBets - 1);
-        } else {
-          console.log("All bets completed");
-          setStartAutoBet(false);
-          setIsAutoBetting(false);
-        }
-      }, 1500);
-    });
+        setTimeout(() => {
+          if (remainingBets > 1) {
+            console.log("Scheduling next bet...");
+            autoBet(remainingBets - 1);
+          } else {
+            console.log("All bets completed");
+            setStartAutoBet(false);
+            setIsAutoBetting(false);
+          }
+        }, 1500);
+      },
+      "demo"
+    );
   };
 
   useEffect(() => {
@@ -373,6 +389,9 @@ const Frame = () => {
       onError(({ message }) => {
         console.error("Game error:", message);
         toast.error(message);
+        // A rejected bet (e.g. insufficient balance) left the wallet
+        // untouched; resync the readout in case it drifted.
+        requestWalletRefresh();
         handleBetError();
         stopNumberAnimation();
         setIsAutoBetting(false);
@@ -380,6 +399,8 @@ const Frame = () => {
 
       onBetResult((result) => {
         console.log("Bet result received:", result);
+        // Reflect the debit/credit in the in-game balance readout.
+        requestWalletRefresh();
         stopNumberAnimation();
         setFinalNumber(result.number);
         setNumber(result.number);

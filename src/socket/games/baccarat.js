@@ -43,3 +43,24 @@ export const disconnectBaccaratSocket = () => {
     baccaratSocket = null;
   }
 };
+
+// Join the current baccarat table (the server acks with "game_joined").
+export const joinBaccaratGame = () => {
+  if (!baccaratSocket) return false;
+  baccaratSocket.emit("join_game");
+  return true;
+};
+
+// Stake `amount` on player/tie/banker from the given wallet (demo default).
+export const placeBaccaratBet = (betType, amount, walletType = "demo") => {
+  if (!baccaratSocket) return false;
+  baccaratSocket.emit("place_bet", { betType, amount, walletType });
+  return true;
+};
+
+// Ask the server to deal and settle the round.
+export const startBaccaratDealing = (walletType = "demo") => {
+  if (!baccaratSocket) return false;
+  baccaratSocket.emit("start_dealing", { walletType });
+  return true;
+};

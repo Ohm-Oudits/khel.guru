@@ -1,3 +1,5 @@
+import GameBalanceBadge from "../shared/GameBalanceBadge";
+
 const SideBar = ({
   theatreMode,
   setBetMode,
@@ -52,6 +54,7 @@ const SideBar = ({
 
           {betMode === "manual" && (
             <>
+              <GameBalanceBadge className="mb-2" />
               <div className="order-1 md:order-2 my-2 w-full">
                 <div className="flex items-center mb-[-4px] pl-[2px] justify-between w-full font-semibold text-label">
                   <label htmlFor="betAmount">Bet Amount</label>

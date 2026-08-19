@@ -14,6 +14,7 @@ let onAutoBetUpdatedHandler = null;
 let onAutoBetCompleteHandler = null;
 let onErrorHandler = null;
 let onBetsUpdatedHandler = null;
+let onBetResultHandler = null;
 
 export const initializeSlideSocket = (token) => {
   if (slideSocket) {
@@ -96,6 +97,12 @@ export const initializeSlideSocket = (token) => {
   slideSocket.on("bets_updated", (data) => {
     if (onBetsUpdatedHandler) onBetsUpdatedHandler(data);
   });
+
+  // Personal settlement for our bet in the round (win credited / loss kept).
+  slideSocket.on("bet_result", (data) => {
+    console.log("[Slide] Bet result:", data);
+    if (onBetResultHandler) onBetResultHandler(data);
+  });
 };
 
 export const getSlideSocket = () => {
@@ -150,16 +157,20 @@ export const onBetsUpdated = (handler) => {
   onBetsUpdatedHandler = handler;
 };
 
-// Game actions
+export const onBetResult = (handler) => {
+  onBetResultHandler = handler;
+};
+
+// Game actions (bets default to the demo wallet unless a walletType is given)
 export const placeBet = (betData) => {
   if (slideSocket) {
-    slideSocket.emit("place_bet", betData);
+    slideSocket.emit("place_bet", { walletType: "demo", ...betData });
   }
 };
 
 export const placeAutoBet = (autoBetData) => {
   if (slideSocket) {
-    slideSocket.emit("place_auto_bet", autoBetData);
+    slideSocket.emit("place_auto_bet", { walletType: "demo", ...autoBetData });
   }
 };
 
@@ -175,4 +186,5 @@ export const removeAllListeners = () => {
   onAutoBetCompleteHandler = null;
   onErrorHandler = null;
   onBetsUpdatedHandler = null;
+  onBetResultHandler = null;
 };

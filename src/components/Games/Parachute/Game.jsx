@@ -7,14 +7,18 @@ import Background from "./Background";
 import {
   disconnectParachuteSocket,
   getParachuteSocket,
+  addParachuteGame,
+  checkoutParachute,
 } from "../../../socket/games/parachute";
 import { useSelector } from "react-redux";
 import { toast } from "react-toastify";
+import { requestWalletRefresh } from "../../../utils/walletEvents";
 
 const Game = ({
   setCheckout,
   bettingStarted,
   setBettingStarted,
+  bet,
   value,
   setValue,
   pause,
@@ -32,17 +36,58 @@ const Game = ({
   const cloudCount = 1000;
   const [mult, setMult] = useState(18);
 
+  // Attach wallet settlement listeners once per socket instance.
+  const attachWalletHandlers = () => {
+    const parachuteSocket = getParachuteSocket();
+    if (!parachuteSocket || parachuteSocket.__walletHandlersBound) return;
+    parachuteSocket.__walletHandlersBound = true;
+
+    parachuteSocket.on("game_started", () => {
+      // Stake debited server-side; refresh the balance readout.
+      requestWalletRefresh();
+    });
+
+    parachuteSocket.on("checkout_success", ({ winAmount, multiplier }) => {
+      toast.success(
+        `Cashed out at ${Number(multiplier).toFixed(2)}x for ${Number(
+          winAmount
+        ).toFixed(2)}`
+      );
+      requestWalletRefresh();
+    });
+
+    parachuteSocket.on("game_crashed", () => {
+      // Bust: the stake stays debited, nothing was credited.
+      requestWalletRefresh();
+    });
+
+    parachuteSocket.on("error", ({ message }) => {
+      console.error("Parachute game error:", message);
+      requestWalletRefresh();
+
+      // The server round can crash on its own before the client round does;
+      // the follow-up crash/checkout emits then find no active game. Money
+      // already settled correctly (the stake stands), so stay quiet.
+      if (message === "No active game found") return;
+
+      toast.error(message);
+
+      // A rejected bet (e.g. insufficient balance) never started a server
+      // round: stop the local round so the player can bet again.
+      if (
+        message === "Insufficient balance" ||
+        message === "Invalid bet amount" ||
+        message === "Game already in progress"
+      ) {
+        stopGame();
+      }
+    });
+  };
+
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (token) {
-      const parachuteSocket = getParachuteSocket();
-
-      if (parachuteSocket) {
-        parachuteSocket.on("error", ({ message }) => {
-          console.error("Join game error:", message);
-          toast.error(`Error joining game: ${message}`);
-        });
-      }
+      attachWalletHandlers();
     }
 
     return () => {
@@ -58,7 +103,10 @@ const Game = ({
     if (bettingStarted) {
       const parachuteSocket = getParachuteSocket();
       if (parachuteSocket) {
-        parachuteSocket.emit("add_game", {});
+        attachWalletHandlers();
+        // Commit the stake for this round exactly once (demo wallet); the
+        // server debits it and starts its round.
+        addParachuteGame(parseFloat(bet), difficulty, "demo");
         console.log("Emitted add_game event");
       } else {
         console.error("Parachute socket not initialized");
@@ -89,6 +137,9 @@ const Game = ({
       setValue(newValue);
 
       if (startAutoBet && newValue >= autoMultipyTarget) {
+        // Auto cashout hit the target: settle the round server-side so the
+        // payout (stake x multiplier) is credited exactly once.
+        checkoutParachute();
         stopGame();
         setPause(true);
         setCheckout(true);

@@ -3,8 +3,10 @@ import {
   getTowerSocket,
   disconnectTowerSocket,
   initializeTowerSocket,
+  startTowerGame,
 } from "../../../socket/games/tower";
 import { toast } from "react-toastify";
+import { requestWalletRefresh } from "../../../utils/walletEvents";
 import { useNavigate } from "react-router-dom";
 import checkLoggedIn from "../../../utils/isloggedIn";
 
@@ -101,6 +103,8 @@ export default function Game({
             }
 
             if (gameState.checkedOut) {
+              // The cashout just settled: refresh the balance readout.
+              requestWalletRefresh();
               setBettingStarted(false);
               setShowGameOptions(false);
               setShowCheckoutModal(true);
@@ -125,6 +129,16 @@ export default function Game({
             setCurrentRow(gameState.currentRow);
             setSelectedBoxes(gameState.selectedBoxes || []);
 
+            // A new round debited the stake, a win credited the payout,
+            // a loss kept the stake: refresh the balance readout.
+            if (
+              gameState.gameWon ||
+              gameState.gameOver ||
+              (gameState.hasActiveGame && !gameState.existingGame)
+            ) {
+              requestWalletRefresh();
+            }
+
             if (gameState.hasActiveGame) {
               setHasActiveGame(true);
               setShowGameOptions(true);
@@ -138,6 +152,11 @@ export default function Game({
         towerSocket.on("reveal", (result) => {
           console.log("Reveal result:", result);
           setIsAnimating(false);
+
+          // A finished climb settles the round (win credited / loss kept).
+          if (result.gameWon || !result.isCorrect) {
+            requestWalletRefresh();
+          }
 
           if (result.isCorrect) {
             setSelectedBoxes((prev) => [
@@ -170,6 +189,8 @@ export default function Game({
         });
 
         towerSocket.on("checkout_result", (result) => {
+          // The cashout just settled: refresh the balance readout.
+          requestWalletRefresh();
           setProfit(result.profit);
           setShowCheckoutModal(true);
           setBettingStarted(false);
@@ -181,6 +202,8 @@ export default function Game({
 
         towerSocket.on("error", ({ message }) => {
           console.error("Game error:", message);
+          // A rejected action left the wallet untouched; resync the readout.
+          requestWalletRefresh();
           toast.error(`Error: ${message}`);
         });
 
@@ -222,10 +245,7 @@ export default function Game({
         return;
       }
 
-      socketRef.current.emit("add_game", {
-        betAmount: betAmount,
-        difficulty: Difficulty,
-      });
+      startTowerGame(betAmount, Difficulty, "demo");
     }
   }, [bettingStarted]);
 
@@ -462,7 +482,7 @@ export default function Game({
 
     const towerSocket = getTowerSocket();
     if (towerSocket) {
-      towerSocket.emit("add_game", {});
+      startTowerGame(parseFloat(bet), Difficulty, "demo");
       console.log("Emitted add_game event");
     } else {
       console.error("Tower socket not initialized");

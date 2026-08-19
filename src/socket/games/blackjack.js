@@ -92,9 +92,9 @@ export const addGame = (callback) => {
   }
 };
 
-export const placeBet = (betAmount, callback) => {
+export const placeBet = (betAmount, callback, walletType = "demo") => {
   if (blackjackSocket) {
-    blackjackSocket.emit("place_bet", { betAmount });
+    blackjackSocket.emit("place_bet", { betAmount, walletType });
     blackjackSocket.once("game_state_update", callback);
   }
 };

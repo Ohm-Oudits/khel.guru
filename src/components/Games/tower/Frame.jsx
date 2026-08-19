@@ -14,6 +14,7 @@ import {
   initializeTowerSocket,
 } from "../../../socket/games/tower";
 import checkLoggedIn from "../../../utils/isloggedIn";
+import { requestWalletRefresh } from "../../../utils/walletEvents";
 import { toast } from "react-toastify";
 
 const Frame = () => {
@@ -143,6 +144,8 @@ const Frame = () => {
       towerSocket.on("game_state", (gameState) => {
         if (gameState) {
           if (gameState.checkedOut) {
+            // The cashout just settled: refresh the balance readout.
+            requestWalletRefresh();
             setProfit(gameState.profit);
             setShowCheckoutModal(true);
             setBettingStarted(false);
@@ -154,6 +157,8 @@ const Frame = () => {
 
       towerSocket.on("error", ({ message }) => {
         console.error("Game error:", message);
+        // A rejected action left the wallet untouched; resync the readout.
+        requestWalletRefresh();
         toast.error(`Error: ${message}`);
       });
     }

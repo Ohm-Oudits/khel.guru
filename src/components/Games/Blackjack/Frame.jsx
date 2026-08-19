@@ -12,6 +12,7 @@ import {
   initializeBlackjackSocket,
 } from "../../../socket/games/blackjack";
 import checkLoggedIn from "../../../utils/isloggedIn";
+import { requestWalletRefresh } from "../../../utils/walletEvents";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 
@@ -114,6 +115,13 @@ const Frame = () => {
       // Update the game state
       setGameState(newGameState);
       updateGameState(newGameState);
+
+      // A completed round just settled (win credited / push refunded /
+      // loss kept), and split/double hands carry an extra debit: refresh
+      // the balance readout.
+      if (newGameState.gameState === "complete" || newGameState.isSplit) {
+        requestWalletRefresh();
+      }
     };
 
     // Listen for both game_state and game_state_update events
@@ -122,6 +130,8 @@ const Frame = () => {
 
     blackjackSocket.on("error", (error) => {
       console.error("Socket error received:", error);
+      // A rejected action left the wallet untouched; resync the readout.
+      requestWalletRefresh();
       if (error.message) {
         toast.error(error.message);
       }
@@ -262,10 +272,13 @@ const Frame = () => {
         });
       }
 
-      // Place the bet
+      // Place the bet (staked from the demo wallet)
       console.log("Placing bet:", bet);
       await new Promise((resolve, reject) => {
-        blackjackSocket.emit("place_bet", { betAmount: parseFloat(bet) });
+        blackjackSocket.emit("place_bet", {
+          betAmount: parseFloat(bet),
+          walletType: "demo",
+        });
         blackjackSocket.once("game_state", ({ success, gameState }) => {
           if (success && gameState) {
             updateGameState(gameState);
@@ -278,9 +291,14 @@ const Frame = () => {
           reject(error);
         });
       });
+
+      // The stake was just debited: refresh the balance readout.
+      requestWalletRefresh();
     } catch (error) {
       console.error("Bet placement error:", error);
       toast.error(error.message || "Failed to place bet");
+      // A rejected bet left the wallet untouched; resync the readout.
+      requestWalletRefresh();
     }
   };
 

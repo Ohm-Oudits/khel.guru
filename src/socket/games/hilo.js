@@ -36,9 +36,9 @@ export const getActiveGame = (callback) => {
   }
 };
 
-export const addGame = (betAmount, callback) => {
+export const addGame = (betAmount, callback, walletType = "demo") => {
   if (hiloSocket) {
-    hiloSocket.emit("add_game", { betAmount });
+    hiloSocket.emit("add_game", { betAmount, walletType });
     hiloSocket.once("game_state", callback);
   }
 };

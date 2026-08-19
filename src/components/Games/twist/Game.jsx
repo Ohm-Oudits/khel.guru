@@ -4,10 +4,13 @@ import ResponsiveSegmentedCircles from "./Rod";
 import {
   disconnectTwistSocket,
   getTwistSocket,
+  placeBet,
 } from "../../../socket/games/twist";
+import { requestWalletRefresh } from "../../../utils/walletEvents";
 import { toast } from "react-toastify";
 
 const BonusWheel = ({
+  bet,
   betTrigger,
   betInfo,
   setbetInfo,
@@ -33,6 +36,14 @@ const BonusWheel = ({
         twistSocket.on("error", ({ message }) => {
           console.error("Join game error:", message);
           toast.error(`Error joining game: ${message}`);
+          // A rejected bet (e.g. insufficient balance) left the wallet
+          // untouched; resync the readout in case it drifted.
+          requestWalletRefresh();
+        });
+
+        twistSocket.on("bet_result", () => {
+          // Reflect the stake debit in the in-game balance readout.
+          requestWalletRefresh();
         });
       }
     }
@@ -41,6 +52,7 @@ const BonusWheel = ({
       const twistSocket = getTwistSocket();
       if (twistSocket) {
         twistSocket.off("error");
+        twistSocket.off("bet_result");
       }
       disconnectTwistSocket();
     };
@@ -52,6 +64,8 @@ const BonusWheel = ({
       if (twistSocket) {
         twistSocket.emit("add_game", {});
         console.log("Emitted add_game event");
+        // Debit the spin's stake from the demo wallet.
+        placeBet(parseFloat(bet), "demo");
       } else {
         console.error("Twist socket not initialized");
         alert("Failed to join game: Socket not connected");

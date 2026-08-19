@@ -37,6 +37,13 @@ export const getTwistSocket = () => {
   return twistSocket;
 };
 
+// Debit the spin's stake from the wallet.
+export const placeBet = (betAmount, walletType = "demo") => {
+  if (!twistSocket) return false;
+  twistSocket.emit("place_bet", { betAmount, walletType });
+  return true;
+};
+
 export const disconnectTwistSocket = () => {
   if (twistSocket) {
     twistSocket.disconnect();

@@ -54,10 +54,11 @@ export const joinGame = (callback) => {
   }
 };
 
-export const placeBet = (bets, totalAmount, callback) => {
+export const placeBet = (bets, totalAmount, callback, walletType = "demo") => {
   console.log("[Roulette] Attempting to place bet:", {
     bets,
     totalAmount,
+    walletType,
     socketConnected: !!rouletteSocket?.connected,
   });
 
@@ -133,6 +134,7 @@ export const placeBet = (bets, totalAmount, callback) => {
     const betData = {
       bets: { ...bets },
       totalAmount: Number(totalAmount),
+      walletType,
     };
 
     rouletteSocket.emit("place_bet", betData);

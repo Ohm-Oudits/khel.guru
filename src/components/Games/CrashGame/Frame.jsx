@@ -1,5 +1,5 @@
 /* eslint-disable */
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import "../../../styles/Frame.css";
 import FairnessModal from "../../Frame/FairnessModal";
 import FrameFooter from "../../Frame/FrameFooter";
@@ -14,9 +14,14 @@ import { useSelector } from "react-redux";
 import {
   getCrashSocket,
   initializeCrashSocket,
+  placeCrashBet,
+  cashOutCrash,
+  bustCrash,
 } from "../../../socket/games/crash";
 import checkLoggedIn from "../../../utils/isloggedIn";
 import { useNavigate } from "react-router-dom";
+import { toast } from "react-toastify";
+import { requestWalletRefresh } from "../../../utils/walletEvents";
 
 const Frame = () => {
   const [isFav, setIsFav] = useState(false);
@@ -51,11 +56,54 @@ const Frame = () => {
   const [autoMultipyTarget, setAutoMultipyTarget] = useState("1.01");
 
   const token = useSelector((state) => state.auth?.token);
+
+  // True while a stake is committed to the running round and not yet
+  // settled (cashed out / busted / rejected). Guards against emitting a
+  // second debit or a second settlement for the same round.
+  const activeBetRef = useRef(false);
+
+  // Attach wallet settlement listeners once per socket instance.
+  const attachWalletHandlers = () => {
+    const crashSocket = getCrashSocket();
+    if (!crashSocket || crashSocket.__walletHandlersBound) return;
+    crashSocket.__walletHandlersBound = true;
+
+    crashSocket.on("bet_placed", () => {
+      // Stake debited server-side; refresh the balance readout.
+      requestWalletRefresh();
+    });
+
+    crashSocket.on("cashout_success", ({ payout, multiplier }) => {
+      activeBetRef.current = false;
+      toast.success(
+        `Cashed out at ${Number(multiplier).toFixed(2)}x for ${Number(
+          payout
+        ).toFixed(2)}`
+      );
+      requestWalletRefresh();
+    });
+
+    crashSocket.on("bet_busted", () => {
+      activeBetRef.current = false;
+      requestWalletRefresh();
+    });
+
+    crashSocket.on("error", ({ message }) => {
+      // A rejected bet (e.g. insufficient balance) left no stake in the
+      // round; reset the bet state and resync the balance readout.
+      toast.error(message);
+      activeBetRef.current = false;
+      setBettingStarted(false);
+      requestWalletRefresh();
+    });
+  };
+
   const initSocket = () => {
     const wheelSocket = getCrashSocket();
     if (!wheelSocket) {
       initializeCrashSocket(token);
     }
+    attachWalletHandlers();
   };
 
   const navigate = useNavigate();
@@ -74,17 +122,61 @@ const Frame = () => {
     } else {
       console.error("Wheel socket not initialized");
       toast.error("Failed to join game: Socket not connected");
+      return;
     }
 
-    if (!disableBet) {
-      setBettingStarted(true);
-      setCheckout(false);
+    if (!disableBet && !activeBetRef.current) {
+      const betAmount = parseFloat(bet);
+      if (!betAmount || betAmount <= 0) {
+        toast.error("Please enter a valid bet amount");
+        return;
+      }
+
+      // Commit the stake for this round exactly once (demo wallet).
+      if (placeCrashBet(betAmount, "demo")) {
+        activeBetRef.current = true;
+        setBettingStarted(true);
+        setCheckout(false);
+      }
     }
   };
 
   const handleCheckout = () => {
+    // Cash out the committed stake at the current multiplier exactly once.
+    if (activeBetRef.current) {
+      activeBetRef.current = false;
+      cashOutCrash(parseFloat(value.toFixed(2)));
+    }
     setCheckout(true);
     setBettingStarted(false);
+  };
+
+  // The round crashed with our (manual) bet still in play: forfeit it.
+  const handleRoundCrashed = () => {
+    if (activeBetRef.current) {
+      activeBetRef.current = false;
+      bustCrash();
+      requestWalletRefresh();
+    }
+  };
+
+  // Auto-bet: commit a stake at the start of each auto round.
+  const handleAutoRoundStart = () => {
+    if (activeBetRef.current) return;
+    const betAmount = parseFloat(bet);
+    if (!betAmount || betAmount <= 0) return;
+    if (placeCrashBet(betAmount, "demo")) {
+      activeBetRef.current = true;
+    }
+  };
+
+  // Auto-bet: the crash multiplier passed the target, so the auto cashout
+  // fired at the target multiplier before the crash.
+  const handleAutoCashout = (targetMultiplier) => {
+    if (activeBetRef.current) {
+      activeBetRef.current = false;
+      cashOutCrash(parseFloat(targetMultiplier));
+    }
   };
 
   const history = [
@@ -184,6 +276,9 @@ const Frame = () => {
                     startAutoBet={startAutoBet}
                     setStartAutoBet={setStartAutoBet}
                     nbets={nbets}
+                    onRoundCrashed={handleRoundCrashed}
+                    onAutoRoundStart={handleAutoRoundStart}
+                    onAutoCashout={handleAutoCashout}
                   />
                 </div>
               </div>

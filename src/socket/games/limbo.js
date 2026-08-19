@@ -44,9 +44,14 @@ export const joinGame = (callback) => {
   }
 };
 
-export const placeBet = (betAmount, targetMultiplier, callback) => {
+export const placeBet = (
+  betAmount,
+  targetMultiplier,
+  callback,
+  walletType = "demo"
+) => {
   if (limboSocket) {
-    limboSocket.emit("place_bet", { betAmount, targetMultiplier });
+    limboSocket.emit("place_bet", { betAmount, targetMultiplier, walletType });
     limboSocket.once("bet_result", callback);
   }
 };

@@ -43,3 +43,24 @@ export const disconnectCrashSocket = () => {
     crashSocket = null;
   }
 };
+
+// Commit a stake to the current round (debits the wallet server-side).
+export const placeCrashBet = (betAmount, walletType = "demo") => {
+  if (!crashSocket || !betAmount || betAmount <= 0) return false;
+  crashSocket.emit("place_bet", { betAmount, walletType });
+  return true;
+};
+
+// Cash out the active bet at the given multiplier (credits stake x multiplier).
+export const cashOutCrash = (multiplier) => {
+  if (!crashSocket) return false;
+  crashSocket.emit("cash_out", { multiplier });
+  return true;
+};
+
+// The round crashed before a cashout: forfeit the active bet (no credit).
+export const bustCrash = () => {
+  if (!crashSocket) return false;
+  crashSocket.emit("bust", {});
+  return true;
+};

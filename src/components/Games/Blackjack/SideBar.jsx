@@ -1,3 +1,5 @@
+import GameBalanceBadge from "../shared/GameBalanceBadge";
+
 const SideBar = ({
   theatreMode,
   setBetMode,
@@ -62,6 +64,7 @@ const SideBar = ({
           </div>
 
           <>
+            <GameBalanceBadge className="mb-2" />
             {/* Split Hand Indicator */}
             {split && (
               <div className="order-1 mb-4 text-center">

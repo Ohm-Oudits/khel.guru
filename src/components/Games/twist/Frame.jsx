@@ -195,6 +195,7 @@ const Frame = () => {
                     </>
                   ) : (
                     <Game
+                      bet={bet}
                       betTrigger={betTrigger}
                       betInfo={betInfo}
                       setbetInfo={setbetInfo}

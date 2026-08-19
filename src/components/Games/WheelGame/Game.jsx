@@ -1,6 +1,6 @@
 /* eslint-disable */
 import { useEffect, useState, useRef, useCallback } from "react";
-import { useSelector, useDispatch } from "react-redux";
+import { useSelector } from "react-redux";
 import { segments } from "../../../constants";
 import {
   disconnectWheelSocket,
@@ -13,7 +13,7 @@ import {
   removeAllGameListeners,
 } from "../../../socket/games/wheel";
 import { toast } from "react-toastify";
-import { updateBalance } from "../../../store/slices/authSlice";
+import { requestWalletRefresh } from "../../../utils/walletEvents";
 
 /* eslint-disable react/prop-types */
 const Game = ({
@@ -27,10 +27,8 @@ const Game = ({
   setAutoStart,
   bet,
 }) => {
-  const dispatch = useDispatch();
   const token = useSelector((state) => state.auth.token);
   const user = useSelector((state) => state.auth.user);
-  const balance = useSelector((state) => state.auth.balance);
   const [connectionStatus, setConnectionStatus] = useState("Connecting");
   const [riskSegment, setRiskSegment] = useState(null);
   const [selectedSegmentData, setSelectedSegmentData] = useState(null);
@@ -208,7 +206,8 @@ const Game = ({
           winAmount,
         };
 
-        dispatch(updateBalance(result.balance));
+        // Reflect the debit/credit in the in-game balance readout.
+        requestWalletRefresh();
         console.log("Game component: Validated game result:", validatedResult);
         hasReceivedResult.current = true;
         pendingResult.current = validatedResult;
@@ -251,6 +250,9 @@ const Game = ({
     onError(({ message }) => {
       console.error("Game component: Join game error:", message);
       toast.error(`Error joining game: ${message}`);
+      // A rejected bet (e.g. insufficient balance) left the wallet untouched;
+      // resync the readout in case it drifted.
+      requestWalletRefresh();
       setIsWaitingForResult(false);
       setBetStarted(false);
       isProcessingBet.current = false;
@@ -778,16 +780,8 @@ const Game = ({
       return;
     }
 
-    if (betAmount > balance) {
-      toast.error("Insufficient balance");
-      setBetStarted(false);
-      setAutoStart(false);
-      return;
-    }
-
-    // Immediately deduct bet from frontend state
-    dispatch(updateBalance(balance - betAmount));
-
+    // Balance is enforced server-side by the wallet debit; an insufficient
+    // balance comes back as an error event.
     const wheelSocket = getWheelSocket();
     if (!wheelSocket?.connected) {
       console.error("Socket not connected for bet");
@@ -804,6 +798,7 @@ const Game = ({
       risk,
       segments: segment,
       betAmount: parseFloat(bet),
+      walletType: "demo",
     };
 
     console.log("Sending bet request:", betData);

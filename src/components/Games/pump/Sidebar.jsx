@@ -1,5 +1,6 @@
 /* eslint-disable */
 import BetAmount from "../../Frame/BetAmount";
+import GameBalanceBadge from "../shared/GameBalanceBadge";
 
 const LeftSection = ({
   theatreMode,
@@ -60,6 +61,7 @@ const LeftSection = ({
           {betMode === "manual" &&
             (!bettingStarted ? (
               <>
+                <GameBalanceBadge className="mb-2" />
                 {/* Risk Section */}
                 <div className="order-10 md:order-2 mb-6 mt-1 w-full">
                   <label
@@ -100,6 +102,7 @@ const LeftSection = ({
               </>
             ) : (
               <>
+                <GameBalanceBadge className="mb-2" />
                 <BetAmount
                   bet={bet}
                   setBet={setBet}
@@ -108,8 +111,8 @@ const LeftSection = ({
 
                 {/* Bet button */}
                 <div
-                  className={`order-2 max-md:mb-2 md:order-20 transition-all duration-300 ease-in-out transform active:scale-90 flex items-center justify-center w-full mx-auto py-1.5 mt-3 max-lg:mt-4 rounded text-lg font-semibold 
-                
+                  className={`order-2 max-md:mb-2 md:order-20 transition-all duration-300 ease-in-out transform active:scale-90 flex items-center justify-center w-full mx-auto py-1.5 mt-3 max-lg:mt-4 rounded text-lg font-semibold
+
                       bg-button-primary text-black cursor-pointer`}
                   onClick={() => handlePump()}
                 >

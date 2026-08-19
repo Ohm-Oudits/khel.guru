@@ -6,10 +6,12 @@ import {
   disconnectMinesSocket,
   getMinesSocket,
   initializeMinesSocket,
+  addMinesGame,
 } from "../../../socket/games/mines";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
 import checkLoggedIn from "../../../utils/isloggedIn";
+import { requestWalletRefresh } from "../../../utils/walletEvents";
 
 const Game = ({
   mines,
@@ -60,6 +62,8 @@ const Game = ({
         minesSocket.on("game_state", (gameState) => {
           if (gameState) {
             if (gameState.checkedOut) {
+              // Cashout settled server-side: reflect the credit.
+              requestWalletRefresh();
               setGameCheckout(true);
               setBetStarted(false);
               setSidebarDisabled(false);
@@ -70,6 +74,11 @@ const Game = ({
                   .map(() => ({ type: "diamond", revealed: false }))
               );
               return;
+            }
+
+            if (gameState.message === "New game created") {
+              // Bet placed: the stake was just debited.
+              requestWalletRefresh();
             }
 
             if (gameState.grid) {
@@ -104,19 +113,35 @@ const Game = ({
         });
 
         minesSocket.on("game_over", ({ game }) => {
+          // Bust: the stake stays debited, nothing was credited.
+          requestWalletRefresh();
           setGameOver(true);
           setBetStarted(false);
           setSidebarDisabled(false);
         });
 
         minesSocket.on("game_won", ({ game }) => {
+          // Full clear: the payout was credited server-side.
+          requestWalletRefresh();
           setGameWon(true);
           setBetStarted(false);
           setSidebarDisabled(false);
         });
 
-        minesSocket.on("error", () => {
-          // Silently handle errors
+        minesSocket.on("error", (error) => {
+          // Silently handle errors, but resync the balance readout in case
+          // a bet was rejected. A rejected stake never started a round, so
+          // unstick the bet panel for those errors specifically.
+          requestWalletRefresh();
+          const message = error?.message;
+          if (
+            message === "Insufficient balance" ||
+            message === "Invalid bet amount"
+          ) {
+            toast.error(message);
+            setBetStarted(false);
+            setSidebarDisabled(false);
+          }
         });
 
         if (minesSocket.connected) {
@@ -149,7 +174,8 @@ const Game = ({
       setGameWon(false);
       setGameProfit(0);
       setGameLoss(0);
-      socketRef.current.emit("add_game", { betAmount: bet, mines });
+      // Place the bet on the demo wallet; the server debits the stake once.
+      addMinesGame(bet, mines, "demo");
     }
   }, [betStarted]);
 
@@ -205,7 +231,8 @@ const Game = ({
     }
 
     if (socketRef.current?.connected) {
-      socketRef.current.emit("add_game", { betAmount: bet, mines });
+      // Place the bet on the demo wallet; the server debits the stake once.
+      addMinesGame(bet, mines, "demo");
       // Wait for game state to update after adding game
       await new Promise((resolve) => setTimeout(resolve, 500));
     } else {

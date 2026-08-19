@@ -43,3 +43,17 @@ export const disconnectParachuteSocket = () => {
     parachuteSocket = null;
   }
 };
+
+// Start a round: commits the stake (debited server-side from walletType).
+export const addParachuteGame = (betAmount, difficulty, walletType = "demo") => {
+  if (!parachuteSocket || !betAmount || betAmount <= 0) return false;
+  parachuteSocket.emit("add_game", { betAmount, difficulty, walletType });
+  return true;
+};
+
+// Cash out the running round (server credits stake x server multiplier).
+export const checkoutParachute = () => {
+  if (!parachuteSocket) return false;
+  parachuteSocket.emit("checkout", {});
+  return true;
+};

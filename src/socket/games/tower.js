@@ -43,3 +43,11 @@ export const disconnectTowerSocket = () => {
     towerSocket = null;
   }
 };
+
+// Start a new tower round, staking betAmount from the given wallet
+// (demo default).
+export const startTowerGame = (betAmount, difficulty, walletType = "demo") => {
+  if (!towerSocket) return false;
+  towerSocket.emit("add_game", { betAmount, difficulty, walletType });
+  return true;
+};

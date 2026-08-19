@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import "../../../styles/Frame.css";
 import FairnessModal from "../../Frame/FairnessModal";
 import FrameFooter from "../../Frame/FrameFooter";
@@ -13,8 +13,12 @@ import {
   disconnectBaccaratSocket,
   getBaccaratSocket,
   initializeBaccaratSocket,
+  joinBaccaratGame,
+  placeBaccaratBet,
+  startBaccaratDealing,
 } from "../../../socket/games/baccarat";
 import checkLoggedIn from "../../../utils/isloggedIn";
+import { requestWalletRefresh } from "../../../utils/walletEvents";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 
@@ -45,6 +49,7 @@ const Frame = () => {
 
   const navigate = useNavigate();
   const token = useSelector((state) => state.auth?.token);
+  const betInFlightRef = useRef(false);
 
   const initSocket = () => {
     const baccaratSocket = getBaccaratSocket();
@@ -60,6 +65,8 @@ const Frame = () => {
       baccaratSocket.on("error", ({ message }) => {
         console.error("Join game error:", message);
         toast.error(`Error joining game: ${message}`);
+        // A rejected bet left the wallet untouched; resync the readout.
+        requestWalletRefresh();
       });
     }
 
@@ -72,26 +79,93 @@ const Frame = () => {
     };
   }, []);
 
-  const handleBet = () => {
+  // Emit an event and resolve with the first ackEvent payload (rejecting on
+  // the first error), so bets land on the table strictly in order.
+  const emitAndWait = (socket, emitFn, ackEvent) =>
+    new Promise((resolve, reject) => {
+      const cleanup = () => {
+        socket.off(ackEvent, onAck);
+        socket.off("error", onError);
+      };
+      const onAck = (data) => {
+        cleanup();
+        resolve(data);
+      };
+      const onError = (err) => {
+        cleanup();
+        reject(new Error(err?.message || "Connection error"));
+      };
+      socket.once(ackEvent, onAck);
+      socket.once("error", onError);
+      emitFn();
+    });
+
+  const handleBet = async () => {
     if (!checkLoggedIn()) {
       navigate(`?tab=${"login"}`, { replace: true });
       return;
     }
 
+    if (totalBet <= 0) {
+      toast.error("Place a chip on Player, Tie or Banker first");
+      return;
+    }
+
     initSocket();
 
-    if (!betStarted) {
-      const baccaratSocket = getBaccaratSocket();
-      if (baccaratSocket) {
-        baccaratSocket.emit("add_game", {});
-        console.log("Emitted add_game event");
-      } else {
-        console.error("Hilo socket not initialized");
-        toast.error("Failed to join game: Check Your Internet Connection");
-        return;
+    // One bet flow at a time: the join/stake/deal sequence awaits server
+    // acks, so guard against a double click double-debiting the stakes.
+    if (betStarted || betInFlightRef.current) return;
+    betInFlightRef.current = true;
+
+    const baccaratSocket = getBaccaratSocket();
+    if (!baccaratSocket) {
+      betInFlightRef.current = false;
+      console.error("Baccarat socket not initialized");
+      toast.error("Failed to join game: Check Your Internet Connection");
+      return;
+    }
+
+    try {
+      // Join the table, stake each selected bet from the demo wallet, then
+      // ask the server to deal and settle the round.
+      await emitAndWait(
+        baccaratSocket,
+        () => joinBaccaratGame(),
+        "game_joined"
+      );
+
+      const bets = [
+        ["player", playerBet],
+        ["tie", tieBet],
+        ["banker", bankerBet],
+      ].filter(([, amount]) => amount > 0);
+
+      for (const [betType, amount] of bets) {
+        await emitAndWait(
+          baccaratSocket,
+          () => placeBaccaratBet(betType, amount, "demo"),
+          "bet_placed"
+        );
+        // The stake was just debited: refresh the balance readout.
+        requestWalletRefresh();
       }
 
+      // Refresh again once the deal settles (winnings credited).
+      const onSettled = () => {
+        requestWalletRefresh();
+        baccaratSocket.off("game_settled", onSettled);
+      };
+      baccaratSocket.on("game_settled", onSettled);
+
+      startBaccaratDealing("demo");
       setBettingStarted(true);
+    } catch (error) {
+      console.error("Bet error:", error);
+      toast.error(error.message || "Failed to place bet");
+      requestWalletRefresh();
+    } finally {
+      betInFlightRef.current = false;
     }
   };
 

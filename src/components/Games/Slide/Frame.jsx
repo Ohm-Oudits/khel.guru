@@ -30,9 +30,11 @@ import {
   onAutoBetComplete,
   onError,
   onBetsUpdated,
+  onBetResult,
   removeAllListeners,
 } from "../../../socket/games/slide";
 import { useSelector } from "react-redux";
+import { requestWalletRefresh } from "../../../utils/walletEvents";
 
 const DiceFrame = () => {
   const [isFav, setIsFav] = useState(false);
@@ -133,6 +135,23 @@ const DiceFrame = () => {
       toast.success(
         `Bet placed: ${data.betAmount} at ${data.targetMultiplier}x`
       );
+      // Stake debited server-side; refresh the balance readout.
+      requestWalletRefresh();
+    });
+
+    // Personal settlement for our bet: a win credited stake x multiplier,
+    // a loss (bust) kept the stake debit. Either way, resync the balance.
+    onBetResult((data) => {
+      if (data.isWin) {
+        toast.success(
+          `You won! Payout ${Number(data.winAmount).toFixed(2)} at ${
+            data.multiplier
+          }x`
+        );
+      } else {
+        toast.info(`Round landed on ${data.multiplier}x — bet lost`);
+      }
+      requestWalletRefresh();
     });
 
     onAutoBetStarted((data) => {
@@ -155,6 +174,9 @@ const DiceFrame = () => {
     onError((data) => {
       console.error("Game error:", data);
       toast.error(data.message);
+      // A rejected bet (e.g. insufficient balance) left the wallet
+      // untouched; resync the readout in case it drifted.
+      requestWalletRefresh();
     });
 
     onBetsUpdated((data) => {
@@ -178,6 +200,7 @@ const DiceFrame = () => {
       placeBet({
         betAmount: parseFloat(bet),
         targetMultiplier: parseFloat(enteredMultipler),
+        walletType: "demo",
       });
     } else {
       toast.error("Enter a valid multiplier between 1 and 51");
@@ -195,6 +218,7 @@ const DiceFrame = () => {
         betAmount: parseFloat(bet),
         targetMultiplier: parseFloat(enteredMultipler),
         numberOfBets: parseInt(nbets),
+        walletType: "demo",
       });
     } else {
       toast.error("Enter a valid number of bets (1-100)");

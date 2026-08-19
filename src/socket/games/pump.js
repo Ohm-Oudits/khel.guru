@@ -43,3 +43,24 @@ export const disconnectPumpSocket = () => {
     pumpSocket = null;
   }
 };
+
+// Commit a stake to the current round (debits the wallet server-side).
+export const placePumpBet = (betAmount, walletType = "demo") => {
+  if (!pumpSocket || !betAmount || betAmount <= 0) return false;
+  pumpSocket.emit("place_bet", { betAmount, walletType });
+  return true;
+};
+
+// Cash out the active bet at the given multiplier (credits stake x multiplier).
+export const cashOutPump = (multiplier) => {
+  if (!pumpSocket) return false;
+  pumpSocket.emit("cash_out", { multiplier });
+  return true;
+};
+
+// The balloon popped before a cashout: forfeit the active bet (no credit).
+export const bustPump = () => {
+  if (!pumpSocket) return false;
+  pumpSocket.emit("bust", {});
+  return true;
+};

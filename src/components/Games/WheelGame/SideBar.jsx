@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { toast } from "react-toastify";
+import GameBalanceBadge from "../shared/GameBalanceBadge";
 
 /* eslint-disable react/prop-types */
 const SideBar = ({
@@ -98,6 +99,7 @@ const SideBar = ({
 
           {betMode === "manual" && (
             <>
+              <GameBalanceBadge className="mb-2" />
               <div className="order-1 md:order-2 my-2 w-full">
                 <div className="flex items-center mb-[-4px] pl-[2px] justify-between w-full font-semibold text-label">
                   <label htmlFor="betAmount">Bet Amount</label>

@@ -147,6 +147,7 @@ const Frame = () => {
                   <Game
                     bettingStarted={bettingStarted}
                     setBettingStarted={setBettingStarted}
+                    bet={bet}
                     checkout={checkout}
                     setCheckout={setCheckout}
                     value={value}

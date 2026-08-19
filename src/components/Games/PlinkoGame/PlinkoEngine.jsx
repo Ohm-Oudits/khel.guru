@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from "uuid";
 import { getRandomBetween } from "../../../utils/plinko";
 import { binPayouts } from "./constant";
 import { getPlinkoSocket } from "../../../socket/games/plinko";
+import { requestWalletRefresh } from "../../../utils/walletEvents";
 
 class PlinkoEngine {
   static WIDTH = 760;
@@ -189,9 +190,12 @@ class PlinkoEngine {
           bin: binIndex,
           payout: payoutValue,
           betAmount: this.betAmount,
+          walletType: "demo",
         });
 
         socket.once("result_success", (data) => {
+          // Reflect the debit/credit in the in-game balance readout.
+          requestWalletRefresh();
           this.updateBinIndex(binIndex);
           this.balls = this.balls.filter((b) => b !== ball);
           if (this.balls.length === 0) {
@@ -215,6 +219,9 @@ class PlinkoEngine {
 
         socket.once("error", ({ message }) => {
           console.error("Game result error:", message);
+          // A rejected bet (e.g. insufficient balance) left the wallet
+          // untouched; resync the readout in case it drifted.
+          requestWalletRefresh();
           this.balls = this.balls.filter((b) => b !== ball);
           if (this.balls.length === 0) {
             this.isBallInMotion = false;

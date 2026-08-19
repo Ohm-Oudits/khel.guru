@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import gift from "../../../assets/gift.svg";
 import { getKenoSocket } from "../../../socket/games/keno";
+import { requestWalletRefresh } from "../../../utils/walletEvents";
 import { toast } from "react-toastify";
 
 const Game = ({
@@ -44,6 +45,9 @@ const Game = ({
     const handleError = ({ message }) => {
       console.error("Received error from server:", message);
       toast.error(`Error: ${message}`);
+      // A rejected bet (e.g. insufficient balance) left the wallet untouched;
+      // resync the readout in case it drifted.
+      requestWalletRefresh();
     };
 
     const handleGameResult = ({ grid, gifts, matches, payout }) => {
@@ -57,6 +61,8 @@ const Game = ({
       setGifts(gifts);
       setWinnedGifts(matches);
       setGameOver(true);
+      // Reflect the debit/credit in the in-game balance readout.
+      requestWalletRefresh();
     };
 
     const handleConnect = () => {

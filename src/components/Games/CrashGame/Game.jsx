@@ -39,6 +39,9 @@ const Game = ({
   startAutoBet,
   setStartAutoBet,
   nbets,
+  onRoundCrashed,
+  onAutoRoundStart,
+  onAutoCashout,
 }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [data, setData] = useState([{ time: 0, multiplier: 1.0 }]);
@@ -66,6 +69,10 @@ const Game = ({
       if (crashSocket) {
         crashSocket.emit("add_game", {});
         console.log("Emitted add_game event");
+        // Commit the auto-bet stake for this round (debited server-side).
+        if (onAutoRoundStart) {
+          onAutoRoundStart();
+        }
       } else {
         console.error("Wheel socket not initialized");
         toast.error("Failed to join game: Socket not connected");
@@ -86,9 +93,21 @@ const Game = ({
           setIsCrashed(true);
           if (startAutoBet && newMultiplier < autoMultipyTarget) {
             console.log("Crashed Before Reaching Target");
+            // Auto bet busted: the stake stays debited, nothing is credited.
+            if (onRoundCrashed) {
+              onRoundCrashed();
+            }
           }
           if (startAutoBet && newMultiplier >= autoMultipyTarget) {
             console.log("Checkout Point Reached");
+            // The auto cashout fired at the target before the crash.
+            if (onAutoCashout) {
+              onAutoCashout(autoMultipyTarget);
+            }
+          }
+          if (!startAutoBet && onRoundCrashed) {
+            // Manual bet still in play at the crash: forfeit it.
+            onRoundCrashed();
           }
           if (startAutoBet && targetHitCount < nbets) {
             setTargetHitCount((prev) => (prev += 1));

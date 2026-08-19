@@ -26,6 +26,7 @@ import {
   removeErrorListener,
 } from "../../../socket/games/hilo";
 import checkLoggedIn from "../../../utils/isloggedIn";
+import { requestWalletRefresh } from "../../../utils/walletEvents";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 
@@ -92,6 +93,8 @@ const Frame = () => {
 
       onGameOver(({ game }) => {
         console.log("Game over event received:", game); // Debug log
+        // The round settled as a loss (stake kept): refresh the balance.
+        requestWalletRefresh();
         setBettingStarted(false);
         setIsWaitingForCard(false);
         setGameResult({ isGameOver: true, profit: game.profit || 0 });
@@ -100,6 +103,8 @@ const Frame = () => {
 
       onError(({ message }) => {
         console.error("Socket error:", message); // Debug log
+        // A rejected action left the wallet untouched; resync the readout.
+        requestWalletRefresh();
         setIsWaitingForCard(false);
         toast.error(message);
       });
@@ -135,33 +140,40 @@ const Frame = () => {
     setIsWaitingForCard(true);
 
     console.log("Starting new game with bet:", bet); // Debug log
-    addGame(bet, (gameState) => {
-      console.log("New game state received:", gameState); // Debug log
+    addGame(
+      bet,
+      (gameState) => {
+        console.log("New game state received:", gameState); // Debug log
 
-      if (!gameState) {
-        console.error("No game state received from server");
-        toast.error("Failed to start game. Please try again.");
+        if (!gameState) {
+          console.error("No game state received from server");
+          toast.error("Failed to start game. Please try again.");
+          setIsWaitingForCard(false);
+          setIsGameStarting(false);
+          return;
+        }
+
+        // Check if we have an active game
+        if (gameState.error) {
+          console.error("Server error:", gameState.error);
+          toast.error(gameState.error);
+          setIsWaitingForCard(false);
+          setIsGameStarting(false);
+          return;
+        }
+
+        // The stake was just debited (new round): refresh the balance.
+        requestWalletRefresh();
+
+        // Set the game state
+        setCurrentCard(gameState.currentCard);
+        setHistoryCards([gameState.currentCard]);
+        setBettingStarted(true);
         setIsWaitingForCard(false);
         setIsGameStarting(false);
-        return;
-      }
-
-      // Check if we have an active game
-      if (gameState.error) {
-        console.error("Server error:", gameState.error);
-        toast.error(gameState.error);
-        setIsWaitingForCard(false);
-        setIsGameStarting(false);
-        return;
-      }
-
-      // Set the game state
-      setCurrentCard(gameState.currentCard);
-      setHistoryCards([gameState.currentCard]);
-      setBettingStarted(true);
-      setIsWaitingForCard(false);
-      setIsGameStarting(false);
-    });
+      },
+      "demo"
+    );
   };
 
   const handleHigh = () => {
@@ -208,6 +220,8 @@ const Frame = () => {
       setIsWaitingForCard(true);
       checkout((gameState) => {
         if (gameState.checkedOut) {
+          // The cashout was just credited: refresh the balance.
+          requestWalletRefresh();
           setBettingStarted(false);
           setGameResult({ isGameOver: false, profit: gameState.profit });
           setShowResultModal(true);
@@ -226,6 +240,8 @@ const Frame = () => {
       setIsWaitingForCard(true);
       checkout((gameState) => {
         if (gameState.checkedOut) {
+          // The cashout was just credited: refresh the balance.
+          requestWalletRefresh();
           setBettingStarted(false);
           setGameResult({ isGameOver: false, profit: gameState.profit });
           setShowResultModal(true);

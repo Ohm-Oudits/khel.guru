@@ -120,7 +120,12 @@ const Frame = () => {
       setGifts([]);
 
       console.log("Emitting add_game:", { checkedBoxes, bet, risk: Risk });
-      kenoSocket.emit("add_game", { checkedBoxes, bet, risk: Risk });
+      kenoSocket.emit("add_game", {
+        checkedBoxes,
+        bet,
+        risk: Risk,
+        walletType: "demo",
+      });
     } else if (!valid) {
       toast.error("Please select at least one number to bet.");
     }
@@ -185,7 +190,13 @@ const Frame = () => {
 
           const kenoSocket = getKenoSocket();
           console.log("Emitting add_game (auto):", { checkedBoxes, bet });
-          kenoSocket.emit("add_game", { checkedBoxes, bet });
+          // risk is included so payouts credit off the selected risk table.
+          kenoSocket.emit("add_game", {
+            checkedBoxes,
+            bet,
+            risk: Risk,
+            walletType: "demo",
+          });
 
           setTimeout(() => {
             setBettingStarted(false);
