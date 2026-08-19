@@ -1,5 +1,6 @@
 import { FaChevronLeft } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
+import BetSlipPanel from "./BetSlip/BetSlipPanel";
 import EventDetail from "./EventDetail";
 
 const SportBetPage = ({ sportKey, title }) => {
@@ -31,6 +32,7 @@ const SportBetPage = ({ sportKey, title }) => {
 
         <EventDetail />
       </div>
+      <BetSlipPanel />
     </div>
   );
 };

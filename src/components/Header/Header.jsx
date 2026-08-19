@@ -11,6 +11,7 @@ import {
 } from "react-icons/fa";
 import logo from "../../assets/logo.svg";
 import apiService from "../../config/api";
+import { onWalletRefresh } from "../../utils/walletEvents";
 import LoadingSpinner from "../LoadingSpinner";
 import SetupWalletModal from "../Modals/SetupWalletModal";
 import WalletActionsModal from "../Modals/WalletActionsModal";
@@ -44,7 +45,13 @@ const Header = () => {
   };
 
   useEffect(() => {
-    if (user) {
+    const loadBalance = () => {
+      if (!user) {
+        setLoadingBalance(false);
+        setHasWallet(false);
+        setBalance(null);
+        return;
+      }
       setLoadingBalance(true);
       apiService
         .get("/wallet/balance")
@@ -57,11 +64,11 @@ const Header = () => {
           setHasWallet(false);
         })
         .finally(() => setLoadingBalance(false));
-    } else {
-      setLoadingBalance(false);
-      setHasWallet(false);
-      setBalance(null);
-    }
+    };
+
+    loadBalance();
+    // Bets, deposits, and settlements broadcast a refresh request.
+    return onWalletRefresh(loadBalance);
   }, [user]);
 
   useEffect(() => {

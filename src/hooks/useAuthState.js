@@ -3,6 +3,7 @@ import { useSelector, useDispatch } from "react-redux";
 import { fetchUserData } from "../store/slices/authSlice";
 import { fetchContinueGames, getPopularGames } from "../store/slices/gameSlice";
 import { initializeSocket } from "../socket/socket";
+import { attachBetSettledListener } from "../socket/betNotifications";
 
 export const useAuthState = () => {
   const dispatch = useDispatch();
@@ -27,6 +28,7 @@ export const useAuthState = () => {
 
           // Initialize socket connection
           initializeSocket(storedToken);
+          attachBetSettledListener();
         }
 
         // Always fetch popular games regardless of auth status
