@@ -28,6 +28,7 @@ import {
   onGameHistoryHandler,
   onErrorHandler,
 } from "../../../socket/games/dice";
+import { requestWalletRefresh } from "../../../utils/walletEvents";
 import { useSelector } from "react-redux";
 import { motion } from "framer-motion";
 
@@ -156,6 +157,8 @@ const DiceFrame = () => {
         setGameResult(isWin ? "Winner! 🎉" : "You Lost! 😔");
         setDicePosition(diceRoll);
         addToHistory(result);
+        // Reflect the debit/credit in the in-game balance readout.
+        requestWalletRefresh();
 
         if (profit > 0) {
           setProfit((prev) => (parseFloat(prev) + profit).toFixed(6));
@@ -179,6 +182,9 @@ const DiceFrame = () => {
 
     onErrorHandler((message) => {
       toast.error(message);
+      // A rejected bet (e.g. insufficient balance) left the wallet untouched;
+      // resync the readout in case it drifted.
+      requestWalletRefresh();
       resetGame();
     });
   };
@@ -453,7 +459,7 @@ const DiceFrame = () => {
       joinGame();
     }
 
-    const success = rollDice(parseFloat(bet), prediction, rollUnder);
+    const success = rollDice(parseFloat(bet), prediction, rollUnder, "demo");
     if (success) {
       setBettingStarted(true);
       setStart(true);

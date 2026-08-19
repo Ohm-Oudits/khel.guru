@@ -111,7 +111,7 @@ export const joinGame = () => {
   return true;
 };
 
-export const rollDice = (betAmount, prediction, rollUnder) => {
+export const rollDice = (betAmount, prediction, rollUnder, walletType = "demo") => {
   if (!diceSocket || isProcessingResult) return false;
   if (!betAmount || !prediction || typeof rollUnder === "undefined") {
     console.error("Missing required parameters:", {
@@ -121,7 +121,7 @@ export const rollDice = (betAmount, prediction, rollUnder) => {
     });
     return false;
   }
-  diceSocket.emit("roll_dice", { betAmount, prediction, rollUnder });
+  diceSocket.emit("roll_dice", { betAmount, prediction, rollUnder, walletType });
   return true;
 };
 
