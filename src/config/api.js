@@ -113,6 +113,9 @@ export const API_ENDPOINTS = {
     WITHDRAW: "/wallet/withdraw",
     TRANSACTIONS: "/wallet/transactions",
     LEDGER: "/wallet/ledger",
+    CRYPTO_ADDRESSES: "/wallet/crypto/addresses",
+    CRYPTO_DEPOSITS: "/wallet/crypto/deposits",
+    CRYPTO_SIMULATE: "/wallet/crypto/deposits/simulate",
   },
 
   ACCOUNT: {
@@ -219,6 +222,15 @@ export const apiService = {
     getTransactions: (params) =>
       apiClient.get(API_ENDPOINTS.WALLET.TRANSACTIONS, { params }),
     getLedger: () => apiClient.get(API_ENDPOINTS.WALLET.LEDGER),
+    getCryptoAddresses: () =>
+      apiClient.get(API_ENDPOINTS.WALLET.CRYPTO_ADDRESSES),
+    getCryptoDeposits: (params) =>
+      apiClient.get(API_ENDPOINTS.WALLET.CRYPTO_DEPOSITS, { params }),
+    simulateCryptoDeposit: (chain, amountCrypto) =>
+      apiClient.post(API_ENDPOINTS.WALLET.CRYPTO_SIMULATE, {
+        chain,
+        amountCrypto,
+      }),
   },
 
   account: {

@@ -5,6 +5,7 @@ import PlatformHero from "../../components/platform/PlatformHero";
 import PlatformPage from "../../components/platform/PlatformPage";
 import PlatformPanel from "../../components/platform/PlatformPanel";
 import PlatformStateCard from "../../components/platform/PlatformStateCard";
+import CryptoDepositPanel from "../../components/platform/CryptoDepositPanel";
 import apiService from "../../config/api";
 import { walletActionCards } from "../../config/platformNavigation";
 
@@ -209,6 +210,7 @@ const WalletHub = () => {
             {cashierMessage ? (
               <p className="mt-3 text-sm text-text-secondary">{cashierMessage}</p>
             ) : null}
+            <CryptoDepositPanel onDepositCredited={loadWalletOverview} />
           </PlatformPanel>
 
           <PlatformPanel>
