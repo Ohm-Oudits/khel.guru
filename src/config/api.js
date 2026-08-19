@@ -91,7 +91,9 @@ export const API_ENDPOINTS = {
     HISTORY: "/game/history",
     STATS: "/game/stats",
     PLACE_BET: "/game/bet",
-    FAIRNESS: "/game/fairness",
+    FAIRNESS_OVERVIEW: "/casino/fairness/overview",
+    FAIRNESS_VERIFY: "/casino/fairness/verify",
+    FAIRNESS_SEEDS: "/casino/fairness/seeds",
   },
 
   // Sports endpoints
@@ -170,8 +172,15 @@ export const apiService = {
     getStats: () => apiClient.get(API_ENDPOINTS.GAMES.STATS),
     placeBet: (betData) =>
       apiClient.post(API_ENDPOINTS.GAMES.PLACE_BET, betData),
-    getFairness: (gameId) =>
-      apiClient.get(`${API_ENDPOINTS.GAMES.FAIRNESS}/${gameId}`),
+    getFairnessOverview: () =>
+      apiClient.get(API_ENDPOINTS.GAMES.FAIRNESS_OVERVIEW),
+    getFairnessSeeds: () => apiClient.get(API_ENDPOINTS.GAMES.FAIRNESS_SEEDS),
+    getFairnessCurrentSeed: (gameKey) =>
+      apiClient.get(`/casino/fairness/current/${gameKey}`),
+    rotateFairnessSeed: (gameKey, data = {}) =>
+      apiClient.post(`/casino/fairness/${gameKey}/rotate`, data),
+    verifyFairness: (data) =>
+      apiClient.post(API_ENDPOINTS.GAMES.FAIRNESS_VERIFY, data),
   },
 
   // Sports services
