@@ -186,17 +186,17 @@ const Search = () => {
 
   return (
     <div
-      className="fixed inset-0 z-[110] flex items-start justify-center overflow-y-auto bg-[rgba(3,6,5,0.76)] px-3 py-4 backdrop-blur-xl md:px-6 md:py-10"
+      className="fixed inset-0 z-[110] flex items-center justify-center overflow-y-auto bg-[rgba(3,6,5,0.76)] px-4 py-6 backdrop-blur-xl md:items-start md:px-6 md:py-10"
       onClick={handleClose}
     >
       <div
-        className="w-full max-w-4xl overflow-hidden rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_top,_rgba(54,94,76,0.34)_0%,_rgba(17,20,19,0.98)_42%,_rgba(10,12,11,1)_100%)] shadow-[0_30px_120px_rgba(0,0,0,0.55)]"
+        className="w-full max-w-[22rem] overflow-hidden rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top,_rgba(54,94,76,0.34)_0%,_rgba(17,20,19,0.98)_42%,_rgba(10,12,11,1)_100%)] shadow-[0_30px_120px_rgba(0,0,0,0.55)] md:max-w-4xl md:rounded-[32px]"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="px-4 pb-5 pt-4 md:px-6 md:pb-6 md:pt-5">
-          <div className="rounded-[28px] border border-white/10 bg-black/20 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] md:p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand-primary/15 text-lg text-brand-primary">
+        <div className="max-h-[calc(100vh-3rem)] overflow-y-auto px-3 pb-4 pt-3 md:max-h-none md:px-6 md:pb-6 md:pt-5">
+          <div className="rounded-[22px] border border-white/10 bg-black/20 p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] md:rounded-[28px] md:p-4">
+            <div className="flex items-center gap-2.5 md:gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-primary/15 text-base text-brand-primary md:h-12 md:w-12 md:rounded-2xl md:text-lg">
                 <FaSearch />
               </div>
 
@@ -207,7 +207,7 @@ const Search = () => {
                   onChange={(event) => setSearch(event.target.value)}
                   onKeyDown={handleSearchKeyDown}
                   autoFocus
-                  className="w-full appearance-none border-0 bg-transparent text-lg font-semibold text-white outline-none ring-0 placeholder:text-text-tertiary focus:border-0 focus:outline-none focus:ring-0 focus-visible:outline-none md:text-2xl"
+                  className="w-full appearance-none border-0 bg-transparent text-[15px] font-semibold text-white outline-none ring-0 placeholder:text-[13px] placeholder:text-text-tertiary focus:border-0 focus:outline-none focus:ring-0 focus-visible:outline-none md:text-2xl md:placeholder:text-base"
                   placeholder="Games, sports, support, rewards, pages"
                 />
               </div>
@@ -223,7 +223,7 @@ const Search = () => {
             </div>
           </div>
 
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className="mt-3 flex flex-wrap gap-2 md:mt-4">
             {FILTERS.map((filter) => {
               const active = selectedFilter === filter.key;
 
@@ -232,7 +232,7 @@ const Search = () => {
                   key={filter.key}
                   type="button"
                   onClick={() => setSelectedFilter(filter.key)}
-                  className={`flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-semibold transition ${
+                  className={`flex items-center gap-1.5 rounded-2xl px-3 py-1.5 text-xs font-semibold transition md:gap-2 md:px-4 md:py-2 md:text-sm ${
                     active
                       ? "bg-brand-primary text-text-inverse"
                       : "border border-white/10 bg-white/5 text-text-secondary hover:bg-white/10 hover:text-white"
@@ -245,14 +245,14 @@ const Search = () => {
             })}
           </div>
 
-          <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
+          <div className="mt-4 grid gap-4 md:mt-5 md:gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
             <div className="min-h-0">
               <div className="mb-3 flex items-center justify-between">
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-brand-accent">
                     {normalizedQuery ? "Search Results" : "Quick Picks"}
                   </p>
-                  <h2 className="mt-1 text-xl font-black text-white">
+                  <h2 className="mt-1 text-base font-black text-white md:text-xl">
                     {normalizedQuery
                       ? `Matches for "${search.trim()}"`
                       : "Jump straight into the right surface"}
@@ -264,16 +264,16 @@ const Search = () => {
                 </div>
               </div>
 
-              <div className="max-h-[46vh] space-y-3 overflow-y-auto pr-1 md:max-h-[52vh]">
+              <div className="max-h-[42vh] space-y-2.5 overflow-y-auto pr-1 md:max-h-[52vh] md:space-y-3">
                 {normalizedQuery && activeResults.length === 0 ? (
-                  <div className="rounded-[28px] border border-dashed border-white/12 bg-black/20 px-5 py-8 text-center">
-                    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-white/5 text-brand-primary">
+                  <div className="rounded-[24px] border border-dashed border-white/12 bg-black/20 px-4 py-6 text-center md:rounded-[28px] md:px-5 md:py-8">
+                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-white/5 text-brand-primary md:h-14 md:w-14">
                       <FaSearch />
                     </div>
-                    <h3 className="mt-4 text-lg font-bold text-white">
+                    <h3 className="mt-3 text-base font-bold text-white md:mt-4 md:text-lg">
                       No matches yet
                     </h3>
-                    <p className="mt-2 text-sm text-text-secondary">
+                    <p className="mt-2 text-xs text-text-secondary md:text-sm">
                       Try a game title, a sport like cricket, or a surface like
                       support or wallet.
                     </p>
@@ -284,25 +284,25 @@ const Search = () => {
                       key={item.id}
                       type="button"
                       onClick={() => handleResultClick(item)}
-                      className="group flex w-full items-center gap-4 rounded-[28px] border border-white/10 bg-black/20 px-4 py-4 text-left transition hover:border-brand-primary/40 hover:bg-white/[0.06]"
+                      className="group flex w-full items-center gap-3 rounded-[22px] border border-white/10 bg-black/20 px-3 py-3 text-left transition hover:border-brand-primary/40 hover:bg-white/[0.06] md:gap-4 md:rounded-[28px] md:px-4 md:py-4"
                     >
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/5 text-brand-primary">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/5 text-sm text-brand-primary md:h-12 md:w-12 md:rounded-2xl md:text-base">
                         <item.icon />
                       </div>
 
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="text-base font-bold text-white">
+                          <h3 className="text-sm font-bold text-white md:text-base">
                             {item.title}
                           </h3>
-                          <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-text-tertiary">
+                          <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-text-tertiary md:px-2.5 md:py-1 md:text-[10px] md:tracking-[0.2em]">
                             {item.badge}
                           </span>
                         </div>
-                        <p className="mt-1 text-sm font-semibold text-text-secondary">
+                        <p className="mt-1 text-xs font-semibold text-text-secondary md:text-sm">
                           {item.subtitle}
                         </p>
-                        <p className="mt-1 text-sm text-text-tertiary">
+                        <p className="mt-1 text-xs text-text-tertiary md:text-sm">
                           {item.description}
                         </p>
                       </div>
@@ -317,7 +317,7 @@ const Search = () => {
               </div>
             </div>
 
-            <div className="space-y-4">
+            <div className="hidden space-y-4 md:block">
               <div className="rounded-[28px] border border-white/10 bg-black/20 p-4">
                 <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-brand-accent">
                   <FaClock />
