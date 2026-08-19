@@ -1,0 +1,36 @@
+export const stakeShellBenchmark = {
+  capturedAt: "2026-08-19",
+  sourceUrls: ["https://stake.com/", "https://help.stake.com/en/"],
+  homepageHero: "The World's Largest Online Casino and Sportsbook",
+  homepageSections: ["Trending Games", "Trending Sports", "Promotions"],
+  footerGroups: [
+    "Casino",
+    "Sports",
+    "Support",
+    "About Us",
+    "Payment Info",
+    "FAQ",
+  ],
+  browseTabs: ["Browse", "Casino", "For You", "Sports", "Chat"],
+  khelGuruTarget: {
+    primaryNavigation: [
+      "Home",
+      "Casino",
+      "Sports",
+      "Wallet",
+      "Rewards",
+      "Support",
+      "Settings",
+    ],
+    mobileNavigation: ["Home", "Casino", "Rewards", "Sports", "Support"],
+    casinoBrowse: ["Originals", "Live Casino", "Roulette", "Blackjack"],
+    sportsbookBrowse: ["Cricket", "Football", "Tennis", "In-Play"],
+    supportSurfaces: [
+      "Help Center",
+      "Fairness",
+      "Responsible Gaming",
+      "Live Support",
+    ],
+    rewardsSurfaces: ["VIP Club", "Rakeback", "Reloads", "Raffles & Races"],
+  },
+};
