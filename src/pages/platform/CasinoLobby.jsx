@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { FaHeart } from "react-icons/fa";
 import { Link } from "react-router-dom";
+import LiveWinFeed from "../../components/platform/LiveWinFeed";
 import PlatformPage from "../../components/platform/PlatformPage";
+import PlatformPanel from "../../components/platform/PlatformPanel";
 import { originals } from "../../constants";
 
 const FAVORITES_STORAGE_KEY = "kg.favorite.originals";
@@ -201,6 +203,10 @@ const CasinoLobby = () => {
             : "No games in this category yet."}
         </p>
       )}
+
+      <PlatformPanel>
+        <LiveWinFeed variant="casino" rows={15} title="Live Casino Wins" />
+      </PlatformPanel>
     </PlatformPage>
   );
 };

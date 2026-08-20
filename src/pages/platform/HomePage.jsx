@@ -1,9 +1,10 @@
 import { Link, useNavigate } from "react-router-dom";
+import LiveWinFeed from "../../components/platform/LiveWinFeed";
 import PlatformFeatureTile from "../../components/platform/PlatformFeatureTile";
 import PlatformHero from "../../components/platform/PlatformHero";
 import PlatformPage from "../../components/platform/PlatformPage";
 import PlatformPanel from "../../components/platform/PlatformPanel";
-import { originals, wins } from "../../constants";
+import { originals } from "../../constants";
 import {
   casinoBrowseLinks,
   heroMetrics,
@@ -14,7 +15,6 @@ import {
 
 const featuredGames = originals.slice(0, 6);
 const featuredSports = sportsbookBrowseLinks.slice(0, 4);
-const featuredWins = wins.slice(0, 6);
 
 const HomePage = () => {
   const navigate = useNavigate();
@@ -149,32 +149,7 @@ const HomePage = () => {
         </PlatformPanel>
 
         <PlatformPanel>
-          <p className="text-xs uppercase tracking-[0.22em] text-brand-accent">
-            Live Feed
-          </p>
-          <h2 className="mt-2 text-2xl font-black text-white">
-            Win stream preview
-          </h2>
-          <div className="mt-4 space-y-3">
-            {featuredWins.map((entry) => (
-              <div
-                key={`${entry.username}-${entry.game}-${entry.time}`}
-                className="flex items-center justify-between rounded-2xl border border-white/10 bg-black/20 px-4 py-3"
-              >
-                <div>
-                  <p className="text-sm font-semibold text-white">
-                    {entry.username} on {entry.game}
-                  </p>
-                  <p className="text-xs text-text-tertiary">
-                    {entry.time} • {entry.multiplier}
-                  </p>
-                </div>
-                <span className="text-sm font-bold text-brand-primary">
-                  {entry.payout}
-                </span>
-              </div>
-            ))}
-          </div>
+          <LiveWinFeed variant="both" fill title="Win Stream" />
         </PlatformPanel>
       </section>
 

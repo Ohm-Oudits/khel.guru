@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { FaHeart } from "react-icons/fa";
 import { Link } from "react-router-dom";
 import EventCard from "../../components/Sports/EventCard";
+import LiveWinFeed from "../../components/platform/LiveWinFeed";
 import PlatformPage from "../../components/platform/PlatformPage";
 import PlatformPanel from "../../components/platform/PlatformPanel";
 import { apiService } from "../../config/api";
@@ -276,6 +277,10 @@ const SportsbookHub = () => {
           </p>
         </PlatformPanel>
       )}
+
+      <PlatformPanel>
+        <LiveWinFeed variant="sports" rows={15} title="Live Sports Wins" />
+      </PlatformPanel>
     </PlatformPage>
   );
 };
