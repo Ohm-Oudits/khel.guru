@@ -18,8 +18,8 @@ const SPORTS_PLAYS = [
   "Real Madrid vs Barca", "Djokovic vs Medvedev",
 ];
 
-// Approximate rendered height of one row (py-1.5 + text + space-y-1 gap).
-const ROW_PX = 32;
+// Rendered height of one row (py-1 + text + space-y-0.5 gap).
+const ROW_PX = 26;
 
 const pick = (list) => list[Math.floor(Math.random() * list.length)];
 
@@ -40,11 +40,13 @@ const makeEntry = (variant, id) => {
 };
 
 // A live-updating wins feed. New rows animate in at the top and the oldest
-// drops off the bottom. In `fill` mode the row count is measured from the
-// parent height so the list fills its container instead of leaving a gap.
-const LiveWinFeed = ({ variant = "both", rows = 7, fill = false, title = "Live Wins" }) => {
+// drops off the bottom. The scroll window has a FIXED pixel height with
+// overflow clipped, so row enter/exit never resizes the panel (no border
+// bounce). In `fill` mode the row count is measured from the parent height.
+const LiveWinFeed = ({ variant = "both", rows = 8, fill = false, title = "Live Wins" }) => {
   const counter = useRef(0);
-  const listRef = useRef(null);
+  const rootRef = useRef(null);
+  const headerRef = useRef(null);
   const [count, setCount] = useState(rows);
   const [entries, setEntries] = useState(() =>
     Array.from({ length: rows }, () => makeEntry(variant, counter.current++))
@@ -56,10 +58,11 @@ const LiveWinFeed = ({ variant = "both", rows = 7, fill = false, title = "Live W
       return undefined;
     }
     const measure = () => {
-      const el = listRef.current;
-      if (!el) return;
-      const fitted = Math.max(4, Math.floor(el.clientHeight / ROW_PX));
-      setCount(fitted);
+      const root = rootRef.current;
+      const header = headerRef.current;
+      if (!root) return;
+      const available = root.clientHeight - (header?.offsetHeight || 0);
+      setCount(Math.max(4, Math.floor(available / ROW_PX)));
     };
     measure();
     window.addEventListener("resize", measure);
@@ -91,24 +94,27 @@ const LiveWinFeed = ({ variant = "both", rows = 7, fill = false, title = "Live W
   }, [variant, count]);
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="mb-3 flex items-center gap-2">
+    <div ref={rootRef} className="flex h-full flex-col">
+      <div ref={headerRef} className="mb-2 flex items-center gap-2">
         <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
         <h2 className="text-sm font-black uppercase tracking-[0.18em] text-white">
           {title}
         </h2>
       </div>
-      <div ref={listRef} className="min-h-0 flex-1 space-y-1 overflow-hidden">
+      <div
+        className="space-y-0.5 overflow-hidden"
+        style={{ height: count * ROW_PX }}
+      >
         <AnimatePresence initial={false}>
           {entries.map((entry) => (
             <motion.div
               key={entry.id}
               layout
-              initial={{ opacity: 0, y: -12, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.28 }}
-              className="flex items-center justify-between gap-2 rounded-md bg-black/20 px-3 py-1.5 text-xs"
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.25 }}
+              className="flex items-center justify-between gap-2 rounded bg-black/20 px-2 py-1 text-xs"
             >
               <div className="flex min-w-0 items-center gap-2">
                 <span className="truncate font-semibold text-white">

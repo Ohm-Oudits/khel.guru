@@ -279,7 +279,7 @@ const SportsbookHub = () => {
       )}
 
       <PlatformPanel>
-        <LiveWinFeed variant="sports" rows={15} title="Live Sports Wins" />
+        <LiveWinFeed variant="sports" rows={9} title="Live Sports Wins" />
       </PlatformPanel>
     </PlatformPage>
   );
