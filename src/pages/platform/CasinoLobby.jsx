@@ -24,13 +24,17 @@ const FILTERS = [
 
 // Stable per-game like count (no real likes source yet) so the number does
 // not flicker between renders.
-const formatLikes = (game) => {
+const gameLikes = (game) => {
   const seed = String(game.name)
     .split("")
     .reduce((sum, char) => sum + char.charCodeAt(0), game.id || 0);
-  const count = 4200 + (seed * 733) % 95000;
-  return count >= 1000 ? `${(count / 1000).toFixed(1)}K` : String(count);
+  return 4200 + (seed * 733) % 95000;
 };
+
+const formatCount = (count) =>
+  count >= 1000 ? `${(count / 1000).toFixed(1)}K` : String(count);
+
+const byLikesDesc = (a, b) => gameLikes(b) - gameLikes(a);
 
 const safeReadStorage = (key) => {
   try {
@@ -66,14 +70,14 @@ const CasinoLobby = () => {
       case "live":
         return originals.filter((game) => LIVE_GAME_LINKS.has(game.link));
       case "trending":
-        return originals.slice(0, 8);
+        return [...originals].sort(byLikesDesc).slice(0, 8);
       case "recent":
         return recentLinks
           .map((link) => originals.find((game) => game.link === link))
           .filter(Boolean);
       case "all":
       default:
-        return originals;
+        return [...originals].sort(byLikesDesc);
     }
   }, [activeFilter, recentLinks]);
 
@@ -183,7 +187,7 @@ const CasinoLobby = () => {
                   {game.name}
                 </h3>
                 <span className="flex shrink-0 items-center gap-1 text-[11px] text-text-tertiary">
-                  {formatLikes(game)}
+                  {formatCount(gameLikes(game))}
                   <FaHeart className="text-[10px] text-red-500" />
                 </span>
               </div>
