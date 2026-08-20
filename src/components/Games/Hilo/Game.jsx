@@ -44,9 +44,10 @@ const Game = ({
     }
   }, [historyCards]);
 
-  // Check if we're waiting for the first card or game is starting
-  const shouldShowLoading =
-    isGameStarting || (!currentCard && historyCards.length === 0);
+  // Only block the board while a round is actively starting. When idle (no
+  // active game yet) we show the ready card layout — like Stake — instead of a
+  // permanent "Loading Game..." state.
+  const shouldShowLoading = isGameStarting;
 
   if (shouldShowLoading) {
     return (

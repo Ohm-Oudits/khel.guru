@@ -132,7 +132,8 @@ const Frame = () => {
       console.error("Socket error received:", error);
       // A rejected action left the wallet untouched; resync the readout.
       requestWalletRefresh();
-      if (error.message) {
+      // "No active game found" is the normal empty state on load, not an error.
+      if (error.message && !/no active game/i.test(error.message)) {
         toast.error(error.message);
       }
     });

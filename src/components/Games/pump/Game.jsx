@@ -95,7 +95,6 @@ const GameComponent = ({
   };
   return (
     <section className="flex w-full h-full justify-center">
-      {targetMultiplier}
       <div className="flex  h-[100%] -mt-20  flex-col  my-auto w-[40%]   items-center justify-end  text-white">
         <div className={`-ml-[150px]  `}>
           <div

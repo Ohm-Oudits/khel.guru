@@ -1,9 +1,18 @@
 import React from "react";
 
 const History = ({ list, onClear, displayOrder = "right-to-left" }) => {
+  const getValue = (item) =>
+    parseFloat(item.roll ?? item.value ?? item.result ?? item.multiplier);
+  const isWinColor = (item) =>
+    item.color === "#15803D" || item.color === "green" || item.isWin;
+
+  // Only render items with a real numeric value so a malformed entry never
+  // shows up as a "NaN" badge.
+  const validList = list.filter((item) => Number.isFinite(getValue(item)));
+
   // For right-to-left display, we want the most recent items on the right
   const displayList =
-    displayOrder === "right-to-left" ? [...list].reverse() : list;
+    displayOrder === "right-to-left" ? [...validList].reverse() : validList;
 
   return (
     <div className="relative w-full">
@@ -20,11 +29,11 @@ const History = ({ list, onClear, displayOrder = "right-to-left" }) => {
           <div
             key={item.id}
             className={`px-2.5 rounded text-[10px] font-semibold whitespace-nowrap ${
-              item.color === "#15803D" ? "bg-green-900/30" : "bg-red-900/30"
+              isWinColor(item) ? "bg-green-900/30" : "bg-red-900/30"
             }`}
-            style={{ color: item.color }}
+            style={{ color: isWinColor(item) ? "#15803D" : "#B91C1C" }}
           >
-            {parseFloat(item.roll || item.value).toFixed(1)}
+            {getValue(item).toFixed(1)}
           </div>
         ))}
       </div>

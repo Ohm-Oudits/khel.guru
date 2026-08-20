@@ -132,12 +132,25 @@ const Game = ({
       return;
     }
 
-    const wheelSocket = getWheelSocket();
+    const wheelSocket = getWheelSocket() || initializeWheelSocket(token);
 
-    const onConnect = () => setConnectionStatus("Connected");
-    const onDisconnect = () => setConnectionStatus("Disconnected");
+    const markConnected = () => {
+      setConnectionStatus("Connected");
+      setSocketConnected(true);
+      setIsConnecting(false);
+    };
+    const onConnect = markConnected;
+    const onDisconnect = () => {
+      setConnectionStatus("Disconnected");
+      setSocketConnected(false);
+      setIsConnecting(false);
+    };
 
     if (wheelSocket) {
+      // A reused socket may already be connected before this handler attaches,
+      // so the "connect" event never re-fires — seed the state from the live
+      // connection to avoid a permanent "Connecting..." overlay.
+      if (wheelSocket.connected) markConnected();
       wheelSocket.on("connect", onConnect);
       wheelSocket.on("disconnect", onDisconnect);
     }

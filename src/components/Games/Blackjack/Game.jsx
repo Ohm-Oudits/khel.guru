@@ -252,10 +252,10 @@ const Game = ({
           </div>
         )}
 
-        {/* Baccarat Wins */}
+        {/* Blackjack payouts */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center flex-col font-semibold text-zinc-400 text-[0.9rem]">
-          <h1>Baccarat Pays 3 to 1</h1>
-          <h1 className="mt-[-5px]">Insurance Pays 3 to 1</h1>
+          <h1>Blackjack Pays 3 to 2</h1>
+          <h1 className="mt-[-5px]">Insurance Pays 2 to 1</h1>
         </div>
 
         {/* Dealer Score */}

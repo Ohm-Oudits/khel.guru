@@ -152,7 +152,7 @@ const SideBar = ({
                       htmlFor="Difficulty"
                       className="flex items-center mb-[-4px] pl-[2px] justify-between w-full font-semibold text-label"
                     >
-                      <h1>Difficulty</h1>
+                      <h1>Risk</h1>
                     </label>
                     <div className="relative w-full">
                       <button
@@ -164,7 +164,7 @@ const SideBar = ({
                         disabled={bettingStarted}
                       >
                         {options.find((opt) => opt.value === risk)?.label ||
-                          "Select Difficulty"}
+                          "Select Risk"}
                       </button>
 
                       {isOpen && (
@@ -193,7 +193,7 @@ const SideBar = ({
                       htmlFor="Difficulty"
                       className="flex items-center mb-[-4px] pl-[2px] justify-between w-full font-semibold text-label"
                     >
-                      <h1>Difficulty</h1>
+                      <h1>Segments</h1>
                     </label>
                     <div className="relative w-full">
                       <button
@@ -293,7 +293,7 @@ const SideBar = ({
                       htmlFor="Difficulty"
                       className="flex items-center mb-[-4px] pl-[2px] justify-between w-full font-semibold text-label"
                     >
-                      <h1>Difficulty</h1>
+                      <h1>Risk</h1>
                     </label>
                     <div className="relative w-full">
                       <button
@@ -305,7 +305,7 @@ const SideBar = ({
                         disabled={bettingStarted}
                       >
                         {options.find((opt) => opt.value === risk)?.label ||
-                          "Select Difficulty"}
+                          "Select Risk"}
                       </button>
 
                       {isOpen && (
@@ -334,7 +334,7 @@ const SideBar = ({
                       htmlFor="Difficulty"
                       className="flex items-center mb-[-4px] pl-[2px] justify-between w-full font-semibold text-label"
                     >
-                      <h1>Difficulty</h1>
+                      <h1>Segments</h1>
                     </label>
                     <div className="relative w-full">
                       <button

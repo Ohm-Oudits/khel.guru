@@ -233,8 +233,9 @@ const Frame = () => {
     setCurrentHistory((prev) => [
       ...prev,
       {
-        result: cashoutMultiplier,
-        color: "green",
+        id: prev.length + 1,
+        value: cashoutMultiplier,
+        color: "#15803D",
       },
     ]);
     setBettingStarted(false);
