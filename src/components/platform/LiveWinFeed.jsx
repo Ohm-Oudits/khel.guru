@@ -20,7 +20,7 @@ const SPORTS_PLAYS = [
 
 // Rendered height of one row (single line vs a two-line detailed card).
 const ROW_PX = 26;
-const DETAILED_ROW_PX = 46;
+const DETAILED_ROW_PX = 50;
 const WIDE_BREAKPOINT = 1280;
 
 const pick = (list) => list[Math.floor(Math.random() * list.length)];
@@ -137,27 +137,46 @@ const LiveWinFeed = ({
               transition={{ duration: 0.25 }}
               className="rounded-lg bg-black/20 px-3 py-1 text-xs"
             >
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex min-w-0 items-center gap-2">
-                  <span className="truncate font-semibold text-white">
-                    {entry.user}
-                  </span>
-                  <span className="truncate text-text-tertiary">
-                    {entry.label}
-                  </span>
-                </div>
-                <div className="flex shrink-0 items-center gap-3 text-text-tertiary">
-                  <span>{entry.multiplier}x</span>
-                  <span className="font-bold text-brand-primary">
-                    {entry.payout}
-                  </span>
-                </div>
-              </div>
               {detailed ? (
-                <div className="mt-0.5 text-[10px] text-text-tertiary">
-                  {entry.date} · {entry.time}
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex min-w-0 flex-col">
+                    <span className="truncate text-sm font-semibold text-white">
+                      {entry.user}{" "}
+                      <span className="font-normal text-text-tertiary">
+                        {entry.label}
+                      </span>
+                    </span>
+                    <span className="text-[11px] text-text-tertiary">
+                      {entry.date} · {entry.time}
+                    </span>
+                  </div>
+                  <div className="flex shrink-0 flex-col items-end">
+                    <span className="text-sm font-bold text-brand-primary">
+                      {entry.payout}
+                    </span>
+                    <span className="text-[11px] text-text-tertiary">
+                      {entry.multiplier}x
+                    </span>
+                  </div>
                 </div>
-              ) : null}
+              ) : (
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="truncate font-semibold text-white">
+                      {entry.user}
+                    </span>
+                    <span className="truncate text-text-tertiary">
+                      {entry.label}
+                    </span>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-3 text-text-tertiary">
+                    <span>{entry.multiplier}x</span>
+                    <span className="font-bold text-brand-primary">
+                      {entry.payout}
+                    </span>
+                  </div>
+                </div>
+              )}
             </motion.div>
           ))}
         </AnimatePresence>
