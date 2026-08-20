@@ -18,8 +18,9 @@ const SPORTS_PLAYS = [
   "Real Madrid vs Barca", "Djokovic vs Medvedev",
 ];
 
-// Rendered height of one row (py-1 + text + space-y-0.5 gap).
+// Rendered height of one row (single line vs a two-line detailed card).
 const ROW_PX = 26;
+const DETAILED_ROW_PX = 46;
 const WIDE_BREAKPOINT = 1280;
 
 const pick = (list) => list[Math.floor(Math.random() * list.length)];
@@ -63,6 +64,7 @@ const LiveWinFeed = ({
   const counter = useRef(0);
   const rootRef = useRef(null);
   const headerRef = useRef(null);
+  const rowPx = detailed ? DETAILED_ROW_PX : ROW_PX;
   const [count, setCount] = useState(rows);
   const [entries, setEntries] = useState(() =>
     Array.from({ length: rows }, (_, i) =>
@@ -81,12 +83,12 @@ const LiveWinFeed = ({
       const header = headerRef.current;
       if (!root) return;
       const available = root.clientHeight - (header?.offsetHeight || 0);
-      setCount(Math.max(4, Math.floor(available / ROW_PX)));
+      setCount(Math.max(4, Math.floor(available / rowPx)));
     };
     apply();
     window.addEventListener("resize", apply);
     return () => window.removeEventListener("resize", apply);
-  }, [fill, rows]);
+  }, [fill, rows, rowPx]);
 
   // Keep the entry list sized to `count`.
   useEffect(() => {
@@ -122,7 +124,7 @@ const LiveWinFeed = ({
       </div>
       <div
         className="space-y-0.5 overflow-hidden"
-        style={{ height: count * ROW_PX }}
+        style={{ height: count * rowPx }}
       >
         <AnimatePresence initial={false}>
           {entries.map((entry) => (
@@ -133,24 +135,29 @@ const LiveWinFeed = ({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.25 }}
-              className="flex items-center justify-between gap-2 rounded-lg bg-black/20 px-3 py-1 text-xs"
+              className="rounded-lg bg-black/20 px-3 py-1 text-xs"
             >
-              <div className="flex min-w-0 items-center gap-2">
-                <span className="truncate font-semibold text-white">
-                  {entry.user}
-                </span>
-                <span className="truncate text-text-tertiary">{entry.label}</span>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="truncate font-semibold text-white">
+                    {entry.user}
+                  </span>
+                  <span className="truncate text-text-tertiary">
+                    {entry.label}
+                  </span>
+                </div>
+                <div className="flex shrink-0 items-center gap-3 text-text-tertiary">
+                  <span>{entry.multiplier}x</span>
+                  <span className="font-bold text-brand-primary">
+                    {entry.payout}
+                  </span>
+                </div>
               </div>
-              <div className="flex shrink-0 items-center gap-3 text-text-tertiary">
-                {detailed ? (
-                  <>
-                    <span className="hidden sm:inline">{entry.date}</span>
-                    <span>{entry.time}</span>
-                  </>
-                ) : null}
-                <span>{entry.multiplier}x</span>
-                <span className="font-bold text-brand-primary">{entry.payout}</span>
-              </div>
+              {detailed ? (
+                <div className="mt-0.5 text-[10px] text-text-tertiary">
+                  {entry.date} · {entry.time}
+                </div>
+              ) : null}
             </motion.div>
           ))}
         </AnimatePresence>
