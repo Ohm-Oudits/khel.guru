@@ -4,6 +4,11 @@ let plinkoSocket = null;
 const API_URL = import.meta.env.VITE_APP_SOCKET_URL;
 
 export const initializePlinkoSocket = (token) => {
+  // Reuse a live socket instead of churning a new connection on every mount —
+  // recreating it mid-handshake dropped in-flight bets ("closed before
+  // established").
+  if (plinkoSocket) return plinkoSocket;
+
   plinkoSocket = io(`${API_URL}/plinko`, {
     auth: {
       token: token,

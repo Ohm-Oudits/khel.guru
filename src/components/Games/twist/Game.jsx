@@ -2,7 +2,6 @@ import React, { useEffect, useState } from "react";
 import ResponsiveSegmentedCircles from "./Rod";
 
 import {
-  disconnectTwistSocket,
   getTwistSocket,
   placeBet,
 } from "../../../socket/games/twist";
@@ -49,12 +48,13 @@ const BonusWheel = ({
     }
 
     return () => {
+      // Only detach our listeners; don't tear down the shared socket on every
+      // effect re-run, which disconnected it mid-handshake and dropped bets.
       const twistSocket = getTwistSocket();
       if (twistSocket) {
         twistSocket.off("error");
         twistSocket.off("bet_result");
       }
-      disconnectTwistSocket();
     };
   }, []);
 

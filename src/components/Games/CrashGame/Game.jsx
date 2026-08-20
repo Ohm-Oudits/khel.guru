@@ -14,10 +14,7 @@ import {
 import "tailwindcss/tailwind.css";
 import "../../../styles/Crash.css";
 
-import {
-  disconnectCrashSocket,
-  getCrashSocket,
-} from "../../../socket/games/crash";
+import { getCrashSocket } from "../../../socket/games/crash";
 import { toast } from "react-toastify";
 
 ChartJS.register(
@@ -141,11 +138,12 @@ const Game = ({
     }
 
     return () => {
+      // Only detach our listener; don't tear down the shared socket on every
+      // effect re-run, which disconnected it mid-handshake and dropped bets.
       const crashSocket = getCrashSocket();
       if (crashSocket) {
         crashSocket.off("error");
       }
-      disconnectCrashSocket();
     };
   }, []);
 

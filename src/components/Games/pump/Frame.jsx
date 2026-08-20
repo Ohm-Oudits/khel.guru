@@ -14,7 +14,6 @@ import History from "../../Frame/History";
 import checkLoggedIn from "../../../utils/isloggedIn";
 import { useNavigate } from "react-router-dom";
 import {
-  disconnectPumpSocket,
   getPumpSocket,
   initializePumpSocket,
   placePumpBet,
@@ -147,11 +146,12 @@ const Frame = () => {
     }
 
     return () => {
+      // Only detach our listener; don't tear down the shared socket on every
+      // effect re-run, which disconnected it mid-handshake and dropped bets.
       const pumpSocket = getPumpSocket();
       if (pumpSocket) {
         pumpSocket.off("error");
       }
-      disconnectPumpSocket();
     };
   }, []);
 

@@ -4,6 +4,11 @@ let towerSocket = null;
 const API_URL = import.meta.env.VITE_APP_SOCKET_URL;
 
 export const initializeTowerSocket = (token) => {
+  // Reuse a live socket instead of churning a new connection on every mount —
+  // recreating it mid-handshake dropped in-flight bets ("closed before
+  // established").
+  if (towerSocket) return towerSocket;
+
   towerSocket = io(`${API_URL}/tower`, {
     auth: {
       token: token,

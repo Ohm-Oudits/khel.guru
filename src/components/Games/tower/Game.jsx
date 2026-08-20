@@ -1,7 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import {
   getTowerSocket,
-  disconnectTowerSocket,
   initializeTowerSocket,
   startTowerGame,
 } from "../../../socket/games/tower";
@@ -217,6 +216,8 @@ export default function Game({
     }
 
     return () => {
+      // Only detach our listeners; don't tear down the shared socket on every
+      // effect re-run, which disconnected it mid-handshake and dropped bets.
       const towerSocket = socketRef.current;
       if (towerSocket) {
         towerSocket.off("connect");
@@ -226,12 +227,14 @@ export default function Game({
         towerSocket.off("checkout_result");
         towerSocket.off("error");
       }
-      disconnectTowerSocket();
     };
   }, [isLoggedIn]);
 
   useEffect(() => {
-    if (bettingStarted && socketRef.current?.connected) {
+    // socket.io buffers emits until the connection is ready, so we only need
+    // the socket to exist — gating on `.connected` here dropped bets placed
+    // before the handshake finished.
+    if (bettingStarted && socketRef.current) {
       setGameOver(false);
       setGameWon(false);
       setSelectedBoxes([]);

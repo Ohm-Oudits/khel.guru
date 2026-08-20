@@ -4,6 +4,11 @@ let crashSocket = null;
 const API_URL = import.meta.env.VITE_APP_SOCKET_URL;
 
 export const initializeCrashSocket = (token) => {
+  // Reuse a live socket instead of churning a new connection on every mount —
+  // recreating it mid-handshake dropped in-flight bets ("closed before
+  // established").
+  if (crashSocket) return crashSocket;
+
   crashSocket = io(`${API_URL}/crash`, {
     auth: {
       token: token,

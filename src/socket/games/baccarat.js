@@ -4,6 +4,11 @@ let baccaratSocket = null;
 const API_URL = import.meta.env.VITE_APP_SOCKET_URL;
 
 export const initializeBaccaratSocket = (token) => {
+  // Reuse a live socket instead of churning a new connection on every mount —
+  // recreating it mid-handshake dropped in-flight bets ("closed before
+  // established").
+  if (baccaratSocket) return baccaratSocket;
+
   baccaratSocket = io(`${API_URL}/baccarat`, {
     auth: {
       token: token,

@@ -5,7 +5,6 @@ import balloon from "../../../assets/Balloon/balloon.png";
 import "../../../styles/Balloon.css";
 import Background from "./Background";
 import {
-  disconnectParachuteSocket,
   getParachuteSocket,
   addParachuteGame,
   checkoutParachute,
@@ -91,11 +90,12 @@ const Game = ({
     }
 
     return () => {
+      // Only detach our listener; don't tear down the shared socket on every
+      // effect re-run, which disconnected it mid-handshake and dropped bets.
       const parachuteSocket = getParachuteSocket();
       if (parachuteSocket) {
         parachuteSocket.off("error");
       }
-      disconnectParachuteSocket();
     };
   }, []);
 

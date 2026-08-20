@@ -2,10 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { CircleNotch } from "phosphor-react";
 import BinsRow from "./BinsRow";
 import { binColorsByRowCount } from "./constant";
-import {
-  disconnectPlinkoSocket,
-  getPlinkoSocket,
-} from "../../../socket/games/plinko";
+import { getPlinkoSocket } from "../../../socket/games/plinko";
 import { toast } from "react-toastify";
 
 const Game = ({ bet, rows, risk, engine, width, height, canvasRef }) => {
@@ -50,11 +47,12 @@ const Game = ({ bet, rows, risk, engine, width, height, canvasRef }) => {
     window.addEventListener("plinko:error", handleGameError);
 
     return () => {
+      // Only detach our listeners; don't tear down the shared socket on every
+      // effect re-run, which disconnected it mid-handshake and dropped bets.
       const plinkoSocket = getPlinkoSocket();
       if (plinkoSocket) {
         plinkoSocket.off("error");
       }
-      disconnectPlinkoSocket();
 
       window.removeEventListener("plinko:result", handleGameResult);
       window.removeEventListener("plinko:error", handleGameError);

@@ -4,6 +4,11 @@ let twistSocket = null;
 const API_URL = import.meta.env.VITE_APP_SOCKET_URL;
 
 export const initializeTwistSocket = (token) => {
+  // Reuse a live socket instead of churning a new connection on every mount —
+  // recreating it mid-handshake dropped in-flight bets ("closed before
+  // established").
+  if (twistSocket) return twistSocket;
+
   twistSocket = io(`${API_URL}/twist`, {
     auth: {
       token: token,

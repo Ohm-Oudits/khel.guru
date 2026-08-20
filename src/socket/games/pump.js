@@ -4,6 +4,11 @@ let pumpSocket = null;
 const API_URL = import.meta.env.VITE_APP_SOCKET_URL;
 
 export const initializePumpSocket = (token) => {
+  // Reuse a live socket instead of churning a new connection on every mount —
+  // recreating it mid-handshake dropped in-flight bets ("closed before
+  // established").
+  if (pumpSocket) return pumpSocket;
+
   pumpSocket = io(`${API_URL}/pump`, {
     auth: {
       token: token,

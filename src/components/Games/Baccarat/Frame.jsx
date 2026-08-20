@@ -10,7 +10,6 @@ import Game from "./Game";
 
 import { useSelector } from "react-redux";
 import {
-  disconnectBaccaratSocket,
   getBaccaratSocket,
   initializeBaccaratSocket,
   joinBaccaratGame,
@@ -71,11 +70,12 @@ const Frame = () => {
     }
 
     return () => {
+      // Only detach our listener; don't tear down the shared socket on every
+      // effect re-run, which disconnected it mid-handshake and dropped bets.
       const baccaratSocket = getBaccaratSocket();
       if (baccaratSocket) {
         baccaratSocket.off("error");
       }
-      disconnectBaccaratSocket();
     };
   }, []);
 
