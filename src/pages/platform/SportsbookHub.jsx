@@ -51,21 +51,23 @@ const safeWriteStorage = (key, value) => {
   }
 };
 
+// Same tile shape as the home/casino game cards: cover art + name + likes.
 const SportCard = ({ sport, onOpen }) => (
   <Link
     to={sport.path}
     onClick={() => onOpen(sport.label)}
-    className="group rounded-2xl border border-white/10 bg-background-tertiary p-4 transition hover:-translate-y-1 hover:border-brand-primary/40"
+    className="group overflow-hidden rounded-xl border border-white/10 bg-background-tertiary transition hover:-translate-y-1 hover:border-brand-primary/40"
   >
-    <div className="flex items-start justify-between gap-3">
-      <sport.icon className="text-2xl text-brand-primary" />
-      <span className="flex items-center gap-1 text-[11px] text-text-tertiary">
+    <div className="flex aspect-[4/5] items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(0,212,170,0.28),_transparent_45%),linear-gradient(180deg,_rgba(8,8,8,0.9),_rgba(18,18,18,1))]">
+      <sport.icon className="text-5xl text-brand-primary" />
+    </div>
+    <div className="flex items-center justify-between gap-1 p-2">
+      <h3 className="truncate text-sm font-bold text-white">{sport.label}</h3>
+      <span className="flex shrink-0 items-center gap-1 text-[11px] text-text-tertiary">
         {formatCount(sportLikes(sport))}
         <FaHeart className="text-[10px] text-red-500" />
       </span>
     </div>
-    <h3 className="mt-3 text-lg font-bold text-white">{sport.label}</h3>
-    <p className="mt-1 text-sm text-text-secondary">{sport.description}</p>
   </Link>
 );
 
@@ -128,7 +130,7 @@ const SportsbookHub = () => {
     .filter(Boolean);
 
   const renderSportGrid = (cards) => (
-    <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
       {cards.map((sport) => (
         <SportCard key={sport.label} sport={sport} onOpen={registerRecentSport} />
       ))}
