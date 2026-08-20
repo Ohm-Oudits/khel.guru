@@ -104,9 +104,7 @@ const PlatformHero = ({
         </div>
 
         {aside ? (
-          <div className="grid grid-cols-4 gap-2 xl:grid-cols-2 xl:gap-3">
-            {aside}
-          </div>
+          <div className="hidden gap-3 xl:grid xl:grid-cols-2">{aside}</div>
         ) : null}
       </div>
     </section>
