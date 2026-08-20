@@ -19,8 +19,18 @@ const FILTERS = [
   { key: "originals", label: "Originals" },
   { key: "live", label: "Live" },
   { key: "trending", label: "Trending" },
-  { key: "recent", label: "Recently Played" },
+  { key: "recent", label: "Recently Played", hideOnMobile: true },
 ];
+
+// Stable per-game like count (no real likes source yet) so the number does
+// not flicker between renders.
+const formatLikes = (game) => {
+  const seed = String(game.name)
+    .split("")
+    .reduce((sum, char) => sum + char.charCodeAt(0), game.id || 0);
+  const count = 4200 + (seed * 733) % 95000;
+  return count >= 1000 ? `${(count / 1000).toFixed(1)}K` : String(count);
+};
 
 const safeReadStorage = (key) => {
   try {
@@ -98,6 +108,8 @@ const CasinoLobby = () => {
               type="button"
               onClick={() => setActiveFilter(filter.key)}
               className={`rounded-full border px-4 py-1.5 text-sm font-semibold transition ${
+                filter.hideOnMobile ? "hidden sm:inline-flex" : ""
+              } ${
                 activeFilter === filter.key
                   ? "border-brand-primary bg-brand-primary text-black"
                   : "border-white/10 bg-white/5 text-text-secondary hover:border-brand-primary/40 hover:text-white"
@@ -166,10 +178,14 @@ const CasinoLobby = () => {
                   />
                 </button>
               </div>
-              <div className="p-2">
+              <div className="flex items-center justify-between gap-1 p-2">
                 <h3 className="truncate text-sm font-bold text-white">
                   {game.name}
                 </h3>
+                <span className="flex shrink-0 items-center gap-1 text-[11px] text-text-tertiary">
+                  {formatLikes(game)}
+                  <FaHeart className="text-[10px] text-red-500" />
+                </span>
               </div>
             </Link>
           ))}
