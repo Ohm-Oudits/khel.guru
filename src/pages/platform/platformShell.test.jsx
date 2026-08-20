@@ -25,23 +25,18 @@ describe("platform shell pages", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders the casino lobby with search and catalog shelves", () => {
+  it("renders the casino lobby catalog shelves", () => {
     renderWithProviders(<CasinoLobby />, { route: "/casino" });
 
-    expect(
-      screen.getByPlaceholderText(/search originals, tables, or creators/i)
-    ).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: /trending now/i })
     ).toBeInTheDocument();
   });
 
-  it("renders the sportsbook hub with event search", () => {
+  it("renders the sportsbook hub browse tiles", () => {
     renderWithProviders(<SportsbookHub />, { route: "/sports" });
 
-    expect(
-      screen.getByPlaceholderText(/search teams, leagues, or sports/i)
-    ).toBeInTheDocument();
+    expect(screen.getByText("Cricket")).toBeInTheDocument();
   });
 
   it("renders the signed-out wallet shell and action prompts", () => {

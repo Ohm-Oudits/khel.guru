@@ -1,5 +1,5 @@
-import { useDeferredValue, useEffect, useState } from "react";
-import { FaHeart, FaSearch } from "react-icons/fa";
+import { useEffect, useState } from "react";
+import { FaHeart } from "react-icons/fa";
 import { Link } from "react-router-dom";
 import PlatformPage from "../../components/platform/PlatformPage";
 import PlatformPanel from "../../components/platform/PlatformPanel";
@@ -61,27 +61,16 @@ const buildGameCollections = ({ games, favorites, recents }) => {
 };
 
 const CasinoLobby = () => {
-  const [searchQuery, setSearchQuery] = useState("");
   const [favoriteLinks, setFavoriteLinks] = useState([]);
   const [recentLinks, setRecentLinks] = useState([]);
-  const deferredSearchQuery = useDeferredValue(searchQuery);
 
   useEffect(() => {
     setFavoriteLinks(safeReadStorage(FAVORITES_STORAGE_KEY));
     setRecentLinks(safeReadStorage(RECENTS_STORAGE_KEY));
   }, []);
 
-  const normalizedQuery = deferredSearchQuery.trim().toLowerCase();
-  const filteredGames = originals.filter((game) =>
-    normalizedQuery
-      ? [game.name, game.creator]
-          .filter(Boolean)
-          .some((value) => value.toLowerCase().includes(normalizedQuery))
-      : true
-  );
-
   const sections = buildGameCollections({
-    games: filteredGames,
+    games: originals,
     favorites: favoriteLinks,
     recents: recentLinks,
   });
@@ -107,19 +96,6 @@ const CasinoLobby = () => {
 
   return (
     <PlatformPage>
-      <PlatformPanel>
-        <label className="flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
-          <FaSearch className="text-text-tertiary" />
-          <input
-            type="search"
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
-            placeholder="Search originals, tables, or creators"
-            className="w-full bg-transparent text-sm text-white outline-none placeholder:text-text-tertiary"
-          />
-        </label>
-      </PlatformPanel>
-
       {sections.map((section) => (
         <PlatformPanel key={section.title}>
           <div className="flex items-end justify-between gap-4">
@@ -209,16 +185,6 @@ const CasinoLobby = () => {
           </div>
         </PlatformPanel>
       ))}
-
-      {!sections.length ? (
-        <PlatformPanel>
-          <h2 className="text-2xl font-black text-white">No games matched that search</h2>
-          <p className="mt-2 text-sm text-text-secondary">
-            Try a different keyword like Crash, Dice, or Blackjack to jump back into
-            the lobby catalog.
-          </p>
-        </PlatformPanel>
-      ) : null}
     </PlatformPage>
   );
 };
