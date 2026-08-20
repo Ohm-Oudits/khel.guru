@@ -20,15 +20,22 @@ const SPORTS_PLAYS = [
 
 // Rendered height of one row (py-1 + text + space-y-0.5 gap).
 const ROW_PX = 26;
+const WIDE_BREAKPOINT = 1280;
 
 const pick = (list) => list[Math.floor(Math.random() * list.length)];
 
-const makeEntry = (variant, id) => {
+const fmtTime = (date) =>
+  date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+const fmtDate = (date) =>
+  date.toLocaleDateString([], { day: "2-digit", month: "short" });
+
+const makeEntry = (variant, id, ageMs = 0) => {
   const kind =
     variant === "both" ? (Math.random() < 0.5 ? "casino" : "sports") : variant;
   const label = pick(kind === "sports" ? SPORTS_PLAYS : CASINO_PLAYS);
   const multiplier = (1 + Math.random() * 12).toFixed(2);
   const payout = Math.floor(40 + Math.random() * 9000);
+  const when = new Date(Date.now() - ageMs);
   return {
     id,
     user: pick(USERNAMES),
@@ -36,46 +43,58 @@ const makeEntry = (variant, id) => {
     kind,
     multiplier,
     payout: `₹${payout.toLocaleString("en-IN")}`,
+    date: fmtDate(when),
+    time: fmtTime(when),
   };
 };
 
 // A live-updating wins feed. New rows animate in at the top and the oldest
 // drops off the bottom. The scroll window has a FIXED pixel height with
 // overflow clipped, so row enter/exit never resizes the panel (no border
-// bounce). In `fill` mode the row count is measured from the parent height.
-const LiveWinFeed = ({ variant = "both", rows = 8, fill = false, title = "Live Wins" }) => {
+// bounce). `fill` measures the parent height (desktop only); `detailed`
+// shows date + time columns.
+const LiveWinFeed = ({
+  variant = "both",
+  rows = 8,
+  fill = false,
+  detailed = false,
+  title = "Live Wins",
+}) => {
   const counter = useRef(0);
   const rootRef = useRef(null);
   const headerRef = useRef(null);
   const [count, setCount] = useState(rows);
   const [entries, setEntries] = useState(() =>
-    Array.from({ length: rows }, () => makeEntry(variant, counter.current++))
+    Array.from({ length: rows }, (_, i) =>
+      makeEntry(variant, counter.current++, i * 45000 + Math.random() * 30000)
+    )
   );
 
   useLayoutEffect(() => {
-    if (!fill) {
-      setCount(rows);
-      return undefined;
-    }
-    const measure = () => {
+    const apply = () => {
+      const wide = window.innerWidth >= WIDE_BREAKPOINT;
+      if (!fill || !wide) {
+        setCount(rows);
+        return;
+      }
       const root = rootRef.current;
       const header = headerRef.current;
       if (!root) return;
       const available = root.clientHeight - (header?.offsetHeight || 0);
       setCount(Math.max(4, Math.floor(available / ROW_PX)));
     };
-    measure();
-    window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
+    apply();
+    window.addEventListener("resize", apply);
+    return () => window.removeEventListener("resize", apply);
   }, [fill, rows]);
 
-  // Keep the entry list sized to `count` (grow to fill, trim if smaller).
+  // Keep the entry list sized to `count`.
   useEffect(() => {
     setEntries((prev) => {
       if (prev.length === count) return prev;
       if (prev.length > count) return prev.slice(0, count);
-      const extra = Array.from({ length: count - prev.length }, () =>
-        makeEntry(variant, counter.current++)
+      const extra = Array.from({ length: count - prev.length }, (_, i) =>
+        makeEntry(variant, counter.current++, (prev.length + i) * 45000)
       );
       return [...prev, ...extra];
     });
@@ -114,7 +133,7 @@ const LiveWinFeed = ({ variant = "both", rows = 8, fill = false, title = "Live W
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.25 }}
-              className="flex items-center justify-between gap-2 rounded bg-black/20 px-2 py-1 text-xs"
+              className="flex items-center justify-between gap-2 rounded-lg bg-black/20 px-3 py-1 text-xs"
             >
               <div className="flex min-w-0 items-center gap-2">
                 <span className="truncate font-semibold text-white">
@@ -122,8 +141,14 @@ const LiveWinFeed = ({ variant = "both", rows = 8, fill = false, title = "Live W
                 </span>
                 <span className="truncate text-text-tertiary">{entry.label}</span>
               </div>
-              <div className="flex shrink-0 items-center gap-3">
-                <span className="text-text-tertiary">{entry.multiplier}x</span>
+              <div className="flex shrink-0 items-center gap-3 text-text-tertiary">
+                {detailed ? (
+                  <>
+                    <span className="hidden sm:inline">{entry.date}</span>
+                    <span>{entry.time}</span>
+                  </>
+                ) : null}
+                <span>{entry.multiplier}x</span>
                 <span className="font-bold text-brand-primary">{entry.payout}</span>
               </div>
             </motion.div>

@@ -9,6 +9,7 @@ import { apiService } from "../../config/api";
 import { sportsbookBrowseLinks } from "../../config/platformNavigation";
 
 const RECENTS_STORAGE_KEY = "kg.recent.sports";
+const FAVORITES_STORAGE_KEY = "kg.favorite.sports";
 
 const FILTERS = [
   { key: "all", label: "All" },
@@ -52,15 +53,31 @@ const safeWriteStorage = (key, value) => {
   }
 };
 
-// Same tile shape as the home/casino game cards: cover art + name + likes.
-const SportCard = ({ sport, onOpen }) => (
+// Same tile shape as the home/casino game cards: cover art + favorite toggle
+// + name + likes.
+const SportCard = ({ sport, onOpen, isFavorite, onToggleFavorite }) => (
   <Link
     to={sport.path}
     onClick={() => onOpen(sport.label)}
     className="group overflow-hidden rounded-xl border border-white/10 bg-background-tertiary transition hover:-translate-y-1 hover:border-brand-primary/40"
   >
-    <div className="flex aspect-[4/5] items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(0,212,170,0.28),_transparent_45%),linear-gradient(180deg,_rgba(8,8,8,0.9),_rgba(18,18,18,1))]">
+    <div className="relative flex aspect-[4/5] items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(0,212,170,0.28),_transparent_45%),linear-gradient(180deg,_rgba(8,8,8,0.9),_rgba(18,18,18,1))]">
       <sport.icon className="text-5xl text-brand-primary" />
+      <button
+        type="button"
+        onClick={(event) => {
+          event.preventDefault();
+          onToggleFavorite(sport.label);
+        }}
+        className="absolute right-1.5 top-1.5 rounded-full border border-white/10 bg-black/45 p-1.5 text-xs text-white transition hover:border-brand-primary/40 hover:text-brand-accent"
+        aria-label={
+          isFavorite
+            ? `Remove ${sport.label} from favorites`
+            : `Add ${sport.label} to favorites`
+        }
+      >
+        <FaHeart className={isFavorite ? "text-brand-primary" : "text-white"} />
+      </button>
     </div>
     <div className="flex items-center justify-between gap-1 p-2">
       <h3 className="truncate text-sm font-bold text-white">{sport.label}</h3>
@@ -77,10 +94,20 @@ const SportsbookHub = () => {
   const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [activeFilter, setActiveFilter] = useState("all");
   const [recentSports, setRecentSports] = useState([]);
+  const [favoriteSports, setFavoriteSports] = useState([]);
 
   useEffect(() => {
     setRecentSports(safeReadStorage(RECENTS_STORAGE_KEY));
+    setFavoriteSports(safeReadStorage(FAVORITES_STORAGE_KEY));
   }, []);
+
+  const toggleFavoriteSport = (label) => {
+    const next = favoriteSports.includes(label)
+      ? favoriteSports.filter((entry) => entry !== label)
+      : [label, ...favoriteSports];
+    setFavoriteSports(next);
+    safeWriteStorage(FAVORITES_STORAGE_KEY, next);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -133,7 +160,13 @@ const SportsbookHub = () => {
   const renderSportGrid = (cards) => (
     <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
       {cards.map((sport) => (
-        <SportCard key={sport.label} sport={sport} onOpen={registerRecentSport} />
+        <SportCard
+          key={sport.label}
+          sport={sport}
+          onOpen={registerRecentSport}
+          isFavorite={favoriteSports.includes(sport.label)}
+          onToggleFavorite={toggleFavoriteSport}
+        />
       ))}
     </section>
   );
@@ -279,7 +312,7 @@ const SportsbookHub = () => {
       )}
 
       <PlatformPanel>
-        <LiveWinFeed variant="sports" rows={9} title="Live Sports Wins" />
+        <LiveWinFeed variant="sports" rows={20} detailed title="Live Sports Wins" />
       </PlatformPanel>
     </PlatformPage>
   );

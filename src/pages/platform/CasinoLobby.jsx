@@ -205,7 +205,7 @@ const CasinoLobby = () => {
       )}
 
       <PlatformPanel>
-        <LiveWinFeed variant="casino" rows={9} title="Live Casino Wins" />
+        <LiveWinFeed variant="casino" rows={20} detailed title="Live Casino Wins" />
       </PlatformPanel>
     </PlatformPage>
   );

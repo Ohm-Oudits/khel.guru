@@ -29,19 +29,19 @@ const HomePage = () => {
         actions={
           <>
             <button
-              className="rounded-2xl bg-brand-primary px-5 py-3 text-sm font-bold text-text-inverse transition hover:bg-interactive-primaryHover"
+              className="rounded-xl bg-brand-primary px-3 py-2 text-xs font-bold text-text-inverse transition hover:bg-interactive-primaryHover xl:rounded-2xl xl:px-5 xl:py-3 xl:text-sm"
               onClick={() => navigate("/casino")}
             >
               Enter Casino
             </button>
             <button
-              className="rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-bold text-white transition hover:bg-white/10"
+              className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-white transition hover:bg-white/10 xl:rounded-2xl xl:px-5 xl:py-3 xl:text-sm"
               onClick={() => navigate("/sports")}
             >
               Browse Sports
             </button>
             <button
-              className="rounded-2xl border border-white/10 bg-black/25 px-5 py-3 text-sm font-bold text-text-secondary transition hover:border-emerald-300/30 hover:text-white"
+              className="rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-xs font-bold text-text-secondary transition hover:border-emerald-300/30 hover:text-white xl:rounded-2xl xl:px-5 xl:py-3 xl:text-sm"
               onClick={() => navigate("/?tab=register")}
             >
               Open Register Flow
@@ -51,17 +51,19 @@ const HomePage = () => {
         aside={heroMetrics.map((metric) => (
           <div
             key={metric.label}
-            className="rounded-3xl border border-white/10 bg-black/25 p-4 backdrop-blur"
+            className="rounded-xl border border-white/10 bg-black/25 p-2 backdrop-blur xl:rounded-3xl xl:p-4"
           >
-            <p className="text-xs uppercase tracking-[0.22em] text-text-tertiary">
+            <p className="text-[9px] uppercase tracking-[0.14em] text-text-tertiary xl:text-xs xl:tracking-[0.22em]">
               {metric.label}
             </p>
-            <p className="mt-2 text-2xl font-bold text-white">{metric.value}</p>
+            <p className="mt-1 text-sm font-bold text-white xl:mt-2 xl:text-2xl">
+              {metric.value}
+            </p>
           </div>
         ))}
       />
 
-      <section className="grid gap-4 lg:grid-cols-3">
+      <section className="hidden gap-4 lg:grid lg:grid-cols-3">
         <PlatformFeatureTile
           to="/casino"
           eyebrow="Casino"
