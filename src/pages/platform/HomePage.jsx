@@ -9,7 +9,6 @@ import {
   heroMetrics,
   rewardPrograms,
   sportsbookBrowseLinks,
-  stakeComparisonChecklist,
   supportLinks,
 } from "../../config/platformNavigation";
 
@@ -84,35 +83,6 @@ const HomePage = () => {
           className="p-6"
         />
       </section>
-
-      <PlatformPanel>
-        <div className="flex items-end justify-between gap-4">
-          <div>
-            <p className="text-xs uppercase tracking-[0.22em] text-brand-accent">
-              Compare Against Stake
-            </p>
-            <h2 className="mt-2 text-2xl font-black text-white">
-              Phase 01 benchmark checklist
-            </h2>
-          </div>
-          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-text-secondary">
-            Snapshot date: August 19, 2026
-          </span>
-        </div>
-        <div className="mt-5 grid gap-3 md:grid-cols-2">
-          {stakeComparisonChecklist.map((item, index) => (
-            <div
-              key={item}
-              className="rounded-2xl border border-emerald-400/15 bg-black/20 p-4"
-            >
-              <p className="text-sm font-semibold text-emerald-200">
-                0{index + 1}
-              </p>
-              <p className="mt-2 text-sm text-text-secondary">{item}</p>
-            </div>
-          ))}
-        </div>
-      </PlatformPanel>
 
       <section className="grid gap-8 xl:grid-cols-[1.3fr_0.9fr]">
         <PlatformPanel>

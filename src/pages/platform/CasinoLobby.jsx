@@ -1,11 +1,8 @@
 import { useDeferredValue, useEffect, useState } from "react";
 import { FaHeart, FaSearch } from "react-icons/fa";
 import { Link } from "react-router-dom";
-import PlatformFeatureTile from "../../components/platform/PlatformFeatureTile";
-import PlatformHero from "../../components/platform/PlatformHero";
 import PlatformPage from "../../components/platform/PlatformPage";
 import PlatformPanel from "../../components/platform/PlatformPanel";
-import { casinoBrowseLinks } from "../../config/platformNavigation";
 import { originals } from "../../constants";
 
 const FAVORITES_STORAGE_KEY = "kg.favorite.originals";
@@ -110,25 +107,6 @@ const CasinoLobby = () => {
 
   return (
     <PlatformPage>
-      <PlatformHero
-        eyebrow="Casino"
-        title="Browse like a real product, not a loose set of game routes."
-        description="Stake puts category entry, trending titles, and fast access at the center of the casino experience. This Khel Guru lobby now does the same while reusing the existing originals catalog."
-        tone="casino"
-      />
-
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {casinoBrowseLinks.map((item) => (
-          <PlatformFeatureTile
-            key={item.label}
-            to={item.path}
-            icon={item.icon}
-            title={item.label}
-            description={item.description}
-          />
-        ))}
-      </section>
-
       <PlatformPanel>
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>

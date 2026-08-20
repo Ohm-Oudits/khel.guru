@@ -10,7 +10,7 @@ import SettingsHub from "./SettingsHub";
 import { renderWithProviders } from "../../test/renderWithProviders";
 
 describe("platform shell pages", () => {
-  it("renders the benchmark-driven home surface", () => {
+  it("renders the home surface", () => {
     renderWithProviders(<HomePage />);
 
     expect(
@@ -20,39 +20,32 @@ describe("platform shell pages", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("heading", {
-        name: /phase 01 benchmark checklist/i,
+        name: /fast entry into khel guru originals/i,
       })
     ).toBeInTheDocument();
-    expect(screen.getByText(/August 19, 2026/i)).toBeInTheDocument();
   });
 
-  it("renders the new casino lobby shell", () => {
+  it("renders the casino lobby with search and catalog shelves", () => {
     renderWithProviders(<CasinoLobby />, { route: "/casino" });
 
     expect(
-      screen.getByRole("heading", {
-        name: /browse like a real product/i,
-      })
+      screen.getByPlaceholderText(/search originals, tables, or creators/i)
     ).toBeInTheDocument();
-    expect(screen.getByText("Originals")).toBeInTheDocument();
     expect(
-      screen.getByText(/high-tempo table action with clear bet zones/i)
+      screen.getByRole("heading", { name: /trending now/i })
     ).toBeInTheDocument();
   });
 
-  it("renders the sportsbook hub around cricket-led discovery", () => {
+  it("renders the sportsbook hub with event search", () => {
     renderWithProviders(<SportsbookHub />, { route: "/sports" });
 
     expect(
       screen.getByRole("heading", {
-        name: /cricket-first market discovery/i,
+        name: /search live and upcoming events/i,
       })
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/india-first launch sport with live and upcoming markets/i)
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/future odds and live-state work will anchor here/i)
+      screen.getByPlaceholderText(/search teams, leagues, or sports/i)
     ).toBeInTheDocument();
   });
 
