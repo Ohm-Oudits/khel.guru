@@ -53,6 +53,8 @@ const WalletHub = () => {
   const [submittingPayout, setSubmittingPayout] = useState(false);
   const pollStartedAtRef = useRef(null);
 
+  const [addingDemo, setAddingDemo] = useState(false);
+
   const loadWalletOverview = async () => {
     if (!user) {
       setWalletOverview(null);
@@ -68,6 +70,17 @@ const WalletHub = () => {
       setWalletOverview(null);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAddDemoFunds = async () => {
+    setAddingDemo(true);
+    try {
+      await apiService.wallet.topUpDemo(5000, "wallet");
+      await loadWalletOverview();
+      requestWalletRefresh();
+    } finally {
+      setAddingDemo(false);
     }
   };
 
@@ -339,6 +352,13 @@ const WalletHub = () => {
               </div>
             ) : null}
             <div className="mt-5 flex flex-wrap gap-3">
+              <button
+                className="rounded-2xl bg-button-primary px-5 py-3 text-sm font-bold text-black transition active:scale-95 disabled:opacity-60"
+                onClick={handleAddDemoFunds}
+                disabled={addingDemo}
+              >
+                {addingDemo ? "Adding…" : "Add ₹5,000 Demo Funds"}
+              </button>
               <button
                 className="rounded-2xl bg-brand-primary px-5 py-3 text-sm font-bold text-text-inverse transition hover:bg-interactive-primaryHover"
                 onClick={() => openTab("wallet")}
