@@ -3,7 +3,6 @@ import { motion } from "framer-motion";
 import bomb from "../../../assets/boom.png";
 import diamond from "../../../assets/diamond.png";
 import {
-  disconnectMinesSocket,
   getMinesSocket,
   initializeMinesSocket,
   addMinesGame,
@@ -151,6 +150,8 @@ const Game = ({
     }
 
     return () => {
+      // Only detach our listeners; don't tear down the shared socket on every
+      // effect re-run, which disconnected it mid-handshake and dropped bets.
       const minesSocket = socketRef.current;
       if (minesSocket) {
         minesSocket.off("game_history");
@@ -159,12 +160,14 @@ const Game = ({
         minesSocket.off("game_won");
         minesSocket.off("error");
       }
-      disconnectMinesSocket();
     };
   }, [isLoggedIn, setHistory]);
 
   useEffect(() => {
-    if (betStarted && socketRef.current?.connected) {
+    // socket.io buffers emits until the connection is ready, so we only need
+    // the socket to exist — gating on `.connected` here dropped bets placed
+    // before the handshake finished.
+    if (betStarted && socketRef.current) {
       setGrid(
         Array(25)
           .fill()

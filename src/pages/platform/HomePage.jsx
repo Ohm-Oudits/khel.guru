@@ -12,7 +12,8 @@ import {
   supportLinks,
 } from "../../config/platformNavigation";
 
-const featuredGames = originals.slice(0, 8);
+const featuredGames = originals.slice(0, 6);
+const featuredSports = sportsbookBrowseLinks.slice(0, 4);
 const featuredWins = wins.slice(0, 6);
 
 const HomePage = () => {
@@ -21,9 +22,9 @@ const HomePage = () => {
   return (
     <PlatformPage className="text-text-primary">
       <PlatformHero
-        eyebrow="Stake-style benchmark, Khel Guru build"
-        title="Home, casino, sports, rewards, support, and wallet in one premium shell."
-        description="This phase rebuilds Khel Guru around the exact product surfaces we need to compare against Stake: fast browse, strong category entry points, visible rewards, and support that is not buried."
+        eyebrow="Khel Guru"
+        title="Casino & sportsbook in one premium shell."
+        description="Fast browse, strong category entry points, visible rewards, and support that is not buried."
         tone="emerald"
         actions={
           <>
@@ -84,15 +85,15 @@ const HomePage = () => {
         />
       </section>
 
-      <section className="grid gap-8 xl:grid-cols-[1.3fr_0.9fr]">
+      <section className="grid gap-6 xl:grid-cols-[1.75fr_0.7fr]">
         <PlatformPanel>
           <div className="flex items-end justify-between gap-4">
             <div>
               <p className="text-xs uppercase tracking-[0.22em] text-brand-accent">
-                Trending Games
+                Trending
               </p>
               <h2 className="mt-2 text-2xl font-black text-white">
-                Fast entry into Khel Guru originals
+                Top games and sports
               </h2>
             </div>
             <Link
@@ -103,93 +104,78 @@ const HomePage = () => {
             </Link>
           </div>
 
-          <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
             {featuredGames.map((game) => (
               <Link
                 key={`${game.name}-${game.link}`}
                 to={game.link}
-                className="group overflow-hidden rounded-[24px] border border-white/10 bg-background-tertiary transition hover:-translate-y-1 hover:border-brand-primary/40"
+                className="group overflow-hidden rounded-[20px] border border-white/10 bg-background-tertiary transition hover:-translate-y-1 hover:border-brand-primary/40"
               >
                 <div
                   className="aspect-[4/5] bg-cover bg-center"
                   style={{ backgroundImage: `url(${game.img})` }}
                 />
-                <div className="p-4">
-                  <p className="text-xs uppercase tracking-[0.18em] text-text-tertiary">
+                <div className="p-3">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-text-tertiary">
                     {game.exclusive ? "Exclusive" : "Ready to play"}
                   </p>
-                  <h3 className="mt-2 text-lg font-bold text-white">
+                  <h3 className="mt-1 truncate text-sm font-bold text-white">
                     {game.name}
                   </h3>
-                  <p className="mt-1 text-sm text-text-secondary">
-                    {game.creator}
+                </div>
+              </Link>
+            ))}
+
+            {featuredSports.map((sport) => (
+              <Link
+                key={sport.label}
+                to={sport.path}
+                className="group overflow-hidden rounded-[20px] border border-white/10 bg-background-tertiary transition hover:-translate-y-1 hover:border-brand-primary/40"
+              >
+                <div className="flex aspect-[4/5] items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(0,212,170,0.25),_transparent_55%),linear-gradient(180deg,_rgba(8,8,8,0.9),_rgba(18,18,18,1))]">
+                  <sport.icon className="text-4xl text-brand-primary" />
+                </div>
+                <div className="p-3">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-text-tertiary">
+                    Sports
                   </p>
+                  <h3 className="mt-1 truncate text-sm font-bold text-white">
+                    {sport.label}
+                  </h3>
                 </div>
               </Link>
             ))}
           </div>
         </PlatformPanel>
 
-        <div className="flex flex-col gap-8">
-          <PlatformPanel>
-            <p className="text-xs uppercase tracking-[0.22em] text-brand-accent">
-              Trending Sports
-            </p>
-            <h2 className="mt-2 text-2xl font-black text-white">
-              Sports entry points
-            </h2>
-            <div className="mt-5 grid gap-3">
-              {sportsbookBrowseLinks.slice(0, 4).map((sport) => (
-                <Link
-                  key={sport.label}
-                  to={sport.path}
-                  className="rounded-2xl border border-white/10 bg-black/20 p-4 transition hover:border-brand-primary/40 hover:bg-black/30"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <h3 className="text-lg font-bold text-white">
-                        {sport.label}
-                      </h3>
-                      <p className="mt-1 text-sm text-text-secondary">
-                        {sport.description}
-                      </p>
-                    </div>
-                    <sport.icon className="text-xl text-brand-primary" />
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </PlatformPanel>
-
-          <PlatformPanel>
-            <p className="text-xs uppercase tracking-[0.22em] text-brand-accent">
-              Live Feed
-            </p>
-            <h2 className="mt-2 text-2xl font-black text-white">
-              Win stream preview
-            </h2>
-            <div className="mt-4 space-y-3">
-              {featuredWins.map((entry) => (
-                <div
-                  key={`${entry.username}-${entry.game}-${entry.time}`}
-                  className="flex items-center justify-between rounded-2xl border border-white/10 bg-black/20 px-4 py-3"
-                >
-                  <div>
-                    <p className="text-sm font-semibold text-white">
-                      {entry.username} on {entry.game}
-                    </p>
-                    <p className="text-xs text-text-tertiary">
-                      {entry.time} • {entry.multiplier}
-                    </p>
-                  </div>
-                  <span className="text-sm font-bold text-brand-primary">
-                    {entry.payout}
-                  </span>
+        <PlatformPanel>
+          <p className="text-xs uppercase tracking-[0.22em] text-brand-accent">
+            Live Feed
+          </p>
+          <h2 className="mt-2 text-2xl font-black text-white">
+            Win stream preview
+          </h2>
+          <div className="mt-4 space-y-3">
+            {featuredWins.map((entry) => (
+              <div
+                key={`${entry.username}-${entry.game}-${entry.time}`}
+                className="flex items-center justify-between rounded-2xl border border-white/10 bg-black/20 px-4 py-3"
+              >
+                <div>
+                  <p className="text-sm font-semibold text-white">
+                    {entry.username} on {entry.game}
+                  </p>
+                  <p className="text-xs text-text-tertiary">
+                    {entry.time} • {entry.multiplier}
+                  </p>
                 </div>
-              ))}
-            </div>
-          </PlatformPanel>
-        </div>
+                <span className="text-sm font-bold text-brand-primary">
+                  {entry.payout}
+                </span>
+              </div>
+            ))}
+          </div>
+        </PlatformPanel>
       </section>
 
       <section className="grid gap-8 xl:grid-cols-3">

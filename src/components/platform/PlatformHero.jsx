@@ -59,7 +59,7 @@ const PlatformHero = ({
   return (
     <section
       className={classNames(
-        "surface-enter relative overflow-hidden rounded-[32px] border p-6 shadow-[0_20px_80px_rgba(0,0,0,0.35)] md:p-10",
+        "surface-enter relative overflow-hidden rounded-[28px] border p-5 shadow-[0_20px_80px_rgba(0,0,0,0.35)] md:p-7",
         styles.panel,
         className
       )}
@@ -73,15 +73,15 @@ const PlatformHero = ({
 
       <div
         className={classNames(
-          "relative z-10 grid gap-8",
-          aside ? "xl:grid-cols-[1.35fr_0.9fr]" : ""
+          "relative z-10 grid gap-6",
+          aside ? "xl:grid-cols-[1.4fr_0.85fr]" : ""
         )}
       >
-        <div className="flex flex-col gap-5">
+        <div className="flex flex-col gap-4">
           {eyebrow ? (
             <div
               className={classNames(
-                "inline-flex w-fit items-center rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em]",
+                "inline-flex w-fit items-center rounded-full border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.22em]",
                 styles.badge
               )}
             >
@@ -89,12 +89,12 @@ const PlatformHero = ({
             </div>
           ) : null}
 
-          <div className="max-w-3xl">
-            <h1 className="text-4xl font-black leading-tight text-white md:text-5xl xl:text-6xl">
+          <div className="max-w-2xl">
+            <h1 className="text-2xl font-black leading-tight text-white md:text-3xl xl:text-4xl">
               {title}
             </h1>
             {description ? (
-              <p className="mt-4 max-w-3xl text-base text-text-secondary md:text-lg">
+              <p className="mt-3 max-w-2xl text-sm text-text-secondary md:text-base">
                 {description}
               </p>
             ) : null}
@@ -104,7 +104,7 @@ const PlatformHero = ({
         </div>
 
         {aside ? (
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">{aside}</div>
+          <div className="grid gap-3 sm:grid-cols-2">{aside}</div>
         ) : null}
       </div>
     </section>

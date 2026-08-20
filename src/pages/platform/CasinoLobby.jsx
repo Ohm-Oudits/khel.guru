@@ -108,32 +108,16 @@ const CasinoLobby = () => {
   return (
     <PlatformPage>
       <PlatformPanel>
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-[0.22em] text-brand-accent">
-              Discovery
-            </p>
-            <h2 className="mt-2 text-2xl font-black text-white">
-              Search, favorites, and quick return shelves are now part of the lobby
-            </h2>
-            <p className="mt-2 max-w-3xl text-sm text-text-secondary">
-              Stake-style browsing depends on faster re-entry than a flat category
-              wall. This lobby now keeps exclusive titles, favorites, and recent
-              sessions visible in one place.
-            </p>
-          </div>
-
-          <label className="flex min-w-0 items-center gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 xl:min-w-[320px]">
-            <FaSearch className="text-text-tertiary" />
-            <input
-              type="search"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Search originals, tables, or creators"
-              className="w-full bg-transparent text-sm text-white outline-none placeholder:text-text-tertiary"
-            />
-          </label>
-        </div>
+        <label className="flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+          <FaSearch className="text-text-tertiary" />
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="Search originals, tables, or creators"
+            className="w-full bg-transparent text-sm text-white outline-none placeholder:text-text-tertiary"
+          />
+        </label>
       </PlatformPanel>
 
       {sections.map((section) => (

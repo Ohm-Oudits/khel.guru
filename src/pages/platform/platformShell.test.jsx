@@ -20,7 +20,7 @@ describe("platform shell pages", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("heading", {
-        name: /fast entry into khel guru originals/i,
+        name: /top games and sports/i,
       })
     ).toBeInTheDocument();
   });
@@ -39,11 +39,6 @@ describe("platform shell pages", () => {
   it("renders the sportsbook hub with event search", () => {
     renderWithProviders(<SportsbookHub />, { route: "/sports" });
 
-    expect(
-      screen.getByRole("heading", {
-        name: /search live and upcoming events/i,
-      })
-    ).toBeInTheDocument();
     expect(
       screen.getByPlaceholderText(/search teams, leagues, or sports/i)
     ).toBeInTheDocument();

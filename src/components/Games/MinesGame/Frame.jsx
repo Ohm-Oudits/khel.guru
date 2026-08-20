@@ -72,9 +72,15 @@ const Frame = () => {
     const onConnect = () => setConnectionStatus("Connected");
     const onDisconnect = () => setConnectionStatus("Disconnected");
 
-    if (getMinesSocket()) {
-      getMinesSocket().on("connect", onConnect);
-      getMinesSocket().on("disconnect", onDisconnect);
+    const socket = getMinesSocket();
+    if (socket) {
+      // The socket (a reused singleton) may already be connected before this
+      // handler is attached, so the "connect" event would never fire again —
+      // seed the status from the live connection state to avoid a permanently
+      // disabled Bet button.
+      if (socket.connected) setConnectionStatus("Connected");
+      socket.on("connect", onConnect);
+      socket.on("disconnect", onDisconnect);
     }
 
     return () => {
