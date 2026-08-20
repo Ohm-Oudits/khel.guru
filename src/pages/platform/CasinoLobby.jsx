@@ -1,12 +1,26 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { FaHeart } from "react-icons/fa";
 import { Link } from "react-router-dom";
 import PlatformPage from "../../components/platform/PlatformPage";
-import PlatformPanel from "../../components/platform/PlatformPanel";
 import { originals } from "../../constants";
 
 const FAVORITES_STORAGE_KEY = "kg.favorite.originals";
 const RECENTS_STORAGE_KEY = "kg.recent.originals";
+
+// Table games are the "live casino" style titles in this catalog.
+const LIVE_GAME_LINKS = new Set([
+  "/game/baccarat",
+  "/game/blackjack",
+  "/game/roulette",
+]);
+
+const FILTERS = [
+  { key: "all", label: "All" },
+  { key: "originals", label: "Originals" },
+  { key: "live", label: "Live" },
+  { key: "trending", label: "Trending" },
+  { key: "recent", label: "Recently Played" },
+];
 
 const safeReadStorage = (key) => {
   try {
@@ -25,55 +39,33 @@ const safeWriteStorage = (key, value) => {
   }
 };
 
-const buildGameCollections = ({ games, favorites, recents }) => {
-  const favoriteGames = games.filter((game) => favorites.includes(game.link));
-  const recentGames = recents
-    .map((link) => games.find((game) => game.link === link))
-    .filter(Boolean);
-
-  return [
-    {
-      title: "Trending Now",
-      description: "Fast-entry originals and table games that anchor repeat play.",
-      games: games.slice(0, 8),
-    },
-    {
-      title: "Only on Khel Guru",
-      description: "Exclusive in-house titles deserve a dedicated product shelf.",
-      games: games.filter((game) => game.exclusive),
-    },
-    {
-      title: "Fresh Picks",
-      description: "New or highlighted games surfaced before they get buried in the grid.",
-      games: games.filter((game) => game.new),
-    },
-    {
-      title: "Favorites",
-      description: "Quick return path for the games players mark intentionally.",
-      games: favoriteGames,
-    },
-    {
-      title: "Recently Played",
-      description: "A simple recovery shelf until shared session round history goes live.",
-      games: recentGames,
-    },
-  ].filter((section) => section.games.length);
-};
-
 const CasinoLobby = () => {
   const [favoriteLinks, setFavoriteLinks] = useState([]);
   const [recentLinks, setRecentLinks] = useState([]);
+  const [activeFilter, setActiveFilter] = useState("all");
 
   useEffect(() => {
     setFavoriteLinks(safeReadStorage(FAVORITES_STORAGE_KEY));
     setRecentLinks(safeReadStorage(RECENTS_STORAGE_KEY));
   }, []);
 
-  const sections = buildGameCollections({
-    games: originals,
-    favorites: favoriteLinks,
-    recents: recentLinks,
-  });
+  const games = useMemo(() => {
+    switch (activeFilter) {
+      case "originals":
+        return originals.filter((game) => !LIVE_GAME_LINKS.has(game.link));
+      case "live":
+        return originals.filter((game) => LIVE_GAME_LINKS.has(game.link));
+      case "trending":
+        return originals.slice(0, 8);
+      case "recent":
+        return recentLinks
+          .map((link) => originals.find((game) => game.link === link))
+          .filter(Boolean);
+      case "all":
+      default:
+        return originals;
+    }
+  }, [activeFilter, recentLinks]);
 
   const toggleFavorite = (link) => {
     const nextFavorites = favoriteLinks.includes(link)
@@ -85,10 +77,10 @@ const CasinoLobby = () => {
   };
 
   const registerRecentGame = (link) => {
-    const nextRecents = [link, ...recentLinks.filter((entry) => entry !== link)].slice(
-      0,
-      8
-    );
+    const nextRecents = [
+      link,
+      ...recentLinks.filter((entry) => entry !== link),
+    ].slice(0, 8);
 
     setRecentLinks(nextRecents);
     safeWriteStorage(RECENTS_STORAGE_KEY, nextRecents);
@@ -96,95 +88,99 @@ const CasinoLobby = () => {
 
   return (
     <PlatformPage>
-      {sections.map((section) => (
-        <PlatformPanel key={section.title}>
-          <div className="flex items-end justify-between gap-4">
-            <div>
-              <p className="text-xs uppercase tracking-[0.22em] text-brand-accent">
-                Catalog Section
-              </p>
-              <h2 className="mt-2 text-2xl font-black text-white">
-                {section.title}
-              </h2>
-              <p className="mt-2 text-sm text-text-secondary">
-                {section.description}
-              </p>
-            </div>
-          </div>
+      {/* Header + category row, separate from the games grid */}
+      <div className="flex flex-col gap-4">
+        <h1 className="text-2xl font-black text-white">Casino</h1>
+        <div className="flex flex-wrap gap-2">
+          {FILTERS.map((filter) => (
+            <button
+              key={filter.key}
+              type="button"
+              onClick={() => setActiveFilter(filter.key)}
+              className={`rounded-full border px-4 py-1.5 text-sm font-semibold transition ${
+                activeFilter === filter.key
+                  ? "border-brand-primary bg-brand-primary text-black"
+                  : "border-white/10 bg-white/5 text-text-secondary hover:border-brand-primary/40 hover:text-white"
+              }`}
+            >
+              {filter.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
-          <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {section.games.map((game) => (
-              <Link
-                key={`${section.title}-${game.name}`}
-                to={game.link}
-                onClick={() => registerRecentGame(game.link)}
-                className="group overflow-hidden rounded-[24px] border border-white/10 bg-background-tertiary transition hover:-translate-y-1 hover:border-brand-primary/40"
+      {games.length ? (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
+          {games.map((game) => (
+            <Link
+              key={game.link}
+              to={game.link}
+              onClick={() => registerRecentGame(game.link)}
+              className="group overflow-hidden rounded-xl border border-white/10 bg-background-tertiary transition hover:-translate-y-1 hover:border-brand-primary/40"
+            >
+              <div
+                className="relative aspect-[4/5] bg-background-secondary"
+                style={
+                  game.img
+                    ? {
+                        backgroundImage: `url(${game.img})`,
+                        backgroundSize: "cover",
+                        backgroundPosition: "center",
+                      }
+                    : undefined
+                }
               >
-                <div
-                  className="relative aspect-[4/5] bg-background-secondary"
-                  style={
-                    game.img
-                      ? { backgroundImage: `url(${game.img})`, backgroundSize: "cover", backgroundPosition: "center" }
-                      : undefined
+                {!game.img ? (
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(0,212,170,0.28),_transparent_42%),linear-gradient(180deg,_rgba(8,8,8,0.9),_rgba(18,18,18,1))]" />
+                ) : null}
+                {game.exclusive || game.new ? (
+                  <span
+                    className={`absolute left-1.5 top-1.5 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.14em] ${
+                      game.new
+                        ? "border border-amber-300/30 bg-amber-300/10 text-amber-100"
+                        : "border border-brand-primary/30 bg-brand-primary/10 text-brand-accent"
+                    }`}
+                  >
+                    {game.new ? "New" : "Excl"}
+                  </span>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    toggleFavorite(game.link);
+                  }}
+                  className="absolute right-1.5 top-1.5 rounded-full border border-white/10 bg-black/45 p-1.5 text-xs text-white transition hover:border-brand-primary/40 hover:text-brand-accent"
+                  aria-label={
+                    favoriteLinks.includes(game.link)
+                      ? `Remove ${game.name} from favorites`
+                      : `Add ${game.name} to favorites`
                   }
                 >
-                  {!game.img ? (
-                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(0,212,170,0.28),_transparent_42%),linear-gradient(180deg,_rgba(8,8,8,0.9),_rgba(18,18,18,1))]" />
-                  ) : null}
-                  <div className="absolute left-3 top-3 flex gap-2">
-                    {game.exclusive ? (
-                      <span className="rounded-full border border-brand-primary/30 bg-brand-primary/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-brand-accent">
-                        Exclusive
-                      </span>
-                    ) : null}
-                    {game.new ? (
-                      <span className="rounded-full border border-amber-300/30 bg-amber-300/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-amber-100">
-                        New
-                      </span>
-                    ) : null}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      event.preventDefault();
-                      toggleFavorite(game.link);
-                    }}
-                    className="absolute right-3 top-3 rounded-full border border-white/10 bg-black/45 p-2 text-white transition hover:border-brand-primary/40 hover:text-brand-accent"
-                    aria-label={
+                  <FaHeart
+                    className={
                       favoriteLinks.includes(game.link)
-                        ? `Remove ${game.name} from favorites`
-                        : `Add ${game.name} to favorites`
+                        ? "text-brand-primary"
+                        : "text-white"
                     }
-                  >
-                    <FaHeart
-                      className={
-                        favoriteLinks.includes(game.link)
-                          ? "text-brand-primary"
-                          : "text-white"
-                      }
-                    />
-                  </button>
-                </div>
-                <div className="p-4">
-                  <p className="text-xs uppercase tracking-[0.18em] text-text-tertiary">
-                    {favoriteLinks.includes(game.link)
-                      ? "Favorited"
-                      : game.exclusive
-                      ? "Exclusive"
-                      : "Ready to play"}
-                  </p>
-                  <h3 className="mt-2 text-lg font-bold text-white">
-                    {game.name}
-                  </h3>
-                  <p className="mt-1 text-sm text-text-secondary">
-                    {game.creator}
-                  </p>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </PlatformPanel>
-      ))}
+                  />
+                </button>
+              </div>
+              <div className="p-2">
+                <h3 className="truncate text-sm font-bold text-white">
+                  {game.name}
+                </h3>
+              </div>
+            </Link>
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-text-secondary">
+          {activeFilter === "recent"
+            ? "No recently played games yet — pick one to get started."
+            : "No games in this category yet."}
+        </p>
+      )}
     </PlatformPage>
   );
 };

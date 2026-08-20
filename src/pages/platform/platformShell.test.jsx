@@ -25,11 +25,14 @@ describe("platform shell pages", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders the casino lobby catalog shelves", () => {
+  it("renders the casino lobby with category filters and games", () => {
     renderWithProviders(<CasinoLobby />, { route: "/casino" });
 
     expect(
-      screen.getByRole("heading", { name: /trending now/i })
+      screen.getByRole("heading", { name: /^casino$/i })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /^originals$/i })
     ).toBeInTheDocument();
   });
 
