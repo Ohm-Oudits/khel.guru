@@ -159,7 +159,9 @@ const Frame = () => {
                 } xl:col-span-9 bg-gray-900 order-1 max-lg:min-h-[470px]`}
               >
                 <div className="w-full relative text-white h-full flex items-center justify-center text-3xl">
-                  <History list={history} />
+                  <div className="absolute top-2 left-0 z-10 w-full">
+                    <History list={history} />
+                  </div>
                   <Game
                     risk={risk}
                     segment={segment}
