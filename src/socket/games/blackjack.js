@@ -1,7 +1,7 @@
 import { io } from "socket.io-client";
+import { SOCKET_URL as API_URL } from "../../config/backendUrls";
 
 let blackjackSocket = null;
-const API_URL = import.meta.env.VITE_APP_SOCKET_URL;
 
 // Event handlers object to store callbacks
 const eventHandlers = {

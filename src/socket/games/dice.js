@@ -1,5 +1,6 @@
 import { io } from "socket.io-client";
 import { toast } from "react-toastify";
+import { SOCKET_URL } from "../../config/backendUrls";
 
 let diceSocket = null;
 let eventHandlers = {
@@ -17,7 +18,7 @@ export const initializeDiceSocket = (token) => {
     return;
   }
 
-  const API_URL = import.meta.env.VITE_APP_SOCKET_URL;
+  const API_URL = SOCKET_URL;
   diceSocket = io(`${API_URL}/dice`, {
     auth: { token },
     transports: ["websocket"],
@@ -113,7 +114,12 @@ export const joinGame = () => {
 
 export const rollDice = (betAmount, prediction, rollUnder, walletType = "demo") => {
   if (!diceSocket || isProcessingResult) return false;
-  if (!betAmount || !prediction || typeof rollUnder === "undefined") {
+  if (
+    betAmount == null ||
+    Number.isNaN(Number(betAmount)) ||
+    !prediction ||
+    typeof rollUnder === "undefined"
+  ) {
     console.error("Missing required parameters:", {
       betAmount,
       prediction,

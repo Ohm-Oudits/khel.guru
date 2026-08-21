@@ -1,10 +1,9 @@
 import Matter from "matter-js";
 
 import { v4 as uuidv4 } from "uuid";
-import { getRandomBetween } from "../../../utils/plinko";
-import { binPayouts } from "./constant";
 import { getPlinkoSocket } from "../../../socket/games/plinko";
 import { requestWalletRefresh } from "../../../utils/walletEvents";
+import { getActiveWalletType } from "../../../utils/activeWallet";
 
 class PlinkoEngine {
   static WIDTH = 760;
@@ -42,7 +41,10 @@ class PlinkoEngine {
 
     this.updateRowCount(rows);
 
-    this.engine = Matter.Engine.create({ timing: { timeScale: 1 } });
+    this.engine = Matter.Engine.create({
+      gravity: { x: 0, y: 0 },
+      timing: { timeScale: 1 },
+    });
     this.render = Matter.Render.create({
       engine: this.engine,
       canvas: this.canvas,
@@ -60,7 +62,11 @@ class PlinkoEngine {
     this.balls = [];
     this.sensor = null;
     this.pinsLastRowXCoords = [];
+    this.pinGrid = [];
     this.winsIndex = [];
+    this.animations = new Set();
+    this.timers = new Set();
+    this.waiting = 0;
 
     this.placePinsAndWalls();
 
@@ -87,6 +93,10 @@ class PlinkoEngine {
   }
 
   stop() {
+    this.animations.forEach((id) => cancelAnimationFrame(id));
+    this.animations.clear();
+    this.timers.forEach((id) => clearTimeout(id));
+    this.timers.clear();
     Matter.Render.stop(this.render);
     Matter.Runner.stop(this.runner);
 
@@ -94,40 +104,220 @@ class PlinkoEngine {
     this.balls = [];
   }
 
-  dropBall() {
-    const ballOffsetRangeX = this.pinDistanceX * 0.8;
-    const ballRadius = this.pinRadius * 2;
-    const { friction, frictionAirByRowCount } = PlinkoEngine.ballFrictions;
+  clearBallTimers(ball) {
+    if (ball?.plinkoAnim) {
+      cancelAnimationFrame(ball.plinkoAnim);
+      this.animations.delete(ball.plinkoAnim);
+      ball.plinkoAnim = null;
+    }
+    if (ball?.plinkoWatchdog) {
+      clearTimeout(ball.plinkoWatchdog);
+      this.timers.delete(ball.plinkoWatchdog);
+      ball.plinkoWatchdog = null;
+    }
+    if (ball?.plinkoAcceptTimer) {
+      clearTimeout(ball.plinkoAcceptTimer);
+      this.timers.delete(ball.plinkoAcceptTimer);
+      ball.plinkoAcceptTimer = null;
+    }
+  }
 
+  dropBall() {
+    const socket = getPlinkoSocket();
+    if (!socket) return;
+
+    const dropId = uuidv4();
+    this.waiting = (this.waiting || 0) + 1;
+    this.syncMotion();
+
+    socket.emit("drop", {
+      dropId,
+      betAmount: Number(this.betAmount),
+      rows: this.rowCount,
+      risk: this.riskLevel,
+      walletType: getActiveWalletType(),
+    });
+
+    const finishWait = () => {
+      this.waiting = Math.max(0, (this.waiting || 0) - 1);
+      this.syncMotion();
+    };
+
+    const onAccepted = (data) => {
+      if (data.dropId !== dropId) return;
+      socket.off("drop_accepted", onAccepted);
+      socket.off("error", onDropError);
+      if (acceptTimer) {
+        clearTimeout(acceptTimer);
+        this.timers.delete(acceptTimer);
+      }
+      finishWait();
+      this.spawnBall(dropId, data.path, data.bin, data.multiplier);
+    };
+
+    const onDropError = ({ message, dropId: errId }) => {
+      if (errId && errId !== dropId) return;
+      socket.off("drop_accepted", onAccepted);
+      socket.off("error", onDropError);
+      if (acceptTimer) {
+        clearTimeout(acceptTimer);
+        this.timers.delete(acceptTimer);
+      }
+      finishWait();
+      window.dispatchEvent(
+        new CustomEvent("plinko:error", { detail: { message } })
+      );
+    };
+
+    socket.on("drop_accepted", onAccepted);
+    socket.on("error", onDropError);
+
+    const acceptTimer = setTimeout(() => {
+      this.timers.delete(acceptTimer);
+      socket.off("drop_accepted", onAccepted);
+      socket.off("error", onDropError);
+      finishWait();
+      window.dispatchEvent(
+        new CustomEvent("plinko:error", {
+          detail: { message: "Drop timed out. Try again." },
+        })
+      );
+    }, 8000);
+    this.timers.add(acceptTimer);
+  }
+
+  spawnBall(dropId, path, bin, multiplier) {
+    const ballRadius = this.pinRadius * 2;
     const ball = Matter.Bodies.circle(
-      getRandomBetween(
-        this.canvas.width / 2 - ballOffsetRangeX,
-        this.canvas.width / 2 + ballOffsetRangeX
-      ),
+      PlinkoEngine.WIDTH / 2,
       0,
       ballRadius,
       {
-        restitution: 0.8,
-        friction,
-        frictionAir: frictionAirByRowCount[this.rowCount],
+        isStatic: false,
+        friction: 0,
+        frictionAir: 0,
+        restitution: 0,
         collisionFilter: {
           category: PlinkoEngine.BALL_CATEGORY,
-          mask: PlinkoEngine.PIN_CATEGORY,
+          mask: 0,
         },
         render: { fillStyle: "#ff0000" },
       }
     );
 
+    ball.plinkoDropId = dropId;
+    ball.plinkoBetAmount = Number(this.betAmount);
+    ball.plinkoBin = bin;
+    ball.plinkoPath = path;
+    ball.plinkoMultiplier = multiplier;
     this.balls.push(ball);
     Matter.Composite.add(this.engine.world, ball);
+    this.syncMotion();
+    this.animateBallAlongPath(ball, path, bin);
+  }
 
-    if (this.balls.length === 1) {
-      this.isBallInMotion = true;
-      const event = new CustomEvent("plinko:ball_state", {
-        detail: { isInMotion: true },
-      });
-      window.dispatchEvent(event);
+  syncMotion() {
+    const active = (this.waiting || 0) > 0 || this.balls.length > 0;
+    if (active === this.isBallInMotion) return;
+    this.isBallInMotion = active;
+    window.dispatchEvent(
+      new CustomEvent("plinko:ball_state", {
+        detail: { isInMotion: active },
+      })
+    );
+  }
+
+  waypointsForPath(path, bin) {
+    const points = [{ x: PlinkoEngine.WIDTH / 2, y: 0 }];
+    let rights = 0;
+    const radius = Math.max(this.pinRadius, 4);
+
+    for (let row = 0; row < path.length; row += 1) {
+      const goRight = path[row] === 1;
+      const pin = this.pinGrid[row]?.[rights + 1];
+      if (pin) {
+        points.push({ x: pin.x, y: pin.y - radius * 1.1 });
+      }
+      rights += goRight ? 1 : 0;
     }
+
+    const left =
+      this.pinsLastRowXCoords[bin] ??
+      PlinkoEngine.WIDTH / 2 - this.pinDistanceX / 2;
+    const right =
+      this.pinsLastRowXCoords[bin + 1] ?? left + this.pinDistanceX;
+    points.push({
+      x: (left + right) / 2,
+      y: PlinkoEngine.HEIGHT - 8,
+    });
+    return points;
+  }
+
+  animateBallAlongPath(ball, path, bin) {
+    const points = this.waypointsForPath(path || [], bin);
+    if (points.length < 2) {
+      this.handleBallEnterBin(ball);
+      return;
+    }
+
+    const segmentMs = 420;
+    const hop = Math.max(16, this.pinRadius * 3.4);
+    const start = performance.now();
+    const totalMs = (points.length - 1) * segmentMs;
+    const ease = (t) => t * t * (3 - 2 * t);
+
+    const watchdog = setTimeout(() => {
+      this.timers.delete(watchdog);
+      ball.plinkoWatchdog = null;
+      if (!ball.plinkoSettled) this.handleBallEnterBin(ball);
+    }, totalMs + 2000);
+    ball.plinkoWatchdog = watchdog;
+    this.timers.add(watchdog);
+
+    const tick = (now) => {
+      if (!ball || ball.plinkoSettled) return;
+      const elapsed = Math.min(totalMs, now - start);
+      const span = elapsed / segmentMs;
+      const index = Math.min(points.length - 2, Math.floor(span));
+      const raw = span - index;
+      const local = ease(raw);
+      const from = points[index];
+      const to = points[index + 1];
+      if (!from || !to) {
+        this.handleBallEnterBin(ball);
+        return;
+      }
+      const bounce = Math.sin(Math.PI * raw) * hop;
+      Matter.Body.setVelocity(ball, { x: 0, y: 0 });
+      Matter.Body.setAngularVelocity(ball, 0);
+      Matter.Body.setPosition(ball, {
+        x: from.x + (to.x - from.x) * local,
+        y: from.y + (to.y - from.y) * local - bounce,
+      });
+
+      if (elapsed < totalMs) {
+        if (ball.plinkoAnim) this.animations.delete(ball.plinkoAnim);
+        const frame = requestAnimationFrame(tick);
+        this.animations.add(frame);
+        ball.plinkoAnim = frame;
+        return;
+      }
+
+      this.animations.delete(ball.plinkoAnim);
+      ball.plinkoAnim = null;
+      this.handleBallEnterBin(ball);
+    };
+
+    const frame = requestAnimationFrame(tick);
+    this.animations.add(frame);
+    ball.plinkoAnim = frame;
+  }
+
+  removeBall(ball) {
+    this.clearBallTimers(ball);
+    Matter.Composite.remove(this.engine.world, ball);
+    this.balls = this.balls.filter((item) => item !== ball);
+    this.syncMotion();
   }
 
   get pinDistanceX() {
@@ -165,78 +355,60 @@ class PlinkoEngine {
   }
 
   handleBallEnterBin(ball) {
-    const binIndex = this.pinsLastRowXCoords.findLastIndex(
+    if (!ball || ball.plinkoSettled) return;
+    ball.plinkoSettled = true;
+    this.clearBallTimers(ball);
+
+    const dropId = ball.plinkoDropId;
+    const socket = getPlinkoSocket();
+    const physicsBin = this.pinsLastRowXCoords.findLastIndex(
       (pinX) => pinX < ball.position.x
     );
 
-    if (binIndex !== -1 && binIndex < this.pinsLastRowXCoords.length - 1) {
-      if (!this.betAmount || this.betAmount <= 0) {
-        const event = new CustomEvent("plinko:error", {
-          detail: { message: "Invalid bet amount" },
-        });
-        window.dispatchEvent(event);
+    if (socket && dropId) {
+      socket.emit("settle", { dropId });
 
-        Matter.Composite.remove(this.engine.world, ball);
-        this.balls = this.balls.filter((b) => b !== ball);
-        return;
-      }
-
-      const multiplier = binPayouts[this.rowCount][this.riskLevel][binIndex];
-      const payoutValue = this.betAmount * multiplier;
-
-      const socket = getPlinkoSocket();
-      if (socket) {
-        socket.emit("result", {
-          bin: binIndex,
-          payout: payoutValue,
-          betAmount: this.betAmount,
-          walletType: "demo",
-        });
-
-        socket.once("result_success", (data) => {
-          // Reflect the debit/credit in the in-game balance readout.
-          requestWalletRefresh();
-          this.updateBinIndex(binIndex);
-          this.balls = this.balls.filter((b) => b !== ball);
-          if (this.balls.length === 0) {
-            this.isBallInMotion = false;
-            const event = new CustomEvent("plinko:ball_state", {
-              detail: { isInMotion: false },
-            });
-            window.dispatchEvent(event);
-          }
-
-          const resultEvent = new CustomEvent("plinko:result", {
+      const onSuccess = (data) => {
+        if (data.dropId && dropId && data.dropId !== dropId) return;
+        socket.off("result_success", onSuccess);
+        socket.off("error", onError);
+        requestWalletRefresh();
+        this.updateBinIndex(
+          Number.isInteger(data.bin) && data.bin >= 0 ? data.bin : 0
+        );
+        this.balls = this.balls.filter((item) => item !== ball);
+        this.syncMotion();
+        window.dispatchEvent(
+          new CustomEvent("plinko:result", {
             detail: {
+              dropId,
               balance: data.balance,
               payout: data.payout,
               bin: data.bin,
+              physicsBin,
               multiplier: data.multiplier,
             },
-          });
-          window.dispatchEvent(resultEvent);
-        });
+          })
+        );
+      };
 
-        socket.once("error", ({ message }) => {
-          console.error("Game result error:", message);
-          // A rejected bet (e.g. insufficient balance) left the wallet
-          // untouched; resync the readout in case it drifted.
-          requestWalletRefresh();
-          this.balls = this.balls.filter((b) => b !== ball);
-          if (this.balls.length === 0) {
-            this.isBallInMotion = false;
-            const event = new CustomEvent("plinko:ball_state", {
-              detail: { isInMotion: false },
-            });
-            window.dispatchEvent(event);
-          }
+      const onError = ({ message, dropId: errId }) => {
+        if (errId && errId !== dropId) return;
+        socket.off("result_success", onSuccess);
+        socket.off("error", onError);
+        requestWalletRefresh();
+        this.balls = this.balls.filter((item) => item !== ball);
+        this.syncMotion();
+        window.dispatchEvent(
+          new CustomEvent("plinko:error", { detail: { message } })
+        );
+      };
 
-          const errorEvent = new CustomEvent("plinko:error", {
-            detail: { message },
-          });
-          window.dispatchEvent(errorEvent);
-        });
-      }
+      socket.on("result_success", onSuccess);
+      socket.on("error", onError);
+    } else {
+      this.balls = this.balls.filter((item) => item !== ball);
+      this.syncMotion();
     }
 
     Matter.Composite.remove(this.engine.world, ball);
@@ -258,6 +430,7 @@ class PlinkoEngine {
     if (this.pinsLastRowXCoords.length > 0) {
       this.pinsLastRowXCoords = [];
     }
+    this.pinGrid = [];
     if (this.walls.length > 0) {
       Matter.Composite.remove(this.engine.world, this.walls);
       this.walls = [];
@@ -286,6 +459,8 @@ class PlinkoEngine {
         });
 
         this.pins.push(pin);
+        if (!this.pinGrid[row]) this.pinGrid[row] = [];
+        this.pinGrid[row][col] = { x: colX, y: rowY };
 
         if (row === this.rowCount - 1) {
           this.pinsLastRowXCoords.push(colX);

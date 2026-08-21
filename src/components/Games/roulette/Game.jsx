@@ -3,14 +3,16 @@ import Roulette from "./comp/roulettewheel";
 import { toast } from "react-toastify";
 import {
   getRouletteSocket,
+  initializeRouletteSocket,
   placeBet,
-  onBetResult,
-  onGameResult,
-  onError,
-  removeAllListeners,
+  subscribeBetResult,
+  subscribeSocketError,
+  subscribeGameJoined,
+  joinGame,
 } from "../../../socket/games/roulette";
 import { requestWalletRefresh } from "../../../utils/walletEvents";
 import { useEffect, useState, useCallback, useRef } from "react";
+import { ROULETTE_RED_NUMBERS } from "./roulette.constants";
 
 function Game({
   betStarted,
@@ -30,10 +32,14 @@ function Game({
   setAutoBettingState,
   isSpinComplete,
   setIsSpinComplete,
+  walletType = "demo",
+  onRoundResult,
+  chipBet,
 }) {
-  const [gameResult, setGameResult] = useState(null);
-
   const [isAutoBetting, setIsAutoBetting] = useState(false);
+  const [spinPocket, setSpinPocket] = useState(null);
+  const [spinKey, setSpinKey] = useState(0);
+  const spinGenerationRef = useRef(0);
 
   const autoBetCountRef = useRef(0);
   const autoBetTimeoutRef = useRef(null);
@@ -53,36 +59,40 @@ function Game({
       return;
     }
 
-    onBetResult((result) => {
+    const unsubBet = subscribeBetResult((result) => {
       console.log("[Roulette Game] Received bet result:", result);
-      // Reflect the debit/credit in the in-game balance readout.
       requestWalletRefresh();
       if (result.success) {
-        setGameResult(result);
+        const pocket = parseInt(result.result, 10);
+        if (!Number.isNaN(pocket)) {
+          spinGenerationRef.current += 1;
+          setSpinKey(spinGenerationRef.current);
+          setSpinPocket(pocket);
+          setIsBettingEnabled(false);
+          setBettingEnabledState?.(false);
+          setIsSpinComplete(false);
+        }
+
         setBettingStarted(false);
         setIsProcessing(false);
         setProcessingState?.(false);
-        setBettingEnabledState?.(true);
 
         if (result.totalWin > 0) {
           toast.success(`You won ${result.totalWin}!`);
         }
 
-        // Handle auto-bet continuation
         if (isAutoBetting && autoBetCountRef.current < nbets) {
           autoBetTimeoutRef.current = setTimeout(() => {
             if (isBettingEnabled && isSpinComplete) {
               autoBetCountRef.current += 1;
               setBettingStarted(true);
             }
-          }, 2000);
+          }, 11000);
         } else if (isAutoBetting) {
           setIsAutoBetting(false);
           setAutoBettingState?.(false);
           autoBetCountRef.current = 0;
-          if (onAutoBetComplete) {
-            onAutoBetComplete();
-          }
+          onAutoBetComplete?.();
         }
       } else {
         console.error("[Roulette Game] Bet result indicated failure:", result);
@@ -92,59 +102,43 @@ function Game({
         setProcessingState?.(false);
         setIsBettingEnabled(true);
         setBettingEnabledState?.(true);
-        // Stop auto-bet on failure
+        setSpinPocket(null);
         if (isAutoBetting) {
           setIsAutoBetting(false);
           setAutoBettingState?.(false);
           autoBetCountRef.current = 0;
-          if (autoBetTimeoutRef.current) {
-            clearTimeout(autoBetTimeoutRef.current);
-          }
-          if (onAutoBetComplete) {
-            onAutoBetComplete();
-          }
+          clearTimeout(autoBetTimeoutRef.current);
+          onAutoBetComplete?.();
         }
       }
     });
 
-    onGameResult((result) => {
-      console.log("[Roulette Game] Received game result broadcast:", result);
-      setIsBettingEnabled(false);
-      setBettingEnabledState?.(false);
-      setIsSpinComplete(false);
-    });
-
-    onError((error) => {
-      console.error("[Roulette Game] Socket error:", error);
-      toast.error(error);
-      // A rejected bet (e.g. insufficient balance) left the wallet untouched;
-      // resync the readout in case it drifted.
+    const unsubError = subscribeSocketError((error) => {
+      const message =
+        typeof error === "string" ? error : error?.message || "Socket error";
+      console.error("[Roulette Game] Socket error:", message);
+      toast.error(message);
       requestWalletRefresh();
       setBettingStarted(false);
       setIsProcessing(false);
       setProcessingState?.(false);
       setIsBettingEnabled(true);
       setBettingEnabledState?.(true);
-      // Stop auto-bet on error
+      setSpinPocket(null);
       if (isAutoBetting) {
         setIsAutoBetting(false);
         setAutoBettingState?.(false);
         autoBetCountRef.current = 0;
-        if (autoBetTimeoutRef.current) {
-          clearTimeout(autoBetTimeoutRef.current);
-        }
-        if (onAutoBetComplete) {
-          onAutoBetComplete();
-        }
+        clearTimeout(autoBetTimeoutRef.current);
+        onAutoBetComplete?.();
       }
     });
 
     return () => {
-      console.log("[Roulette Game] Cleaning up socket event handlers");
-      removeAllListeners();
-      if (autoBetTimeoutRef.current) {
-        clearTimeout(autoBetTimeoutRef.current);
-      }
+      console.log("[Roulette Game] Cleaning up game socket handlers");
+      unsubBet();
+      unsubError();
+      clearTimeout(autoBetTimeoutRef.current);
     };
   }, [
     isSocketReady,
@@ -158,6 +152,8 @@ function Game({
     setProcessingState,
     setBettingEnabledState,
     setAutoBettingState,
+    setIsBettingEnabled,
+    setIsSpinComplete,
   ]);
 
   useEffect(() => {
@@ -184,7 +180,9 @@ function Game({
         0
       );
 
-      if (totalAmount > 0) {
+      // Place the bet whenever at least one spot is selected, even if the
+      // combined stake is 0 (testing). "No bets" still falls to the else.
+      if (Object.keys(currentBets).length > 0) {
         console.log("[Roulette Game] Placing bet:", {
           totalAmount,
           betTypes: Object.keys(currentBets),
@@ -217,7 +215,7 @@ function Game({
               );
             }
           },
-          "demo"
+          walletType
         );
       } else {
         console.warn("[Roulette Game] No bets placed");
@@ -243,6 +241,7 @@ function Game({
     onAutoBetComplete,
     setProcessingState,
     setBettingEnabledState,
+    walletType,
   ]);
 
   const handlePlaceBet = useCallback(
@@ -298,10 +297,9 @@ function Game({
         return;
       }
 
-      const betAmount = parseFloat(localStorage.getItem("betAmount") || "0");
-      if (betAmount <= 0) {
-        console.warn("[Roulette Game] Invalid bet amount:", betAmount);
-        toast.error("Please set a valid bet amount");
+      const betAmount = chipBet;
+      if (!Number.isFinite(betAmount) || betAmount <= 0) {
+        toast.error("Select a chip value first");
         return;
       }
 
@@ -335,35 +333,38 @@ function Game({
       isAutoBetting,
       nbets,
       setAutoBettingState,
+      chipBet,
     ]
+  );
+
+  const handleBallLand = useCallback(
+    (pocket) => {
+      onRoundResult?.(pocket);
+    },
+    [onRoundResult]
   );
 
   const handleAnimationComplete = useCallback(() => {
     console.log("[Roulette Game] Wheel animation complete");
-    // setCurrentBets({});
-    setIsProcessing(false);
+    setSpinPocket(null);
+    setIsSpinComplete(true);
     setIsBettingEnabled(true);
     setBettingEnabledState?.(true);
-  }, [setCurrentBets, setBettingEnabledState]);
+    setIsProcessing(false);
+    setProcessingState?.(false);
+  }, [setBettingEnabledState, setProcessingState, setIsBettingEnabled, setIsSpinComplete]);
 
-  const redNumbers = [
-    32, 19, 21, 25, 34, 27, 36, 30, 23, 5, 16, 1, 14, 9, 18, 7, 12, 3,
-  ];
+  const redNumbers = ROULETTE_RED_NUMBERS;
 
   return (
-    <div className="text-white w-full py-8 max-h-[600px] relative">
-      <div className="w-full mx-auto">
-        <div className="flex scale-75 mt-[-50px] mb-[-10px] flex-col items-center">
+    <div className="roulette-game-root w-full min-w-0 max-w-full overflow-x-hidden py-2 text-white max-lg:px-0 max-lg:py-1 lg:py-6">
+      <div className="mx-auto flex w-full min-w-0 max-w-full flex-col items-center gap-2 max-lg:gap-0">
+        <div className="roulette-wheel-scene flex justify-center w-full">
           <Roulette
-            redNumbers={redNumbers}
-            betStarted={betStarted}
-            setBettingStarted={setBettingStarted}
-            gameResult={gameResult}
-            onAnimationComplete={() => {
-              setIsSpinComplete(true);
-              setIsBettingEnabled(true);
-              handleAnimationComplete();
-            }}
+            spinPocket={spinPocket}
+            spinKey={spinKey}
+            onBallLand={handleBallLand}
+            onAnimationComplete={handleAnimationComplete}
           />
         </div>
 

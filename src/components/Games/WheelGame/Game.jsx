@@ -26,10 +26,10 @@ const Game = ({
   nbets,
   setAutoStart,
   bet,
+  onHistory,
 }) => {
   const token = useSelector((state) => state.auth.token);
   const user = useSelector((state) => state.auth.user);
-  const [connectionStatus, setConnectionStatus] = useState("Connecting");
   const [riskSegment, setRiskSegment] = useState(null);
   const [selectedSegmentData, setSelectedSegmentData] = useState(null);
   const [segmentColors, setSegmentColors] = useState([]);
@@ -37,8 +37,6 @@ const Game = ({
   const [spinning, setSpinning] = useState(false);
   const [gameResult, setGameResult] = useState(null);
   const [isWaitingForResult, setIsWaitingForResult] = useState(false);
-  const [socketConnected, setSocketConnected] = useState(false);
-  const [isConnecting, setIsConnecting] = useState(true);
 
   const spinCount = useRef(0);
   const currentRotation = useRef(0);
@@ -48,10 +46,10 @@ const Game = ({
   const hasProcessedResult = useRef(false);
   const hasReceivedResult = useRef(false);
   const segmentsInitialized = useRef(false);
-  const isInitialSpin = useRef(true);
   const pendingResult = useRef(null);
   const spinStartTime = useRef(0);
   const isCompletingSpin = useRef(false);
+  const spinningRef = useRef(false);
   const currentRiskSegment = useRef(null);
   const currentSelectedSegmentData = useRef(null);
   const currentSegmentColors = useRef([]);
@@ -61,6 +59,16 @@ const Game = ({
   const RESULT_DISPLAY_TIME = 4000;
   const radius = 100;
 
+  const formatWheelMultiplier = (multiplier) => {
+    const value = Number(multiplier);
+    if (!Number.isFinite(value)) return "";
+    const rounded = Math.round(value * 100) / 100;
+    const label = Number.isInteger(rounded)
+      ? String(rounded)
+      : rounded.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+    return `${label}x`;
+  };
+
   const autobetIntervalRef = useRef(null);
   const remainingBetsRef = useRef(0);
 
@@ -68,13 +76,14 @@ const Game = ({
     console.log("=== Spin Completion Handler ===");
     isCompletingSpin.current = true;
 
+    spinningRef.current = false;
     setSpinning(false);
     isProcessingBet.current = false;
-    isInitialSpin.current = false;
 
     if (pendingResult.current) {
       console.log("Displaying pending result:", pendingResult.current);
       setGameResult(pendingResult.current);
+      if (onHistory) onHistory(pendingResult.current.multiplier);
       pendingResult.current = null;
 
       resultTimeoutRef.current = setTimeout(() => {
@@ -82,7 +91,6 @@ const Game = ({
         setGameResult(null);
         setBetStarted(false);
         hasReceivedResult.current = false;
-        isInitialSpin.current = true;
         isCompletingSpin.current = false;
 
         if (autoStart && remainingBetsRef.current > 0) {
@@ -118,7 +126,7 @@ const Game = ({
         toast.error("Autobet stopped due to missing result");
       }
     }
-  }, [setBetStarted, autoStart, setAutoStart]);
+  }, [setBetStarted, autoStart, setAutoStart, onHistory]);
 
   useEffect(() => {
     currentRiskSegment.current = riskSegment;
@@ -127,40 +135,8 @@ const Game = ({
   }, [riskSegment, selectedSegmentData, segmentColors]);
 
   useEffect(() => {
-    if (!token) {
-      setConnectionStatus("Not Logged In");
-      return;
-    }
-
-    const wheelSocket = getWheelSocket() || initializeWheelSocket(token);
-
-    const markConnected = () => {
-      setConnectionStatus("Connected");
-      setSocketConnected(true);
-      setIsConnecting(false);
-    };
-    const onConnect = markConnected;
-    const onDisconnect = () => {
-      setConnectionStatus("Disconnected");
-      setSocketConnected(false);
-      setIsConnecting(false);
-    };
-
-    if (wheelSocket) {
-      // A reused socket may already be connected before this handler attaches,
-      // so the "connect" event never re-fires — seed the state from the live
-      // connection to avoid a permanent "Connecting..." overlay.
-      if (wheelSocket.connected) markConnected();
-      wheelSocket.on("connect", onConnect);
-      wheelSocket.on("disconnect", onDisconnect);
-    }
-
-    return () => {
-      if (wheelSocket) {
-        wheelSocket.off("connect", onConnect);
-        wheelSocket.off("disconnect", onDisconnect);
-      }
-    };
+    if (!token) return;
+    getWheelSocket() || initializeWheelSocket(token);
   }, [token]);
 
   useEffect(() => {
@@ -225,29 +201,19 @@ const Game = ({
         hasReceivedResult.current = true;
         pendingResult.current = validatedResult;
 
-        if (isInitialSpin.current) {
-          const targetIndex = calculateTargetIndex(
-            multiplier,
-            currentSelectedSegmentData.current
-          );
-          console.log(
-            "Game component: Calculated target index:",
-            targetIndex,
-            "for multiplier:",
-            multiplier
-          );
-
-          if (typeof targetIndex === "number" && !isNaN(targetIndex)) {
-            spinWheel(targetIndex);
-          } else {
-            console.error(
-              "Game component: Invalid target index calculated:",
-              targetIndex
-            );
-            setSpinning(false);
-            setBetStarted(false);
-          }
+        const targetIndex = Number(result.index);
+        if (!Number.isInteger(targetIndex) || targetIndex < 0) {
+          console.error("Game component: Missing or invalid PF index:", result);
+          toast.error("Invalid wheel result from server");
+          setIsWaitingForResult(false);
+          setBetStarted(false);
+          setSpinning(false);
+          pendingResult.current = null;
+          hasReceivedResult.current = false;
+          return;
         }
+
+        spinWheel(targetIndex);
       } catch (error) {
         console.error("Game component: Error processing game result:", error);
         setIsWaitingForResult(false);
@@ -282,7 +248,6 @@ const Game = ({
       isProcessingBet.current = false;
       hasProcessedResult.current = false;
       hasReceivedResult.current = false;
-      isInitialSpin.current = true;
     };
   }, [handleSpinCompletion]);
 
@@ -357,56 +322,13 @@ const Game = ({
         return;
       }
 
-      // Create a mapping of multipliers to their indices in the list
-      const multiplierIndices = new Map();
-      foundSegmentData.list.forEach((multiplier, index) => {
-        multiplierIndices.set(multiplier, index);
-      });
-
-      // Group multipliers by their values to get unique multipliers and their counts
-      const multiplierGroups = new Map();
-      foundSegmentData.list.forEach((multiplier) => {
-        const count = multiplierGroups.get(multiplier) || 0;
-        multiplierGroups.set(multiplier, count + 1);
-      });
-
-      // Create an array of unique multipliers
-      const uniqueMultipliers = Array.from(multiplierGroups.keys());
-
-      // Create a spread out array of colors
-      const totalSegments = foundSegmentData.list.length;
-      const colors = new Array(totalSegments);
-
-      // Calculate how to spread out each multiplier's segments
-      uniqueMultipliers.forEach((multiplier, groupIndex) => {
-        const count = multiplierGroups.get(multiplier);
-        const color = foundSegmentData.colors[multiplier];
-
-        if (!color) {
-          console.error(`Color mapping failed for multiplier ${multiplier}:`, {
-            multiplier,
-            availableColors: foundSegmentData.colors,
-          });
-          throw new Error(
-            `Invalid color mapping for multiplier: ${multiplier}`
-          );
-        }
-
-        // Calculate positions to place this multiplier's segments
-        // We spread them out evenly around the wheel
-        for (let i = 0; i < count; i++) {
-          // Calculate position using golden ratio to spread out segments
-          const position = Math.floor(
-            (i * 1.618033988749895 * totalSegments) % totalSegments
-          );
-          // Find the next empty slot
-          let slot = position;
-          while (colors[slot] !== undefined) {
-            slot = (slot + 1) % totalSegments;
-          }
-          colors[slot] = color;
-        }
-      });
+      // Keep the list order so the PF index maps 1:1 onto the painted slices.
+      const colors = foundSegmentData.list.map(
+        (item) =>
+          foundSegmentData.colors[item] ??
+          foundSegmentData.colors[String(item)] ??
+          foundSegmentData.colors[Number(item)]
+      );
 
       if (colors.length === 0) {
         console.error("No colors generated. Segment data:", foundSegmentData);
@@ -418,38 +340,19 @@ const Game = ({
       // Store the original list and multiplier indices for later use
       const enhancedSegmentData = {
         ...foundSegmentData,
-        multiplierIndices,
         colorPositions: colors.map((color, index) => ({
           color,
-          originalIndex: foundSegmentData.list.findIndex(
-            (m) => foundSegmentData.colors[m] === color
-          ),
+          originalIndex: index,
         })),
       };
 
+      currentRiskSegment.current = foundSegment;
+      currentSelectedSegmentData.current = enhancedSegmentData;
+      currentSegmentColors.current = colors;
+      segmentsInitialized.current = true;
       setRiskSegment(foundSegment);
       setSelectedSegmentData(enhancedSegmentData);
       setSegmentColors(colors);
-
-      setTimeout(() => {
-        if (
-          riskSegment === foundSegment &&
-          selectedSegmentData === enhancedSegmentData &&
-          segmentColors.length === colors.length
-        ) {
-          segmentsInitialized.current = true;
-          console.log("=== Segment Initialization Complete ===");
-          console.log("Final state:", {
-            riskSegment: foundSegment,
-            selectedSegmentData: enhancedSegmentData,
-            segmentColors: colors,
-            segmentsInitialized: true,
-          });
-        } else {
-          console.error("State mismatch during initialization");
-          segmentsInitialized.current = false;
-        }
-      }, 0);
     } catch (error) {
       console.error("Error during segment initialization:", error);
       console.error("Error details:", {
@@ -522,69 +425,6 @@ const Game = ({
     return `M ${startX} ${startY} A ${radius} ${radius} 0 ${largeArc} 1 ${endX} ${endY} L 0 0 Z`;
   };
 
-  const calculateTargetIndex = (
-    multiplier,
-    segmentData = currentSelectedSegmentData.current
-  ) => {
-    console.log(
-      "Calculating target index for multiplier:",
-      multiplier,
-      "with segment data:",
-      segmentData
-    );
-
-    if (!segmentData || !segmentData.list || !segmentData.colors) {
-      console.error("Invalid segment data:", segmentData);
-      return 0;
-    }
-
-    if (typeof multiplier !== "number" || isNaN(multiplier)) {
-      console.error("Invalid multiplier:", multiplier);
-      return 0;
-    }
-
-    try {
-      // Convert multiplier to string with 2 decimal places to match the format in list
-      const multiplierStr = multiplier.toFixed(2);
-      console.log("Looking for multiplier:", multiplierStr);
-
-      // Find the color for this multiplier
-      const targetColor = segmentData.colors[multiplierStr];
-      if (!targetColor) {
-        console.error("No color found for multiplier:", multiplierStr);
-        return 0;
-      }
-      console.log("Found target color:", targetColor);
-
-      // Find all positions of this color in the wheel
-      const colorPositions = [];
-      segmentData.list.forEach((item, index) => {
-        if (segmentData.colors[item] === targetColor) {
-          colorPositions.push(index);
-        }
-      });
-
-      if (colorPositions.length === 0) {
-        console.error("No positions found for color:", targetColor);
-        return 0;
-      }
-
-      // Use the first position where this color appears
-      const targetPosition = colorPositions[0];
-      console.log(
-        "Found target position:",
-        targetPosition,
-        "for color:",
-        targetColor
-      );
-
-      return targetPosition;
-    } catch (error) {
-      console.error("Error calculating target index:", error);
-      return 0;
-    }
-  };
-
   const spinWheel = (targetIndex) => {
     console.log("=== Spin Wheel Validation ===");
     console.log("Current state:", {
@@ -609,13 +449,13 @@ const Game = ({
         hasSelectedSegmentData: !!currentSelectedSegmentData.current,
         segmentColorsLength: currentSegmentColors.current?.length,
       });
+      spinningRef.current = false;
       setSpinning(false);
       setBetStarted(false);
       return;
     }
 
-    if (spinning) {
-      console.log("Wheel is already spinning");
+    if (spinningRef.current) {
       return;
     }
 
@@ -624,49 +464,24 @@ const Game = ({
       clearTimeout(resultTimeoutRef.current);
     }
 
-    console.log("=== Starting Wheel Spin ===");
-    console.log("Target index:", targetIndex);
-    console.log("Segment colors:", currentSegmentColors.current);
-    console.log("Total segments:", currentSegmentColors.current.length);
-
+    spinningRef.current = true;
     setSpinning(true);
     spinStartTime.current = Date.now();
     setIsWaitingForResult(false);
 
     const totalSegments = currentSegmentColors.current.length;
-    console.log("Total segments for spin:", totalSegments);
-
-    // Calculate the angle for each segment
     const segmentAngle = 360 / totalSegments;
-
-    // Calculate the target angle
-    // We want the target segment to be at the top (0 degrees) where the pointer is
-    // Since the wheel rotates clockwise, we need to rotate it so that the target segment
-    // ends up at the top position
-    const targetAngle = targetIndex * segmentAngle;
-
-    // Add extra spins for animation effect (5 full rotations)
+    // SVG 0° is 3 o'clock, CSS rotate is clockwise, pointer sits at 12 o'clock.
+    const pointerDeg = 270;
+    const targetMod =
+      (((pointerDeg - (targetIndex * segmentAngle + segmentAngle / 2)) % 360) +
+        360) %
+      360;
+    const currentMod = ((currentRotation.current % 360) + 360) % 360;
+    const delta = (targetMod - currentMod + 360) % 360;
     const extraSpins = 5;
-    const baseRotation = extraSpins * 360;
-
-    // Calculate the final rotation
-    // We add the current rotation to maintain continuity
-    // Then add the base rotation for extra spins
-    // Finally add the target angle to stop at the right segment
-    const newRotation = currentRotation.current + baseRotation + targetAngle;
+    const newRotation = currentRotation.current + extraSpins * 360 + delta;
     currentRotation.current = newRotation;
-
-    console.log("Wheel spin parameters:", {
-      totalSegments,
-      segmentAngle,
-      targetAngle,
-      baseRotation,
-      newRotation,
-      currentRotation: currentRotation.current,
-      targetIndex,
-      segmentColors: currentSegmentColors.current,
-    });
-
     setRotation(newRotation);
 
     const elapsedTime = Date.now() - spinStartTime.current;
@@ -699,8 +514,8 @@ const Game = ({
       return false;
     }
 
-    if (betNum <= 0) {
-      console.error("Invalid bet amount - must be greater than 0:", betNum);
+    if (betNum < 0) {
+      console.error("Invalid bet amount - must not be negative:", betNum);
       return false;
     }
 
@@ -869,32 +684,16 @@ const Game = ({
   }, [autoStart, nbets, setBetStarted]);
 
   return (
-    <div className="flex flex-col justify-center items-center absolute">
-      {/* Connection Status Indicator */}
-      {isConnecting && (
-        <div className="absolute top-[-40px] left-1/2 transform -translate-x-1/2 z-10 bg-primary p-2 rounded-lg shadow-lg text-white text-center">
-          <div className="text-sm">Connecting to game server...</div>
-        </div>
-      )}
+    <div className="relative flex flex-col items-center justify-center">
+      <div className="relative w-[400px] h-[400px] max-lg:w-[250px] max-lg:h-[250px]">
+        {/* Outer Circle */}
+        <div
+          className="absolute inset-0 rounded-full bg-gray-800"
+          style={{ zIndex: 1 }}
+        />
 
-      {/* Socket Status Indicator */}
-      {!isConnecting && !socketConnected && (
-        <div className="absolute top-[-40px] left-1/2 transform -translate-x-1/2 z-10 bg-red-500 p-2 rounded-lg shadow-lg text-white text-center">
-          <div className="text-sm">Disconnected from game server</div>
-        </div>
-      )}
-
-      {/* Outer Circle */}
-      <div
-        className="absolute w-[400px] h-[400px] max-lg:w-[320px] max-lg:h-[320px] rounded-full bg-gray-800"
-        style={{
-          borderRadius: "50%",
-          zIndex: 1,
-        }}
-      ></div>
-
-      {/* Rotating Circle */}
-      <div className="relative w-[360px] h-[360px] max-lg:w-[290px] max-lg:h-[290px] z-[2]">
+        {/* Rotating Circle */}
+        <div className="absolute left-1/2 top-1/2 z-[2] h-[360px] w-[360px] max-lg:h-[225px] max-lg:w-[225px] -translate-x-1/2 -translate-y-1/2">
         {/* Segments */}
         {segmentColors.length > 0 ? (
           <div
@@ -947,37 +746,26 @@ const Game = ({
           </div>
         )}
 
-        {/* Inner Circle */}
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[90%] aspect-square rounded-full bg-primary z-[2] border border-activeHover"></div>
-      </div>
-
-      {/* Pointer */}
-      <div
-        className="absolute top-[-3.5%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-10 h-10 bg-red-500 z-[2]"
-        style={{
-          clipPath: "polygon(25% 0, 75% 0, 50% 100%, 50% 100%)",
-        }}
-      ></div>
-
-      {/* Loading Indicator - Only show when waiting for result and not spinning */}
-      {isWaitingForResult && !spinning && !gameResult && (
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 bg-primary p-4 rounded-lg shadow-lg text-white text-center">
-          <div className="text-xl">Waiting for result...</div>
         </div>
-      )}
 
-      {/* Result Display - Only show when we have a result and the wheel has stopped spinning */}
-      {gameResult && !spinning && (
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 bg-primary p-4 rounded-lg shadow-lg text-white text-center">
-          <div className="text-xl">Multiplier: {gameResult.multiplier}x</div>
-          <div className="text-lg">
-            Value: {gameResult.winAmount.toFixed(8)} BTC
+        {/* Center hub — covers slice centers so segments read as outer arcs */}
+        {segmentColors.length > 0 && (
+          <div className="pointer-events-none absolute left-1/2 top-1/2 z-[3] flex aspect-square w-[80%] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-activeHover/70 bg-primary shadow-[inset_0_2px_8px_rgb(0_0_0/0.35)]">
+            {gameResult && !spinning && (
+              <span className="text-3xl font-bold tracking-tight text-white max-lg:text-xl">
+                {formatWheelMultiplier(gameResult.multiplier)}
+              </span>
+            )}
           </div>
-        </div>
-      )}
+        )}
 
-      <div className="absolute top-2 left-2 text-white text-sm p-2 rounded">
-        Status: {connectionStatus}
+        {/* Pointer */}
+        <div
+          className="absolute left-1/2 top-0 z-[4] h-10 w-10 -translate-x-1/2 -translate-y-1/2 bg-red-500"
+          style={{
+            clipPath: "polygon(25% 0, 75% 0, 50% 100%, 50% 100%)",
+          }}
+        />
       </div>
     </div>
   );

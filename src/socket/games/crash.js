@@ -1,21 +1,22 @@
 import { io } from "socket.io-client";
+import { SOCKET_URL as API_URL } from "../../config/backendUrls";
 
 let crashSocket = null;
-const API_URL = import.meta.env.VITE_APP_SOCKET_URL;
 
 export const initializeCrashSocket = (token) => {
-  // Reuse a live socket instead of churning a new connection on every mount —
-  // recreating it mid-handshake dropped in-flight bets ("closed before
-  // established").
-  if (crashSocket) return crashSocket;
+  const nextToken = token || null;
+  if (crashSocket) {
+    const currentToken = crashSocket.auth?.token || null;
+    if (currentToken === nextToken) return crashSocket;
+    disconnectCrashSocket();
+  }
 
   crashSocket = io(`${API_URL}/crash`, {
-    auth: {
-      token: token,
-    },
+    ...(nextToken ? { auth: { token: nextToken } } : {}),
     transports: ["websocket"],
     reconnection: true,
-    reconnectionAttempts: 3,
+    reconnectionAttempts: Infinity,
+    reconnectionDelay: 500,
   });
 
   crashSocket.on("connect", () => {
@@ -24,10 +25,7 @@ export const initializeCrashSocket = (token) => {
 
   crashSocket.on("connect_error", (error) => {
     console.error("Crash namespace connection error:", error);
-    if (
-      error.message === "Authentication required" ||
-      error.message === "Invalid token"
-    ) {
+    if (error.message === "Invalid token") {
       console.log("Authentication failed, disconnecting Crash socket");
       disconnectCrashSocket();
     }
@@ -36,6 +34,8 @@ export const initializeCrashSocket = (token) => {
   crashSocket.on("disconnect", () => {
     console.log("Crash namespace disconnected");
   });
+
+  return crashSocket;
 };
 
 export const getCrashSocket = () => {
@@ -51,12 +51,18 @@ export const disconnectCrashSocket = () => {
 
 // Commit a stake to the current round (debits the wallet server-side).
 export const placeCrashBet = (betAmount, walletType = "demo") => {
-  if (!crashSocket || !betAmount || betAmount <= 0) return false;
+  if (
+    !crashSocket ||
+    betAmount == null ||
+    Number.isNaN(Number(betAmount)) ||
+    betAmount < 0
+  )
+    return false;
   crashSocket.emit("place_bet", { betAmount, walletType });
   return true;
 };
 
-// Cash out the active bet at the given multiplier (credits stake x multiplier).
+// Cash out the active bet at the current server multiplier.
 export const cashOutCrash = (multiplier) => {
   if (!crashSocket) return false;
   crashSocket.emit("cash_out", { multiplier });

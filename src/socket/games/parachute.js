@@ -1,17 +1,66 @@
 import { io } from "socket.io-client";
+import { SOCKET_URL as API_URL } from "../../config/backendUrls";
 
 let parachuteSocket = null;
-const API_URL = import.meta.env.VITE_APP_SOCKET_URL;
+const historyBridgeFlags = {
+  round_history: false,
+  game_crashed: false,
+  checkout_success: false,
+};
+
+const historyListeners = new Set();
+
+const notifyHistoryListeners = (event) => {
+  historyListeners.forEach((listener) => {
+    try {
+      listener(event);
+    } catch (error) {
+      console.error("Parachute history listener error:", error);
+    }
+  });
+};
+
+const attachHistoryBridge = () => {
+  if (!parachuteSocket) return;
+
+  if (!historyBridgeFlags.round_history) {
+    parachuteSocket.on("round_history", (payload) => {
+      notifyHistoryListeners({ type: "history", ...payload });
+    });
+    historyBridgeFlags.round_history = true;
+  }
+
+  if (!historyBridgeFlags.game_crashed) {
+    parachuteSocket.on("game_crashed", (payload) => {
+      notifyHistoryListeners({ type: "crash", ...payload });
+    });
+    historyBridgeFlags.game_crashed = true;
+  }
+
+  if (!historyBridgeFlags.checkout_success) {
+    parachuteSocket.on("checkout_success", (payload) => {
+      notifyHistoryListeners({ type: "checkout", ...payload });
+    });
+    historyBridgeFlags.checkout_success = true;
+  }
+};
+
+export const subscribeParachuteHistory = (listener) => {
+  historyListeners.add(listener);
+  return () => historyListeners.delete(listener);
+};
 
 export const initializeParachuteSocket = (token) => {
-  // Reuse a live socket instead of churning a new connection on every mount —
-  // recreating it mid-handshake dropped in-flight bets ("closed before
-  // established").
-  if (parachuteSocket) return parachuteSocket;
+  if (!token) return null;
+
+  if (parachuteSocket) {
+    attachHistoryBridge();
+    return parachuteSocket;
+  }
 
   parachuteSocket = io(`${API_URL}/parachute`, {
     auth: {
-      token: token,
+      token,
     },
     transports: ["websocket"],
     reconnection: true,
@@ -20,6 +69,7 @@ export const initializeParachuteSocket = (token) => {
 
   parachuteSocket.on("connect", () => {
     console.log("Parachute namespace connected successfully");
+    parachuteSocket.emit("get_history");
   });
 
   parachuteSocket.on("connect_error", (error) => {
@@ -36,27 +86,36 @@ export const initializeParachuteSocket = (token) => {
   parachuteSocket.on("disconnect", () => {
     console.log("Parachute namespace disconnected");
   });
-};
 
-export const getParachuteSocket = () => {
+  attachHistoryBridge();
   return parachuteSocket;
 };
+
+export const getParachuteSocket = () => parachuteSocket;
 
 export const disconnectParachuteSocket = () => {
   if (parachuteSocket) {
     parachuteSocket.disconnect();
     parachuteSocket = null;
   }
+  historyBridgeFlags.round_history = false;
+  historyBridgeFlags.game_crashed = false;
+  historyBridgeFlags.checkout_success = false;
 };
 
-// Start a round: commits the stake (debited server-side from walletType).
 export const addParachuteGame = (betAmount, difficulty, walletType = "demo") => {
-  if (!parachuteSocket || !betAmount || betAmount <= 0) return false;
+  if (
+    !parachuteSocket ||
+    betAmount == null ||
+    Number.isNaN(Number(betAmount)) ||
+    Number(betAmount) < 0
+  ) {
+    return false;
+  }
   parachuteSocket.emit("add_game", { betAmount, difficulty, walletType });
   return true;
 };
 
-// Cash out the running round (server credits stake x server multiplier).
 export const checkoutParachute = () => {
   if (!parachuteSocket) return false;
   parachuteSocket.emit("checkout", {});

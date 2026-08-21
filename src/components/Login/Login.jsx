@@ -1,6 +1,4 @@
-import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
-import { IoClose } from "react-icons/io5";
 import { useNavigate } from "react-router-dom";
 import {
   FaEye,
@@ -16,11 +14,19 @@ import {
   xAuth,
   telegramAuth,
 } from "../../store/slices/authSlice";
-import LoadingComponent from "../LoadingComponent";
 import { auth, googleProvider, twitterProvider } from "../../config/firebase";
 import { signInWithPopup } from "firebase/auth";
 import { toast } from "react-toastify";
 import { fetchContinueGames } from "../../store/slices/gameSlice";
+import AuthModalShell, {
+  AuthSpinner,
+  NestedAuthDialog,
+  authInputClass,
+  authLabelClass,
+  authLinkClass,
+  authPrimaryButtonClass,
+  authSecondaryButtonClass,
+} from "./AuthModalShell";
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -146,202 +152,161 @@ const Login = () => {
   return (
     <>
       {forgotPassword && (
-        <div
-          onClick={() => setForgotPassword(false)}
-          style={{ position: "fixed" }}
-          className="w-full h-screen absolute rounded top-0 left-0 flex items-center justify-center z-[121] bg-[rgba(0,0,0,0.6)] transition-opacity duration-300 ease-in-out opacity-100"
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="bg-primary rounded w-[90%] max-w-[500px] text-white px-4 py-5 animate-fadeUp relative"
-          >
+        <NestedAuthDialog onClose={() => setForgotPassword(false)}>
+          {!restore && (
+            <h2 className="text-center text-xl font-black text-white">
+              Forgot password?
+            </h2>
+          )}
+          <div className="mt-4 flex flex-col gap-3">
             {!restore && (
-              <h1 className="text-textColor text-center text-xl font-semibold mb-3">
-                Forgot Password ?
-              </h1>
+              <input
+                id="femail"
+                disabled={restore}
+                className={authInputClass}
+                placeholder="Enter your email address"
+              />
             )}
-            <div className="flex flex-col gap-2">
-              {!restore && (
-                <input
-                  id="femail"
-                  disabled={restore}
-                  className="px-3 w-full py-1.5 mt-1 rounded-md bg-inactive text-lg border-[3px] border-activeHover hover:border-active outline-none"
-                  placeholder="Enter your Email Address"
-                />
-              )}
-              {!restore && (
-                <button
-                  onClick={() => {
-                    setSendingRestore(true);
-                    setTimeout(() => {
-                      setSendingRestore(false);
-                      setRestore(true);
-                    }, 1000);
-                  }}
-                  className="mt-2 bg-inactive hover:bg-activeHover py-2 rounded-md"
-                >
-                  {sendingRestore ? <LoadingComponent /> : "Restore Password"}
-                </button>
-              )}
-
-              {restore && (
-                <h1 className="text-textColor text-xl py-1 mt-1 text-center font-semibold">
-                  Recovery url to reset password is sent to email. Change the
-                  password using it.
-                </h1>
-              )}
-            </div>
+            {!restore && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSendingRestore(true);
+                  setTimeout(() => {
+                    setSendingRestore(false);
+                    setRestore(true);
+                  }, 1000);
+                }}
+                className={authPrimaryButtonClass}
+              >
+                {sendingRestore ? <AuthSpinner /> : "Restore password"}
+              </button>
+            )}
+            {restore && (
+              <p className="text-center text-sm text-text-secondary">
+                A recovery link to reset your password was sent to your email.
+              </p>
+            )}
           </div>
-        </div>
+        </NestedAuthDialog>
       )}
 
-      <div
-        className="bg-[rgba(0,0,0,0.7)] cursor-pointer backdrop-blur-sm w-full h-screen fixed top-0 left-0 z-[120] overflow-y-auto flex items-center justify-center"
-        onClick={handleClose}
-      >
-        <div
-          className="flex absolute top-3 right-1 max-sm:right-0 cursor-pointer py-1 px-3 items-stretch gap-3 text-white"
-          onClick={handleClose}
-          style={{ position: "fixed" }}
-        >
-          <IoClose size={30} />
-        </div>
-        <motion.div
-          initial={{ opacity: 0, y: 50 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 50 }}
-          transition={{ duration: 0.5 }}
-          className="my-3 relative overflow-y-auto max-w-[600px] max-h-[84vh] rounded-md bg-primary inset-0 z-[1000] w-[95%]"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="my-6">
-            <div className="w-full flex items-center justify-center px-3 text-white">
-              <div className="w-full lg:w-[85%]">
-                <h1 className="font-bold text-3xl max-md:text-2xl">
-                  Login to your account
-                </h1>
-                <h2 className="pt-1 font-semibold text-lg max-md:text-base">
-                  Don't have an account?{" "}
-                  <span
-                    onClick={() => handleTabNavigation("register")}
-                    className="text-textColor hover:text-white hover:underline cursor-pointer"
-                  >
-                    Register
-                  </span>
-                </h2>
+      <AuthModalShell onClose={handleClose}>
+        <h1 className="text-2xl font-black leading-tight text-white">
+          Login to your account
+        </h1>
+        <p className="mt-1 text-sm text-text-secondary">
+          Don&apos;t have an account?{" "}
+          <button
+            type="button"
+            onClick={() => handleTabNavigation("register")}
+            className={authLinkClass}
+          >
+            Register
+          </button>
+        </p>
 
-                {error && (
-                  <div className="mt-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-                    {error}
-                  </div>
-                )}
+        {error && (
+          <div className="mt-4 rounded-xl border border-red-400/30 bg-red-500/10 px-3 py-2.5 text-sm text-red-200">
+            {error}
+          </div>
+        )}
 
-                <form onSubmit={handleLogin}>
-                  <div className="mt-8">
-                    <div className="flex flex-col gap-2 mt-4">
-                      <label
-                        htmlFor="username"
-                        className="text-textColor w-full font-semibold text-lg max-md:text-base"
-                      >
-                        Username or Email
-                      </label>
-                      <input
-                        id="username"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        className="px-3 py-3 rounded-lg bg-inactive font-semibold text-xl max-md:text-base border-[3px] border-activeHover hover:border-active outline-none"
-                        placeholder="Username or Email"
-                      />
-                    </div>
-                    <div className="flex flex-col gap-2 mt-4">
-                      <label
-                        htmlFor="password"
-                        className="text-textColor font-semibold text-lg max-md:text-base"
-                      >
-                        Password
-                      </label>
-                      <div className="relative">
-                        <input
-                          id="password"
-                          type={showPassword ? "text" : "password"}
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          className="px-3 py-3 rounded-lg w-full bg-inactive font-semibold text-xl max-md:text-base border-[3px] border-activeHover hover:border-active outline-none"
-                          placeholder="Password"
-                        />
-                        <span
-                          onClick={() => setShowPassword((prev) => !prev)}
-                          className="absolute right-3 top-[50%] translate-y-[-50%] cursor-pointer text-lg"
-                        >
-                          {showPassword ? <FaEyeSlash /> : <FaEye />}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-6 flex items-center justify-between">
-                    <div className="flex items-center gap-1">
-                      <input
-                        type="checkbox"
-                        className="h-5 w-5"
-                        checked={rememberMe}
-                        onChange={(e) => setRememberMe(e.target.checked)}
-                      />
-                      <label className="text-textColor font-semibold max-md:text-base">
-                        Remember me
-                      </label>
-                    </div>
-                    <h2
-                      onClick={() => setForgotPassword(true)}
-                      className="text-textColor cursor-pointer hover:underline"
-                    >
-                      Forgot Password?
-                    </h2>
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full bg-inactive hover:bg-activeHover text-xl py-2 rounded-lg mt-5"
-                  >
-                    {loading ? <LoadingComponent /> : "Play Now"}
-                  </button>
-                </form>
-
-                <h2 className="text-center font-semibold mt-4">
-                  or continue with
-                </h2>
-
-                <div className="flex items-center justify-center gap-4 mt-4">
-                  <button
-                    onClick={handleGoogleLogin}
-                    className="flex items-center gap-2 bg-inactive hover:bg-activeHover px-4 py-2 rounded-lg"
-                  >
-                    <FaGoogle />
-                    Google
-                  </button>
-
-                  <a
-                    onClick={handleTelgramClick}
-                    className="flex items-center gap-2 bg-inactive hover:bg-activeHover px-4 py-2 rounded-lg cursor-pointer"
-                  >
-                    <FaTelegram />
-                    Telegram
-                  </a>
-
-                  <button
-                    onClick={handleTwitterLogin}
-                    className="flex items-center gap-2 bg-inactive hover:bg-activeHover px-4 py-2 rounded-lg"
-                  >
-                    <FaTwitter />
-                    Twitter
-                  </button>
-                </div>
-              </div>
+        <form onSubmit={handleLogin} className="mt-6 flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="username" className={authLabelClass}>
+              Username or Email
+            </label>
+            <input
+              id="username"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className={authInputClass}
+              placeholder="Username or email"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="password" className={authLabelClass}>
+              Password
+            </label>
+            <div className="relative">
+              <input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className={`${authInputClass} pr-10`}
+                placeholder="Password"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-text-tertiary transition hover:text-white"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <FaEyeSlash /> : <FaEye />}
+              </button>
             </div>
           </div>
-        </motion.div>
-      </div>
+
+          <div className="flex items-center justify-between gap-3">
+            <label className="flex items-center gap-2 text-sm font-medium text-text-secondary">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-white/20 bg-black/25 accent-brand-primary"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+              />
+              Remember me
+            </label>
+            <button
+              type="button"
+              onClick={() => setForgotPassword(true)}
+              className="text-sm text-text-tertiary transition hover:text-white"
+            >
+              Forgot password?
+            </button>
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className={authPrimaryButtonClass}
+          >
+            {loading ? <AuthSpinner /> : "Login"}
+          </button>
+        </form>
+
+        <p className="mt-5 text-center text-xs font-semibold uppercase tracking-[0.18em] text-text-tertiary">
+          or continue with
+        </p>
+        <div className="mt-3 grid grid-cols-3 gap-2">
+          <button
+            type="button"
+            onClick={handleGoogleLogin}
+            className={authSecondaryButtonClass}
+          >
+            <FaGoogle />
+            <span className="hidden sm:inline">Google</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleTelgramClick}
+            className={authSecondaryButtonClass}
+          >
+            <FaTelegram />
+            <span className="hidden sm:inline">Telegram</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleTwitterLogin}
+            className={authSecondaryButtonClass}
+          >
+            <FaTwitter />
+            <span className="hidden sm:inline">X</span>
+          </button>
+        </div>
+      </AuthModalShell>
     </>
   );
 };

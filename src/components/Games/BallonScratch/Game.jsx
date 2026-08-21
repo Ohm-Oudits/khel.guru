@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { balloonTypes, diamondTypes } from "./Frame";
 import DiamondSlots from "./Slots";
-import MobileSlot from "./MobileMainSlot";
+import MobileSlot, { normalizeDiamondCounts } from "./MobileMainSlot";
+import GridDiamond from "./GridDiamond";
 import "../../../styles/Scratch.css";
 import {
   disconnectScratchSocket,
@@ -18,6 +19,166 @@ import {
 import { toast } from "react-toastify";
 import { requestWalletRefresh } from "../../../utils/walletEvents";
 
+const mergeServerGrid = (prev, serverGrid, poppedRef) =>
+  serverGrid.map((serverBox, i) => {
+    const local = prev[i];
+
+    if (poppedRef.current.has(i)) {
+      return {
+        ...serverBox,
+        revealed: true,
+        animating: false,
+        balloonColor: local?.balloonColor ?? serverBox.balloonColor,
+      };
+    }
+
+    if (local?.animating || (serverBox.revealed && !local?.revealed)) {
+      return {
+        ...serverBox,
+        revealed: false,
+        animating: true,
+        balloonColor: local?.balloonColor ?? serverBox.balloonColor,
+      };
+    }
+
+    return {
+      ...serverBox,
+      animating: false,
+      balloonColor: local?.balloonColor ?? serverBox.balloonColor,
+    };
+  });
+
+const hydrateGridFromServer = (serverGrid, poppedRef) => {
+  poppedRef.current = new Set(
+    serverGrid.map((box, i) => (box.revealed ? i : null)).filter((i) => i != null)
+  );
+  return serverGrid.map((box) => ({
+    ...box,
+    revealed: Boolean(box.revealed),
+    animating: false,
+  }));
+};
+
+const BalloonPop = ({ color, popping, onPopComplete }) => (
+  <div className="balloon-wrap">
+    <div
+      className={`balloon-inner${popping ? " is-popping" : ""}`}
+      style={{ color }}
+      onAnimationEnd={
+        popping
+          ? (event) => {
+              if (event.animationName === "balloonBlast") {
+                onPopComplete?.();
+              }
+            }
+          : undefined
+      }
+    >
+      <div className="balloon-body" style={{ backgroundColor: color }} />
+      <div className="balloon-knot" style={{ borderTopColor: color }} />
+      <div className="balloon-tail" />
+    </div>
+  </div>
+);
+
+const BalloonGrid = ({
+  cells,
+  interactive = false,
+  onCellClick,
+  onPopComplete,
+  gridRef,
+}) => (
+    <div className="relative flex h-full w-full items-center justify-center px-1 py-1 max-lg:py-0 sm:px-2 lg:px-4 lg:py-4">
+    <div
+      ref={gridRef}
+      className="balloon-grid mx-auto grid aspect-square w-full max-w-[min(100%,14rem)] grid-cols-3 grid-rows-3 gap-x-2.5 gap-y-2 sm:max-w-[min(100%,15rem)] sm:gap-x-3 sm:gap-y-2.5 lg:max-w-[min(100%,21rem)] lg:gap-x-4 lg:gap-y-3.5"
+    >
+      {cells.map((box, index) => (
+        <div
+          key={index}
+          className={`balloon-cell${interactive ? " is-clickable" : ""}`}
+          onClick={interactive ? () => onCellClick(index) : undefined}
+          role={interactive ? "button" : undefined}
+          tabIndex={interactive ? 0 : undefined}
+          onKeyDown={
+            interactive
+              ? (event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    onCellClick(index);
+                  }
+                }
+              : undefined
+          }
+        >
+          {(box.revealed || box.animating) && (
+            <div className={`balloon-gem${box.animating ? " is-revealing" : ""}`}>
+              <GridDiamond color={box.diamondColor} reveal={box.animating} />
+            </div>
+          )}
+          {(!box.revealed || box.animating) && (
+            <BalloonPop
+              color={box.balloonColor}
+              popping={box.animating}
+              onPopComplete={() => onPopComplete(index)}
+            />
+          )}
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+const MobilePlayArea = ({
+  diamondCounts,
+  setslotindex,
+  gridCells,
+  interactive,
+  onCellClick,
+  onPopComplete,
+}) => {
+  const gridRef = useRef(null);
+  const [gridHeight, setGridHeight] = useState(0);
+
+  useEffect(() => {
+    const node = gridRef.current;
+    if (!node) return undefined;
+
+    const updateHeight = () => {
+      setGridHeight(node.getBoundingClientRect().height);
+    };
+
+    updateHeight();
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(node);
+    window.addEventListener("resize", updateHeight);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateHeight);
+    };
+  }, [gridCells]);
+
+  return (
+    <div className="mobile-play-area flex w-full flex-row items-center justify-center gap-2.5">
+      <MobileSlot
+        diamondCounts={diamondCounts}
+        setslotindex={setslotindex}
+        gridHeight={gridHeight}
+      />
+      <div className="mobile-grid-wrap flex min-w-0 flex-1 items-center justify-center">
+        <BalloonGrid
+          gridRef={gridRef}
+          cells={gridCells}
+          interactive={interactive}
+          onCellClick={onCellClick}
+          onPopComplete={onPopComplete}
+        />
+      </div>
+    </div>
+  );
+};
+
 const Game = ({
   betStarted,
   setBettingStarted,
@@ -31,6 +192,7 @@ const Game = ({
   setStartAutoBet,
   nbets,
   betAmount,
+  onRoundComplete,
 }) => {
   const [grid, setGrid] = useState([]);
   const [activeGame, setActiveGame] = useState(null);
@@ -42,6 +204,8 @@ const Game = ({
   const [completedGameData, setCompletedGameData] = useState(null);
   const [autoRevealInProgress, setAutoRevealInProgress] = useState(false);
   const [remainingAutoBets, setRemainingAutoBets] = useState(0);
+  const poppedRef = useRef(new Set());
+  const completionTimerRef = useRef(null);
 
   useEffect(() => {
     console.log("🎮 Game State Update:", {
@@ -95,8 +259,8 @@ const Game = ({
                 totalBoxes: game.grid.length,
               });
               setActiveGame(game);
-              setGrid(game.grid);
-              setDiamondCounts(game.diamondCounts);
+              setGrid(hydrateGridFromServer(game.grid, poppedRef));
+              setDiamondCounts(normalizeDiamondCounts(game.diamondCounts));
               setBettingStarted(true);
               setGameState("playing");
             }
@@ -112,6 +276,7 @@ const Game = ({
           setBettingStarted(false);
           setActiveGame(null);
           setGrid([]);
+          poppedRef.current = new Set();
           setDiamondCounts(
             diamondTypes.reduce(
               (acc, type) => ({ ...acc, [type]: { count: 0, indices: [] } }),
@@ -130,8 +295,15 @@ const Game = ({
           // The stake was just debited: refresh the balance readout.
           requestWalletRefresh();
           setActiveGame(game);
-          setGrid(game.grid);
-          setDiamondCounts(game.diamondCounts);
+          poppedRef.current = new Set();
+          setGrid(
+            game.grid.map((box) => ({
+              ...box,
+              revealed: false,
+              animating: false,
+            }))
+          );
+          setDiamondCounts(normalizeDiamondCounts(game.diamondCounts));
           setBettingStarted(true);
           setGameState("playing");
           setLoading(false);
@@ -143,13 +315,8 @@ const Game = ({
             revealedBoxes: game.grid.filter((box) => box.revealed).length,
             totalBoxes: game.grid.length,
           });
-          setGrid(game.grid);
-          setDiamondCounts(game.diamondCounts);
-
-          const allRevealed = game.grid.every((box) => box.revealed);
-          if (allRevealed) {
-            setGameState("completed");
-          }
+          setGrid((prev) => mergeServerGrid(prev, game.grid, poppedRef));
+          setDiamondCounts(normalizeDiamondCounts(game.diamondCounts));
         });
 
         onGameCompleted(({ completedGame, newGame }) => {
@@ -177,6 +344,9 @@ const Game = ({
 
     return () => {
       console.log("🧹 Cleaning up game component");
+      if (completionTimerRef.current) {
+        clearTimeout(completionTimerRef.current);
+      }
       removeAllGameListeners();
     };
   }, []);
@@ -190,7 +360,7 @@ const Game = ({
       !startAutoBet
     ) {
       const betAmountNum = parseFloat(betAmount);
-      if (isNaN(betAmountNum) || betAmountNum <= 0) {
+      if (isNaN(betAmountNum) || betAmountNum < 0) {
         console.log("⚠️ Invalid bet amount:", betAmount);
         toast.error("Please enter a valid bet amount");
         setBettingStarted(false);
@@ -331,55 +501,10 @@ const Game = ({
       gameId: activeGame._id,
       boxIndex: index,
     });
+    setGrid((prev) =>
+      prev.map((box, i) => (i === index ? { ...box, animating: true } : box))
+    );
     revealBox(activeGame._id, index);
-  };
-
-  const getimage = (color) => {
-    if (color == "red") {
-      return (
-        <div className="gemWrapper">
-          <div className="gemBox ruby">
-            <div className="shine"></div>
-          </div>
-          <div className="glint"></div>
-        </div>
-      );
-    } else if (color == "yellow") {
-      return (
-        <div className="gemWrapper">
-          <div className="gemBox topaz">
-            <div className="shine"></div>
-          </div>
-          <div className="glint"></div>
-        </div>
-      );
-    } else if (color == "blue") {
-      return (
-        <div className="gemWrapper">
-          <div className="gemBox sapphire">
-            <div className="shine"></div>
-          </div>
-          <div className="glint"></div>
-        </div>
-      );
-    } else if (color == "purple") {
-      return (
-        <div className="gemWrapper">
-          <div className="gemBox alexandrite">
-            <div className="shine"></div>
-          </div>
-          <div className="glint"></div>
-        </div>
-      );
-    } else
-      return (
-        <div className="gemWrapper">
-          <div className="gemBox diamond">
-            <div className="shine"></div>
-          </div>
-          <div className="glint"></div>
-        </div>
-      );
   };
 
   const handleAutoClick = () => {
@@ -404,22 +529,12 @@ const Game = ({
   };
 
   const handleAnimationComplete = (index) => {
+    poppedRef.current.add(index);
     setGrid((prevGrid) =>
       prevGrid.map((box, i) =>
         i === index ? { ...box, animating: false, revealed: true } : box
       )
     );
-
-    const clickedBox = grid[index];
-    if (clickedBox && clickedBox.diamond) {
-      setDiamondCounts((prevCounts) => ({
-        ...prevCounts,
-        [clickedBox.diamond]: {
-          count: prevCounts[clickedBox.diamond].count + 1,
-          indices: [...prevCounts[clickedBox.diamond].indices, index],
-        },
-      }));
-    }
   };
 
   const handleReset = () => {
@@ -439,12 +554,27 @@ const Game = ({
     };
 
     setGrid(createGrid());
+    poppedRef.current = new Set();
     setDiamondCounts(
       diamondTypes.reduce(
         (acc, type) => ({ ...acc, [type]: { count: 0, indices: [] } }),
         {}
       )
     );
+  };
+
+  const resetToIdle = () => {
+    if (completionTimerRef.current) {
+      clearTimeout(completionTimerRef.current);
+      completionTimerRef.current = null;
+    }
+    setShowCompletedGrid(false);
+    setCompletedGameData(null);
+    setBettingStarted(false);
+    setActiveGame(null);
+    setGameState("idle");
+    setslotindex(null);
+    handleReset();
   };
 
   useEffect(() => {
@@ -462,22 +592,31 @@ const Game = ({
 
   useEffect(() => {
     if (startAutoBet) {
-      return;
-    }
-
-    if (grid.length === 9 && grid.every((box) => box.revealed)) {
-      setTimeout(() => {
-        setBettingStarted(false);
-        handleReset();
-      }, 1500);
-    }
-  }, [grid]);
-
-  useEffect(() => {
-    if (startAutoBet) {
       startAutoBetSequence(nbets);
     }
   }, [startAutoBet]);
+
+  useEffect(() => {
+    if (startAutoBet || !betStarted || !activeGame || gameState === "completed") {
+      return;
+    }
+
+    const allRevealed =
+      grid.length === 9 && grid.every((box) => box.revealed && !box.animating);
+
+    if (!allRevealed) {
+      return;
+    }
+
+    const fallbackTimer = setTimeout(() => {
+      setBettingStarted(false);
+      setActiveGame(null);
+      setGameState("idle");
+      handleReset();
+    }, 4000);
+
+    return () => clearTimeout(fallbackTimer);
+  }, [grid, betStarted, activeGame, startAutoBet, gameState]);
 
   const autoRevealBoxes = async (gameId, grid) => {
     if (!gameId || !grid || autoRevealInProgress) return;
@@ -563,7 +702,6 @@ const Game = ({
       remainingBets: remainingAutoBets,
     });
 
-    // The round just settled (win credited / loss kept): refresh the balance.
     requestWalletRefresh();
 
     if (completedGame.winAmount > 0) {
@@ -572,54 +710,61 @@ const Game = ({
       toast.info("Game completed!");
     }
 
-    setCompletedGameData(completedGame);
+    const displayGame = {
+      ...completedGame,
+      grid: completedGame.grid.map((box) => ({
+        ...box,
+        revealed: true,
+        animating: false,
+      })),
+    };
+
+    setCompletedGameData(displayGame);
     setShowCompletedGrid(true);
+    setBettingStarted(false);
+    setActiveGame(null);
     setGameState("completed");
 
-    if (!startAutoBet) {
-      const minDisplayTime = 5000;
-      const startTime = Date.now();
+    onRoundComplete?.({
+      multiplier: Number(completedGame.multiplier) || 0,
+      winAmount: completedGame.winAmount,
+    });
 
-      const handleNextGame = () => {
-        const elapsedTime = Date.now() - startTime;
-        const remainingTime = Math.max(0, minDisplayTime - elapsedTime);
-
-        setTimeout(() => {
-          setShowCompletedGrid(false);
-          setCompletedGameData(null);
-          setBettingStarted(false);
-          setActiveGame(null);
-          setGrid([]);
-          setDiamondCounts(
-            diamondTypes.reduce(
-              (acc, type) => ({ ...acc, [type]: { count: 0, indices: [] } }),
-              {}
-            )
-          );
-          setGameState("idle");
-        }, remainingTime);
-      };
-
-      handleNextGame();
+    if (startAutoBet) {
+      if (newGame) {
+        setActiveGame(newGame);
+        setGrid(hydrateGridFromServer(newGame.grid, poppedRef));
+        setDiamondCounts(normalizeDiamondCounts(newGame.diamondCounts));
+        setShowCompletedGrid(false);
+        setCompletedGameData(null);
+        setGameState("playing");
+      }
+      return;
     }
+
+    if (completionTimerRef.current) {
+      clearTimeout(completionTimerRef.current);
+    }
+
+    completionTimerRef.current = setTimeout(() => {
+      resetToIdle();
+    }, 3000);
   };
 
   useEffect(() => {
-    const socket = getScratchSocket();
-    if (socket) {
-      onGameCompleted(({ completedGame, newGame }) => {
-        handleGameCompletion(completedGame, newGame);
-      });
+    if (startAutoBet || !betStarted || gameState !== "completed" || !showCompletedGrid) {
+      return;
     }
-  }, [startAutoBet]);
 
-  useEffect(() => {
-    if (betStarted && gameState === "completed" && !startAutoBet) {
-      setShowCompletedGrid(false);
-      setCompletedGameData(null);
-      setGameState("starting");
+    if (completionTimerRef.current) {
+      clearTimeout(completionTimerRef.current);
+      completionTimerRef.current = null;
     }
-  }, [betStarted, gameState, startAutoBet]);
+
+    setShowCompletedGrid(false);
+    setCompletedGameData(null);
+    setGameState("starting");
+  }, [betStarted, gameState, startAutoBet, showCompletedGrid]);
 
   if (loading) {
     console.log("⏳ Showing loading state", {
@@ -646,35 +791,24 @@ const Game = ({
 
   if (showCompletedGrid && completedGameData) {
     return (
-      <div className="w-full h-full p-1 grid lg:flex">
-        <div className="block lg:hidden">
-          <MobileSlot
-            diamondCounts={completedGameData.diamondCounts}
-            slotindex={slotindex}
-          />
-        </div>
-        <div className="hidden lg:block lg:w-4/7 items-center h-[400px] justify-center">
+      <div className="flex h-full w-full flex-col gap-1 px-3 pb-3 sm:px-4 max-lg:gap-0 lg:flex-row lg:gap-6 lg:pt-2">
+        <div className="hidden shrink-0 lg:block lg:w-[54%]">
           <DiamondSlots
             diamondCounts={completedGameData.diamondCounts}
             setslotindex={setslotindex}
             slotindex={slotindex}
           />
         </div>
-
-        <div className="w-full lg:w-1/2 flex items-center justify-center sm:py-10">
-          <div className="flex flex-col items-bottom space-y-4">
-            <div className="grid grid-cols-3 lg:w-30 lg:h-20 gap-14 lg:gap-5 py-[50px] lg:py-[1px] md:py[1px] sm:py-[10px]">
-              {completedGameData.grid.map((box, index) => (
-                <div
-                  key={index}
-                  className="relative scale-150 lg:scale-100 lg:w-20 lg:h-20 bg-gray-700 rounded-lg flex justify-center shadow-lg"
-                >
-                  <div className="absolute empty justify-between">
-                    {getimage(box.diamondColor)}
-                  </div>
-                </div>
-              ))}
-            </div>
+        <div className="flex min-h-[230px] flex-1 items-start justify-center max-lg:pt-4 lg:min-h-[440px] lg:items-center lg:pt-0 lg:w-[46%]">
+          <div className="hidden h-full w-full lg:block">
+            <BalloonGrid cells={completedGameData.grid} />
+          </div>
+          <div className="block w-full lg:hidden">
+            <MobilePlayArea
+              diamondCounts={completedGameData.diamondCounts}
+              setslotindex={setslotindex}
+              gridCells={completedGameData.grid}
+            />
           </div>
         </div>
       </div>
@@ -682,44 +816,32 @@ const Game = ({
   }
 
   return (
-    <div className="w-full h-full p-1 grid lg:flex">
-      <div className="block lg:hidden">
-        <MobileSlot diamondCounts={diamondCounts} slotindex={slotindex} />
-      </div>
-      <div className="hidden lg:block lg:w-4/7 items-center h-[400px] justify-center">
+    <div className="flex h-full w-full flex-col gap-1 px-3 pb-3 sm:px-4 max-lg:gap-0 lg:flex-row lg:gap-6 lg:pt-2">
+      <div className="hidden shrink-0 lg:block lg:w-[54%]">
         <DiamondSlots
           diamondCounts={diamondCounts}
           setslotindex={setslotindex}
           slotindex={slotindex}
         />
       </div>
-
-      <div className="w-full lg:w-1/2 flex items-center justify-center sm:py-10">
-        <div className="flex flex-col items-bottom space-y-4">
-          <div className="grid grid-cols-3 lg:w-30 lg:h-20 gap-14 lg:gap-5 py-[50px] lg:py-[1px] md:py[1px] sm:py-[10px]">
-            {grid.map((box, index) => (
-              <div
-                key={index}
-                className="relative scale-150 lg:scale-100 lg:w-20 lg:h-20 bg-gray-700 rounded-lg flex justify-center shadow-lg"
-                onClick={() => handleBoxClick(index)}
-              >
-                {!box.revealed && (
-                  <div
-                    className={`absolute balloon ${
-                      box.animating ? "animate-float" : ""
-                    }`}
-                    style={{ backgroundColor: box.balloonColor }}
-                    onAnimationEnd={() => handleAnimationComplete(index)}
-                  ></div>
-                )}
-                {box.revealed && (
-                  <div className="absolute empty justify-between">
-                    {getimage(box.diamondColor)}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
+      <div className="flex min-h-[230px] flex-1 items-start justify-center max-lg:pt-4 lg:min-h-[440px] lg:items-center lg:pt-0 lg:w-[46%]">
+        <div className="hidden h-full w-full lg:block">
+          <BalloonGrid
+            cells={grid}
+            interactive
+            onCellClick={handleBoxClick}
+            onPopComplete={handleAnimationComplete}
+          />
+        </div>
+        <div className="block w-full lg:hidden">
+          <MobilePlayArea
+            diamondCounts={diamondCounts}
+            setslotindex={setslotindex}
+            gridCells={grid}
+            interactive
+            onCellClick={handleBoxClick}
+            onPopComplete={handleAnimationComplete}
+          />
         </div>
       </div>
     </div>

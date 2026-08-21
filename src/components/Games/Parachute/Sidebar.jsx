@@ -1,7 +1,9 @@
-import { useState } from "react";
-import GameBalanceBadge from "../shared/GameBalanceBadge";
-
 /* eslint-disable react/prop-types */
+import {
+  DIFFICULTY_LOW_MEDIUM_HIGH,
+  GameRiskAutoRow,
+} from "../../Frame/GamePanelControls";
+
 const SideBar = ({
   theatreMode,
   setBetMode,
@@ -12,6 +14,7 @@ const SideBar = ({
   nbets,
   setNBets,
   bettingStarted,
+  roundLocked,
   value,
   handleBetClick,
   handleCheckout,
@@ -22,17 +25,7 @@ const SideBar = ({
   autoMultipyTarget,
   setAutoMultipyTarget,
 }) => {
-  const options = [
-    { value: "low", label: "Low" },
-    { value: "medium", label: " Medium" },
-    { value: "high", label: " High" },
-  ];
-
-  const handleRiskSelect = (value) => {
-    setDifficulty(value);
-    setIsOpen(false);
-  };
-  const [isOpen, setIsOpen] = useState(false);
+  const modeSwitchDisabled = startAutoBet || bettingStarted;
 
   return (
     <>
@@ -42,39 +35,20 @@ const SideBar = ({
         } xl:col-span-3 bg-inactive order-2 max-lg:h-[fit-content] lg:h-[600px] overflow-auto`}
       >
         <div className="my-4 px-3 flex flex-col">
-          {/* Manual and auto  */}
-          <div className="sticky top-0 z-[1] bg-inactive py-0 rounded-md">
-            <div className="order-[100] max-lg:mt-2 lg:order-1 switch mb-4 w-full bg-primary rounded-full p-1.5 grid grid-cols-2 gap-1">
-              <div
-                onClick={() => {
-                  if (!startAutoBet) {
-                    setBetMode("manual");
-                  }
-                }}
-                className={`${
-                  betMode === "manual" ? "bg-inactive scale-95" : ""
-                } hover:bg-activeHover cursor-pointer col-span-1 flex items-center justify-center py-2 text-white font-semibold rounded-full transition-all duration-300 ease-in-out transform active:scale-90`}
-              >
-                Manual
-              </div>
-              <div
-                onClick={() => {
-                  if (!bettingStarted) {
-                    setBetMode("auto");
-                  }
-                }}
-                className={`${
-                  betMode === "auto" ? "bg-inactive scale-95" : ""
-                } hover:bg-activeHover cursor-pointer col-span-1 flex items-center justify-center py-2 text-white font-semibold rounded-full transition-all duration-300 ease-in-out transform active:scale-90`}
-              >
-                Auto
-              </div>
-            </div>
-          </div>
+          <GameRiskAutoRow
+            label="Difficulty"
+            options={DIFFICULTY_LOW_MEDIUM_HIGH}
+            value={difficulty}
+            onChange={setDifficulty}
+            segmentDisabled={bettingStarted}
+            betMode={betMode}
+            setBetMode={setBetMode}
+            modeSwitchDisabled={modeSwitchDisabled}
+            ariaLabel="Difficulty level"
+          />
 
           {betMode === "manual" && (
             <>
-              <GameBalanceBadge className="mb-2" />
               <div className="order-1 md:order-2 my-2 w-full">
                 <div className="flex items-center mb-[-4px] pl-[2px] justify-between w-full font-semibold text-label">
                   <label htmlFor="betAmount">Bet Amount</label>
@@ -118,45 +92,6 @@ const SideBar = ({
                 </div>
               </div>
 
-              <div className="order-1 md:order-2 my-2 w-full">
-                <div className="w-full">
-                  <label
-                    htmlFor="Difficulty"
-                    className="flex items-center mb-[-4px] pl-[2px] justify-between w-full font-semibold text-label"
-                  >
-                    <h1>Difficulty</h1>
-                  </label>
-                  <div className="relative w-full">
-                    <button
-                      className="w-full mt-2  h-full flex justify-between  rounded-md bg-black p-3 text-white px-3 pr-6 py-2 border border-input hover:border-primary-4"
-                      onClick={() => {
-                        if (!bettingStarted) {
-                          setIsOpen(!isOpen);
-                        }
-                      }}
-                      disabled={bettingStarted}
-                    >
-                      {options.find((opt) => opt.value === difficulty)?.label ||
-                        "Select Difficulty"}
-                    </button>
-
-                    {isOpen && (
-                      <div className="absolute z-10 mt-2 w-full bg-black border border-primary-4 rounded-md shadow-lg">
-                        {options.map((opt) => (
-                          <div
-                            key={opt.value}
-                            className="flex items-center text-[0.88rem] justify-between p-3 hover:bg-primary-4 cursor-pointer text-white"
-                            onClick={() => handleRiskSelect(opt.value)}
-                          >
-                            <span>{opt.label}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
               {bettingStarted && (
                 <div className="order-10 md:order-2 mb-2 mt-1 w-full">
                   <label
@@ -176,7 +111,7 @@ const SideBar = ({
               )}
 
               {/* Checkout button */}
-              {bettingStarted && (
+              {bettingStarted && !roundLocked && (
                 <div
                   className={`order-2 max-md:mb-2 md:order-20 transition-all duration-300 ease-in-out transform active:scale-90 flex items-center justify-center w-full mx-auto py-1.5 mt-3 max-lg:mt-4 rounded text-lg font-semibold bg-button-primary text-black cursor-pointer`}
                   onClick={handleCheckout}
@@ -185,8 +120,15 @@ const SideBar = ({
                 </div>
               )}
 
+              {/* Settling state — blocks re-bet until round reset completes */}
+              {roundLocked && (
+                <div className="order-2 max-md:mb-2 md:order-20 flex items-center justify-center w-full mx-auto py-1.5 mt-3 max-lg:mt-4 rounded text-lg font-semibold bg-primary text-white opacity-60 cursor-not-allowed pointer-events-none">
+                  Settling...
+                </div>
+              )}
+
               {/* Bet button */}
-              {!bettingStarted && (
+              {!bettingStarted && !roundLocked && (
                 <div
                   className={`order-2 max-md:mb-2 md:order-20 transition-all duration-300 ease-in-out transform active:scale-90 flex items-center justify-center w-full mx-auto py-1.5 mt-3 max-lg:mt-4 rounded text-lg font-semibold bg-button-primary text-black cursor-pointer`}
                   onClick={handleBetClick}
@@ -275,10 +217,10 @@ const SideBar = ({
               {/* Bet button */}
               <button
                 onClick={handleAutoBet}
-                disabled={startAutoBet}
+                disabled={startAutoBet || roundLocked}
                 className={`order-2 max-md:mb-2 md:order-20 transition-all duration-300 ease-in-out transform flex items-center justify-center w-full mx-auto py-1.5 mt-4 max-lg:mt-4 rounded text-lg font-semibold text-black cursor-pointer ${
-                  startAutoBet
-                    ? "bg-primary text-white cursor-text"
+                  startAutoBet || roundLocked
+                    ? "bg-primary text-white cursor-not-allowed opacity-60"
                     : "bg-button-primary active:scale-90"
                 }`}
               >

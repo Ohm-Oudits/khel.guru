@@ -1,7 +1,5 @@
 /* eslint-disable */
 import BetAmount from "../../Frame/BetAmount";
-import GameBalanceBadge from "../shared/GameBalanceBadge";
-
 const LeftSection = ({
   theatreMode,
   setBetMode,
@@ -57,7 +55,6 @@ const LeftSection = ({
 
           {betMode === "manual" && (
             <>
-              <GameBalanceBadge className="mb-2" />
               <BetAmount
                 bet={bet}
                 setBet={setBet}

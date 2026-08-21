@@ -88,6 +88,8 @@ const Game = ({
   setBankerBet,
   tieBet,
   setTieBet,
+  selectedSpots = { player: false, tie: false, banker: false },
+  setSelectedSpots = () => {},
 }) => {
   const [deck, setDeck] = useState(createDeck());
   const [userCards, setUserCards] = useState([]);
@@ -132,13 +134,22 @@ const Game = ({
   };
 
   const placeBet = (type) => {
-    if (betStarted) return; // Prevents betting if game hasn't started or bet is 0
+    if (betStarted) return; // Prevents betting once the round is in progress
 
-    if (type === "Player")
+    // Mark the spot as selected on click (even for a 0 chip) so a 0 stake
+    // still counts as a placed bet.
+    if (type === "Player") {
       setPlayerBet((prev) => prev + (Number(chipBet) || 0));
-    if (type === "Tie") setTieBet((prev) => prev + (Number(chipBet) || 0));
-    if (type === "Banker")
+      setSelectedSpots((prev) => ({ ...prev, player: true }));
+    }
+    if (type === "Tie") {
+      setTieBet((prev) => prev + (Number(chipBet) || 0));
+      setSelectedSpots((prev) => ({ ...prev, tie: true }));
+    }
+    if (type === "Banker") {
       setBankerBet((prev) => prev + (Number(chipBet) || 0));
+      setSelectedSpots((prev) => ({ ...prev, banker: true }));
+    }
   };
 
   const playerScore = calculateScore(userCards);
@@ -195,6 +206,7 @@ const Game = ({
           setPlayerBet(0);
           setTieBet(0);
           setBankerBet(0);
+          setSelectedSpots({ player: false, tie: false, banker: false });
         }, 2000);
         setBettingStarted(false);
 
@@ -328,7 +340,7 @@ const Game = ({
         <div className="w-full px-3 flex items-center justify-center gap-3 max-md:gap-2">
           {/* Player Button */}
           <div className="relative bg-primary py-3 px-12 max-lg:px-8 max-lg:py-3 max-md:text-xs flex flex-col items-center justify-center border border-gray-500 cursor-pointer rounded hover:bg-primary/10 transition duration-300 ease-in-out">
-            {playerBet > 0 && ( // Show red dot only if playerBet is greater than 0
+            {selectedSpots.player && ( // Show red dot when the Player spot is selected
               <div className="absolute bg-red-600 w-3 h-3 max-lg:h-2 max-lg:w-2 rounded-full z-10 top-2 right-2"></div>
             )}
             <button
@@ -342,7 +354,7 @@ const Game = ({
 
           {/* Tie Button */}
           <div className="relative bg-primary py-3 px-12 max-lg:px-8 max-lg:py-3 max-md:text-xs flex flex-col items-center justify-center border border-gray-500 cursor-pointer rounded hover:bg-primary/10 transition duration-300 ease-in-out">
-            {tieBet > 0 && ( // Show red dot only if playerBet is greater than 0
+            {selectedSpots.tie && ( // Show red dot when the Tie spot is selected
               <div className="absolute bg-red-600 w-3 h-3 max-lg:h-2 max-lg:w-2 rounded-full z-10 top-2 right-2"></div>
             )}
             <button
@@ -356,7 +368,7 @@ const Game = ({
 
           {/* Banker Button */}
           <div className="relative bg-primary py-3 px-12 max-lg:px-8 max-lg:py-3 max-md:text-xs flex flex-col items-center justify-center border border-gray-500 cursor-pointer rounded hover:bg-primary/10 transition duration-300 ease-in-out">
-            {bankerBet > 0 && ( // Show red dot only if playerBet is greater than 0
+            {selectedSpots.banker && ( // Show red dot when the Banker spot is selected
               <div className="absolute bg-red-600 w-3 h-3 max-lg:h-2 max-lg:w-2 rounded-full z-10 top-2 right-2"></div>
             )}
             <button

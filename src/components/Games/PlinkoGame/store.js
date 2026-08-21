@@ -2,7 +2,12 @@ import { create } from "zustand";
 
 const usePlinkoStore = create((set) => ({
   currentBinIndex: null,
-  setCurrentBinIndex: (index) => set({ currentBinIndex: index }),
+  landNonce: 0,
+  setCurrentBinIndex: (index) =>
+    set((state) => ({
+      currentBinIndex: index,
+      landNonce: state.landNonce + 1,
+    })),
 }));
 
 // const useStore = create((set, get) => ({

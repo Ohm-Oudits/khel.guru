@@ -7,18 +7,26 @@ import GameInfoModal from "../../Frame/GameInfoModal";
 import MaxBetModal from "../../Frame/MaxBetModal";
 import SideBar from "./SideBar";
 import Game from "./Game";
+import History from "../../Frame/History";
+import {
+  getRoulettePocketColor,
+  ROULETTE_DEFAULT_CHIP,
+} from "./roulette.constants";
 import { useNavigate } from "react-router-dom";
 import {
   getRouletteSocket,
   initializeRouletteSocket,
-  disconnectRouletteSocket,
-  onGameJoined,
-  onError,
-  removeAllListeners,
   joinGame,
+  subscribeGameJoined,
+  subscribeSocketError,
 } from "../../../socket/games/roulette";
 import { useSelector } from "react-redux";
 import { toast } from "react-toastify";
+import { useActiveWalletType } from "../../../hooks/useGameBalance";
+
+const ROULETTE_HISTORY_KEY = "roulette_game_history";
+const ROULETTE_CHIP_KEY = "roulette_selected_chip";
+const MAX_HISTORY_ITEMS = 50;
 
 const Frame = () => {
   const [isFav, setIsFav] = useState(false);
@@ -28,13 +36,9 @@ const Frame = () => {
   const [onLoss, setOnLoss] = useState(0);
   const [onWinReset, setOnWinReset] = useState(false);
   const [onLossReset, setOnLossReset] = useState(false);
-  const [bet, setBet] = useState(() => {
-    const savedBet = localStorage.getItem("betAmount") || "0.000000";
-    return savedBet;
-  });
+  const [Difficulty, setDifficulty] = useState("Easy");
   const [loss, setLoss] = useState("0.000000");
   const [profit, setProfit] = useState("0.000000");
-  const [Difficulty, setDifficulty] = useState("Easy");
   const [betStarted, setBettingStarted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [totalProfit, setTotalProfit] = useState("0.000000");
@@ -73,18 +77,92 @@ const Frame = () => {
 
   const navigate = useNavigate();
   const token = useSelector((state) => state.auth?.token);
+  const walletType = useActiveWalletType();
 
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [isAuthError, setIsAuthError] = useState(false);
 
   const [totalBetAmount, setTotalBetAmount] = useState(0);
+  const [currentHistory, setCurrentHistory] = useState([]);
+  const [chipBet, setChipBet] = useState(() => {
+    const saved = Number(localStorage.getItem(ROULETTE_CHIP_KEY));
+    return Number.isFinite(saved) && saved > 0 ? saved : ROULETTE_DEFAULT_CHIP;
+  });
 
   useEffect(() => {
-    console.log("[Roulette Frame] Updating bet amount:", bet);
-    localStorage.setItem("betAmount", bet);
-  }, [bet]);
+    localStorage.setItem(ROULETTE_CHIP_KEY, String(chipBet));
+  }, [chipBet]);
 
   useEffect(() => {
+    try {
+      const saved = localStorage.getItem(ROULETTE_HISTORY_KEY);
+      if (saved) setCurrentHistory(JSON.parse(saved));
+    } catch {
+      setCurrentHistory([]);
+    }
+  }, []);
+
+  const addToHistory = useCallback((pocket) => {
+    const value = parseInt(pocket, 10);
+    if (Number.isNaN(value) || value < 0 || value > 36) return;
+
+    setCurrentHistory((prev) => {
+      const next = [
+        ...prev,
+        {
+          id: Date.now(),
+          value,
+          color: getRoulettePocketColor(value),
+          timestamp: new Date().toISOString(),
+        },
+      ].slice(-MAX_HISTORY_ITEMS);
+      try {
+        localStorage.setItem(ROULETTE_HISTORY_KEY, JSON.stringify(next));
+      } catch {
+        /* ignore quota */
+      }
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!token) {
+      setIsSocketReady(false);
+      setIsGameJoined(false);
+      setLoading(false);
+      setIsInitializing(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    const markJoined = () => {
+      if (cancelled) return;
+      clearTimeout(namespaceTimeoutRef.current);
+      setIsGameJoined(true);
+      setIsSocketReady(true);
+      setLoading(false);
+      setIsInitializing(false);
+      reconnectAttempts.current = 0;
+    };
+
+    const requestJoin = () => {
+      joinGame((result) => {
+        if (cancelled) return;
+        if (result?.success !== false) {
+          markJoined();
+        } else {
+          toast.error(
+            result.message || "Failed to join game. Please refresh the page."
+          );
+          setLoading(false);
+          setIsInitializing(false);
+        }
+      });
+    };
+
+    let unsubs = [];
+
     const setupSocket = async () => {
       try {
         setIsInitializing(true);
@@ -96,107 +174,76 @@ const Frame = () => {
 
         initializeRouletteSocket(token);
         const socket = getRouletteSocket();
+        if (!socket) {
+          throw new Error("Socket not initialized");
+        }
         socketRef.current = socket;
 
-        socket.on("connect_error", (error) => {
+        const onConnect = () => {
+          if (cancelled) return;
+          console.log("[Roulette Frame] Connected to server");
+          setIsSocketReady(true);
+          setLoading(false);
+          requestJoin();
+        };
+
+        const onConnectError = (error) => {
           console.error("[Roulette Frame] Connection error:", error);
           if (
             error.message === "Authentication failed" ||
             error.message === "Invalid token"
           ) {
             setIsAuthError(true);
-            // setShowLoginModal(true);
           }
           setIsSocketReady(false);
           setIsGameJoined(false);
           setLoading(false);
-        });
+        };
 
-        socket.on("disconnect", (reason) => {
+        const onDisconnect = (reason) => {
           console.log("[Roulette Frame] Disconnected:", reason);
-          if (
-            reason === "io server disconnect" ||
-            reason === "transport close"
-          ) {
-            setIsAuthError(true);
-            setShowLoginModal(true);
-          }
           setIsSocketReady(false);
           setIsGameJoined(false);
           setLoading(false);
-        });
+        };
 
-        socket.on("connect", () => {
-          console.log("[Roulette Frame] Connected to server");
-          setIsSocketReady(true);
-          setLoading(false);
-          reconnectAttempts.current = 0;
+        socket.on("connect_error", onConnectError);
+        socket.on("disconnect", onDisconnect);
+        socket.on("connect", onConnect);
 
-          namespaceTimeoutRef.current = setTimeout(() => {
-            if (!isGameJoined) {
-              console.error("[Roulette Frame] Namespace connection timeout");
-              setIsSocketReady(false);
-              setIsGameJoined(false);
-              setLoading(false);
-              toast.error(
-                "Failed to connect to game namespace. Please refresh the page."
-              );
-            }
-          }, 10000);
-
-          console.log("[Roulette Frame] Socket connected, joining game");
-          joinGame((result) => {
-            console.log("[Roulette Frame] Join game result:", result);
-            if (result.success) {
-              setIsGameJoined(true);
-              setIsInitializing(false);
-              clearTimeout(namespaceTimeoutRef.current);
+        unsubs = [
+          () => socket.off("connect_error", onConnectError),
+          () => socket.off("disconnect", onDisconnect),
+          () => socket.off("connect", onConnect),
+          subscribeGameJoined((data) => {
+            if (cancelled) return;
+            console.log("[Roulette Frame] Game joined:", data);
+            if (data?.success !== false) {
+              markJoined();
             } else {
-              console.error(
-                "[Roulette Frame] Failed to join game:",
-                result.message
-              );
-              toast.error(
-                result.message ||
-                  "Failed to join game. Please refresh the page."
-              );
+              toast.error("Failed to join game. Please refresh the page.");
+              setLoading(false);
+              setIsInitializing(false);
             }
-          });
-        });
+          }),
+          subscribeSocketError((error) => {
+            const message =
+              typeof error === "string"
+                ? error
+                : error?.message || "Socket error";
+            console.error("[Roulette Frame] Socket error:", message);
+            if (
+              message.includes("Authentication") ||
+              message.includes("token")
+            ) {
+              setIsAuthError(true);
+            }
+          }),
+        ];
 
-        onGameJoined((data) => {
-          console.log("[Roulette Frame] Game joined:", data);
-          if (data.success) {
-            clearTimeout(namespaceTimeoutRef.current);
-            setIsGameJoined(true);
-            setLoading(false);
-            setIsInitializing(false);
-            reconnectAttempts.current = 0;
-          } else {
-            console.error(
-              "[Roulette Frame] Failed to join game:",
-              data.message
-            );
-            toast.error("Failed to join game. Please refresh the page.");
-            setLoading(false);
-            setIsInitializing(false);
-          }
-        });
-
-        onError((error) => {
-          console.error("[Roulette Frame] Socket error:", error);
-          if (error.includes("Authentication") || error.includes("token")) {
-            setIsAuthError(true);
-            // setShowLoginModal(true);
-          } else {
-            toast.error(error);
-          }
-          setLoading(false);
-          setIsSocketReady(false);
-          setIsGameJoined(false);
-        });
-
-        if (!socket.connected) {
+        if (socket.connected) {
+          onConnect();
+        } else {
           await new Promise((resolve, reject) => {
             const timeout = setTimeout(() => {
               reject(new Error("Socket connection timeout"));
@@ -204,7 +251,6 @@ const Frame = () => {
 
             socket.once("connect", () => {
               clearTimeout(timeout);
-              console.log("[Roulette Frame] Socket connected");
               resolve();
             });
 
@@ -214,13 +260,6 @@ const Frame = () => {
             });
           });
         }
-
-        return () => {
-          console.log("[Roulette Frame] Cleaning up socket");
-          clearTimeout(namespaceTimeoutRef.current);
-          removeAllListeners();
-          disconnectRouletteSocket();
-        };
       } catch (error) {
         console.error("[Roulette Frame] Error setting up socket:", error);
         if (
@@ -228,7 +267,6 @@ const Frame = () => {
           error.message?.includes("token")
         ) {
           setIsAuthError(true);
-          // setShowLoginModal(true);
         } else {
           toast.error("Failed to connect to game server");
         }
@@ -240,7 +278,13 @@ const Frame = () => {
     };
 
     setupSocket();
-  }, [token, navigate]);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(namespaceTimeoutRef.current);
+      unsubs.forEach((unsub) => unsub());
+    };
+  }, [token]);
 
   const handleBetstarted = () => {
     if (!token) {
@@ -248,21 +292,25 @@ const Frame = () => {
       return;
     }
 
-    const betAmount = parseFloat(bet);
-    if (betAmount <= 0) {
-      toast.error("Please set a valid bet amount");
+    if (Object.keys(currentBets).length === 0) {
+      toast.error("Please place a bet on the table first");
       return;
     }
 
-    if (Object.keys(currentBets).length === 0) {
-      toast.error("Please place a bet first");
+    const tableTotal = Object.values(currentBets).reduce(
+      (sum, amount) => sum + parseFloat(amount),
+      0
+    );
+    if (tableTotal <= 0) {
+      toast.error("Please place a bet on the table first");
       return;
     }
 
     if (!betStarted && !isProcessing && isBettingEnabled && isSpinComplete) {
       console.log("[Roulette Frame] Starting bet with:", {
         currentBets,
-        betAmount,
+        tableTotal,
+        chipBet,
         socketId: socketRef.current?.id,
       });
       setBettingStarted(true);
@@ -285,19 +333,18 @@ const Frame = () => {
       return;
     }
 
-    const betAmount = parseFloat(bet);
-    if (betAmount <= 0) {
-      toast.error("Please set a valid bet amount");
-      return;
-    }
+    const tableTotal = Object.values(currentBets).reduce(
+      (sum, amount) => sum + parseFloat(amount),
+      0
+    );
 
     if (nbets <= 0) {
       toast.error("Please set a valid number of bets");
       return;
     }
 
-    if (Object.keys(currentBets).length === 0) {
-      toast.error("Please place a bet first");
+    if (Object.keys(currentBets).length === 0 || tableTotal <= 0) {
+      toast.error("Please place a bet on the table first");
       return;
     }
 
@@ -318,7 +365,7 @@ const Frame = () => {
     ) {
       console.log("[Roulette Frame] Starting auto bet with:", {
         currentBets,
-        betAmount,
+        chipBet,
         nbets,
         totalBetAmount: totalAmount,
         socketId: socketRef.current?.id,
@@ -423,25 +470,21 @@ const Frame = () => {
   return (
     <>
       <div
-        className="w-full bg-secondry pt-[1px] pb-[12px] max-lg:pb-[36px]"
-        style={{
-          minHeight: "calc(100vh - 70px)",
-        }}
+        className="w-full bg-secondry pt-[1px] pb-[12px] max-lg:pb-[36px] max-lg:min-h-[calc(100vh-69px)] lg:min-h-[calc(100vh-92px)]"
       >
         <div
-          className={`my-12 rounded mx-auto bg-primary w-[96%] max-w-[1400px] max-md:max-w-[450px] ${
+          className={`my-4 max-lg:my-2 lg:my-12 rounded mx-auto bg-primary w-[96%] max-w-[1400px] max-md:max-w-[450px] overflow-x-hidden ${
             theatreMode ? "max-w-[100%]" : "max-lg:max-w-[450px]"
           }`}
         >
           <div className="flex flex-col gap-[0.15rem] relative">
-            <div className="grid grid-cols-12 lg:min-h-[600px] relative">
+            <div className="relative grid min-w-0 grid-cols-12 lg:min-h-[600px] max-lg:min-h-0">
               {/* Left Section */}
               <SideBar
                 handleAutoBet={handleAutoBet}
                 startAutoBet={startAutoBet}
                 theatreMode={theatreMode}
                 setTheatreMode={setTheatreMode}
-                setBet={setBet}
                 setBetMode={setBetMode}
                 profit={profit}
                 setProfit={setProfit}
@@ -449,7 +492,6 @@ const Frame = () => {
                 nbets={nbets}
                 setNbets={setNbets}
                 betMode={betMode}
-                bet={bet}
                 maxBetEnable={maxBetEnable}
                 loss={loss}
                 setOnLoss={setOnLoss}
@@ -475,6 +517,8 @@ const Frame = () => {
                 }
                 totalBetAmount={totalBetAmount}
                 currentBets={currentBets}
+                chipBet={chipBet}
+                setChipBet={setChipBet}
               />
 
               {/* Right Section */}
@@ -483,15 +527,16 @@ const Frame = () => {
                   theatreMode
                     ? "md:col-span-8 md:order-2"
                     : "lg:col-span-8 lg:order-2"
-                } xl:col-span-9 bg-gray-900 order-1 relative`}
+                } xl:col-span-9 order-1 relative min-w-0 overflow-x-hidden bg-gray-900`}
               >
-                <div className="w-full relative text-white h-full flex items-center justify-center text-3xl">
+                <div className="relative flex h-full min-h-[320px] w-full min-w-0 flex-col text-white max-lg:min-h-0 lg:min-h-[560px]">
+                  <div className="absolute inset-x-0 top-2 z-10">
+                    <History list={currentHistory} palette="roulette" />
+                  </div>
                   {loading ? (
-                    <>
-                      <h1 className="text-xl font-semibold">Loading...</h1>
-                    </>
+                    <h1 className="text-xl font-semibold m-auto">Loading...</h1>
                   ) : (
-                    <center className="w-full flex items-center justify-center">
+                    <div className="flex w-full min-w-0 flex-1 flex-col items-stretch justify-start px-2 pt-11 max-lg:pt-[calc(0.5rem+2.25rem+0.5rem)] lg:px-3 lg:pt-11">
                       <Game
                         betStarted={betStarted}
                         setBettingStarted={setBettingStarted}
@@ -509,8 +554,11 @@ const Frame = () => {
                         isSpinComplete={isSpinComplete}
                         setIsSpinComplete={setIsSpinComplete}
                         onAnimationComplete={handleAnimationComplete}
+                        walletType={walletType}
+                        onRoundResult={addToHistory}
+                        chipBet={chipBet}
                       />
-                    </center>
+                    </div>
                   )}
                 </div>
               </div>

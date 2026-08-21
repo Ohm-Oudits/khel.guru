@@ -4,7 +4,8 @@ const Background = () => {
       <svg
         xmlns="http://www.w3.org/2000/svg"
         viewBox="0 0 750 500"
-        style={{ width: "100%", height: "300px", background: "#d08e80" }}
+        className="parachute-ground h-[300px] max-lg:h-[180px] w-full"
+        style={{ background: "#d08e80" }}
         preserveAspectRatio="xMidYMax slice"
       >
         <defs>

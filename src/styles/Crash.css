@@ -25,3 +25,41 @@
 .zoom-in {
   animation: zoomIn 1s ease-in-out forwards;
 }
+
+@keyframes crashFlame {
+  0%,
+  100% {
+    transform: scaleX(1) scaleY(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scaleX(1.25) scaleY(0.82);
+    opacity: 0.82;
+  }
+}
+
+.crash-flame {
+  transform-box: fill-box;
+  transform-origin: 12px 32px;
+  animation: crashFlame 0.14s ease-in-out infinite;
+}
+
+@keyframes crashBlast {
+  0% {
+    transform: scale(0.35);
+    opacity: 0.2;
+  }
+  40% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0.92;
+  }
+}
+
+.crash-blast {
+  transform-origin: center;
+  animation: crashBlast 0.35s ease-out forwards;
+}

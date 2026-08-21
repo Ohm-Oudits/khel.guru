@@ -385,19 +385,8 @@ const DiceFrame = () => {
   const validateBet = (betAmount) => {
     const bet = parseFloat(betAmount);
 
-    if (isNaN(bet) || bet <= 0) {
+    if (isNaN(bet) || bet < 0) {
       toast.error("Please enter a valid bet amount", {
-        position: "top-right",
-        autoClose: 3000,
-        hideProgressBar: false,
-        closeOnClick: true,
-        pauseOnHover: true,
-      });
-      return false;
-    }
-
-    if (bet < 0.000001) {
-      toast.error("Minimum bet amount is 0.000001", {
         position: "top-right",
         autoClose: 3000,
         hideProgressBar: false,
@@ -591,12 +580,12 @@ const DiceFrame = () => {
       style={{ minHeight: "calc(100vh - 70px)" }}
     >
       <div
-        className={`my-12 rounded mx-auto bg-primary w-[96%] max-w-[1400px] max-md:max-w-[450px] ${
+        className={`my-12 max-lg:my-3 rounded mx-auto bg-primary w-[96%] max-w-[1400px] max-md:max-w-[450px] ${
           theatreMode ? "max-w-[100%]" : "max-lg:max-w-[450px]"
         }`}
       >
         <div className="flex flex-col gap-[0.15rem] relative">
-          <div className="grid grid-cols-12 lg:min-h-[600px]">
+          <div className="grid grid-cols-12 lg:h-[600px]">
             <div
               className={`col-span-12 ${
                 theatreMode
@@ -633,34 +622,34 @@ const DiceFrame = () => {
                 theatreMode
                   ? "md:col-span-8 md:order-2"
                   : "lg:col-span-8 lg:order-2"
-              } xl:col-span-9 bg-gray-900 order-1 max-lg:min-h-[450px] relative`}
+              } xl:col-span-9 bg-gray-900 order-1 max-lg:h-auto max-lg:min-h-0 lg:h-[600px] relative`}
             >
               {isDisconnected && <DisconnectModal />}
-              <div className="w-full px-5 relative text-white h-full items-center justify-center text-3xl">
-                <History
-                  list={currentHistory}
-                  onClear={clearHistory}
-                  displayOrder="right-to-left"
-                />
-                <GameComponent
-                  {...{
-                    setRollover: setRoll,
-                    rollover: roll,
-                    fixedPosition,
-                    setFixedPosition,
-                    gameResult,
-                    setGameResult,
-                    dicePosition,
-                    setDicePosition,
-                    Start: start,
-                    rollUnder,
-                    setMultiplier,
-                    calculateMultiplier,
-                    winChance,
-                    targetPosition,
-                  }}
-                />
-                <div className="mb-5">
+              <div className="relative flex h-full min-h-0 w-full flex-col px-3 pt-1 text-white lg:px-5">
+                <div className="pointer-events-none absolute inset-x-0 top-2 z-10">
+                  <History list={currentHistory} />
+                </div>
+                <div className="flex min-h-[160px] flex-1 items-center justify-center">
+                  <GameComponent
+                    {...{
+                      setRollover: setRoll,
+                      rollover: roll,
+                      fixedPosition,
+                      setFixedPosition,
+                      gameResult,
+                      setGameResult,
+                      dicePosition,
+                      setDicePosition,
+                      Start: start,
+                      rollUnder,
+                      setMultiplier,
+                      calculateMultiplier,
+                      winChance,
+                      targetPosition,
+                    }}
+                  />
+                </div>
+                <div className="mt-auto w-full shrink-0 pb-3 lg:pb-5">
                   <BetCalculator
                     {...{
                       rollUnder,

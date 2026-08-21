@@ -1,5 +1,5 @@
 /* eslint-disable */
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import "../../../styles/Frame.css";
 import FairnessModal from "../../Frame/FairnessModal";
 import FrameFooter from "../../Frame/FrameFooter";
@@ -16,7 +16,6 @@ import {
   initializeCrashSocket,
   placeCrashBet,
   cashOutCrash,
-  bustCrash,
 } from "../../../socket/games/crash";
 import checkLoggedIn from "../../../utils/isloggedIn";
 import { useNavigate } from "react-router-dom";
@@ -51,11 +50,20 @@ const Frame = () => {
   const [bettingStarted, setBettingStarted] = useState(false);
   const [startAutoBet, setStartAutoBet] = useState(false);
   const [checkout, setCheckout] = useState(false);
-  const [disableBet, setDisableBet] = useState(false);
+  const [disableBet, setDisableBet] = useState(true);
   const [value, setValue] = useState(1.0);
   const [autoMultipyTarget, setAutoMultipyTarget] = useState("1.01");
+  const [crashHistory, setCrashHistory] = useState([]);
 
   const token = useSelector((state) => state.auth?.token);
+
+  useEffect(() => {
+    initializeCrashSocket(token);
+    attachWalletHandlers();
+    if (token) {
+      getCrashSocket()?.emit("add_game", {});
+    }
+  }, [token]);
 
   // True while a stake is committed to the running round and not yet
   // settled (cashed out / busted / rejected). Guards against emitting a
@@ -127,7 +135,7 @@ const Frame = () => {
 
     if (!disableBet && !activeBetRef.current) {
       const betAmount = parseFloat(bet);
-      if (!betAmount || betAmount <= 0) {
+      if (Number.isNaN(betAmount) || betAmount < 0) {
         toast.error("Please enter a valid bet amount");
         return;
       }
@@ -151,42 +159,64 @@ const Frame = () => {
     setBettingStarted(false);
   };
 
-  // The round crashed with our (manual) bet still in play: forfeit it.
-  const handleRoundCrashed = () => {
-    if (activeBetRef.current) {
-      activeBetRef.current = false;
-      bustCrash();
-      requestWalletRefresh();
-    }
-  };
-
-  // Auto-bet: commit a stake at the start of each auto round.
-  const handleAutoRoundStart = () => {
+  const handleAutoRoundStart = useCallback(() => {
     if (activeBetRef.current) return;
     const betAmount = parseFloat(bet);
-    if (!betAmount || betAmount <= 0) return;
+    if (Number.isNaN(betAmount) || betAmount < 0) return;
     if (placeCrashBet(betAmount, "demo")) {
       activeBetRef.current = true;
     }
-  };
+  }, [bet]);
 
-  // Auto-bet: the crash multiplier passed the target, so the auto cashout
-  // fired at the target multiplier before the crash.
-  const handleAutoCashout = (targetMultiplier) => {
+  const handlePhase = useCallback(
+    (phase) => {
+      if (phase === "waiting") {
+        setDisableBet(false);
+        if (startAutoBet) {
+          handleAutoRoundStart();
+        }
+      } else {
+        setDisableBet(true);
+      }
+      if (phase === "crashed") {
+        setBettingStarted(false);
+        activeBetRef.current = false;
+      }
+    },
+    [handleAutoRoundStart, startAutoBet]
+  );
+
+  const handleAutoCashout = useCallback((targetMultiplier) => {
     if (activeBetRef.current) {
       activeBetRef.current = false;
       cashOutCrash(parseFloat(targetMultiplier));
     }
-  };
+  }, []);
 
-  const history = [
-    { id: 1, value: "1.64", color: "#f7b32b" },
-    { id: 2, value: "0.04", color: "#28a745" },
-    { id: 3, value: "1.24", color: "#f7b32b" },
-    { id: 4, value: "21.64", color: "#5b34eb" },
-    { id: 5, value: "2.94", color: "#f7b32b" },
-    { id: 6, value: "0.64", color: "#28a745" },
-  ];
+  const addCrashHistory = useCallback((multiplier) => {
+    const value = parseFloat(multiplier);
+    if (!Number.isFinite(value)) return;
+    setCrashHistory((prev) =>
+      [
+        ...prev,
+        { id: Date.now(), value, timestamp: new Date().toISOString() },
+      ].slice(-50)
+    );
+  }, []);
+
+  const hydrateCrashHistory = useCallback((entries) => {
+    if (!Array.isArray(entries)) return;
+    setCrashHistory(
+      entries
+        .filter((item) => Number.isFinite(Number(item.value)))
+        .map((item) => ({
+          id: item.id,
+          value: Number(item.value),
+          timestamp: item.timestamp || new Date().toISOString(),
+        }))
+        .reverse()
+    );
+  }, []);
 
   const handleAutoBet = () => {
     if (
@@ -210,13 +240,10 @@ const Frame = () => {
   return (
     <>
       <div
-        className="w-full bg-secondry pt-[1px] pb-[12px] max-lg:pb-[36px]"
-        style={{
-          minHeight: "calc(100vh - 70px)",
-        }}
+        className="w-full bg-secondry pt-[1px] pb-[12px] max-lg:pb-[36px] max-lg:min-h-[calc(100vh-69px)] lg:min-h-[calc(100vh-92px)]"
       >
         <div
-          className={`my-12 rounded mx-auto bg-primary w-[96%] max-w-[1400px] max-md:max-w-[450px] ${
+          className={`my-4 max-lg:my-2 lg:my-12 rounded mx-auto bg-primary w-[96%] max-w-[1400px] max-md:max-w-[450px] ${
             theatreMode ? "max-w-[100%] max-h-screen" : "max-lg:max-w-[450px]"
           }`}
         >
@@ -265,21 +292,19 @@ const Frame = () => {
                     : "lg:col-span-8 lg:order-2"
                 } xl:col-span-9 bg-gray-900 order-1`}
               >
-                <div className="w-full relative text-white h-full flex items-center justify-center text-3xl">
-                  <div className="absolute top-2 left-0 z-10 w-full">
-                    <History list={history} />
+                <div className="relative flex h-full w-full items-center justify-center text-3xl text-white">
+                  <div className="absolute inset-x-0 top-2 z-10">
+                    <History list={crashHistory} palette="crash" />
                   </div>
                   <Game
                     multiplier={value}
                     setMultiplier={setValue}
-                    setBettingStarted={setBettingStarted}
                     setDisableBet={setDisableBet}
-                    autoMultipyTarget={autoMultipyTarget}
-                    startAutoBet={startAutoBet}
-                    setStartAutoBet={setStartAutoBet}
-                    nbets={nbets}
-                    onRoundCrashed={handleRoundCrashed}
-                    onAutoRoundStart={handleAutoRoundStart}
+                    onCrashHistory={addCrashHistory}
+                    onHistoryHydrate={hydrateCrashHistory}
+                    onPhase={handlePhase}
+                    autoCashoutEnabled={startAutoBet}
+                    autoCashoutAt={autoMultipyTarget}
                     onAutoCashout={handleAutoCashout}
                   />
                 </div>

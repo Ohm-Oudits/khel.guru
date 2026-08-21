@@ -10,8 +10,8 @@ const Chances = ({ risk, segment }) => {
   };
 
   return (
-    <div className="text-base font-semibold absolute bottom-2 w-[90%] max-w-[750px]">
-      <div className="w-full relative flex items-center justify-around gap-3">
+    <div className="w-full max-w-[750px] px-2 text-sm font-semibold lg:text-base">
+      <div className="relative flex w-full items-center justify-around gap-2 lg:gap-3">
         {risk === "Low" && (
           <>
             <div className="group w-full">

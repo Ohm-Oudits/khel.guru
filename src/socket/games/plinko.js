@@ -1,7 +1,7 @@
 import { io } from "socket.io-client";
+import { SOCKET_URL as API_URL } from "../../config/backendUrls";
 
 let plinkoSocket = null;
-const API_URL = import.meta.env.VITE_APP_SOCKET_URL;
 
 export const initializePlinkoSocket = (token) => {
   // Reuse a live socket instead of churning a new connection on every mount —

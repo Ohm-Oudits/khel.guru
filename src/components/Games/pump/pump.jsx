@@ -1,19 +1,18 @@
 import { useSelector } from "react-redux";
 import Frame from "./Frame";
 import "./pump.css";
-import { getSocket } from "../../../socket/socket";
 import { useEffect } from "react";
 import { initializePumpSocket } from "../../../socket/games/pump";
 
 const PumpPage = () => {
   const token = useSelector((state) => state.auth?.token);
-  const socket = getSocket();
 
   useEffect(() => {
-    if (token && socket) {
-      initializePumpSocket(token);
+    const authToken = token || localStorage.getItem("token");
+    if (authToken) {
+      initializePumpSocket(authToken);
     }
-  }, [socket, token]);
+  }, [token]);
 
   return (
     <div className="w-full bg-secondry">

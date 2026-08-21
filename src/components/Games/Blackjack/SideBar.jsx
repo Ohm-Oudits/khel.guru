@@ -1,5 +1,3 @@
-import GameBalanceBadge from "../shared/GameBalanceBadge";
-
 const SideBar = ({
   theatreMode,
   setBetMode,
@@ -29,7 +27,8 @@ const SideBar = ({
   const canSplit = bettingStarted && !split && userCards?.length === 2;
   const isPair =
     userCards?.length === 2 && userCards[0]?.value === userCards[1]?.value;
-  const canBet = !bettingStarted && parseFloat(bet) > 0;
+  // Allow a 0 bet (testing); an empty input parses to NaN and stays disabled.
+  const canBet = !bettingStarted && parseFloat(bet) >= 0;
 
   // Helper function to determine button state
   const getButtonClass = (isActive, isDisabled) => {
@@ -64,7 +63,6 @@ const SideBar = ({
           </div>
 
           <>
-            <GameBalanceBadge className="mb-2" />
             {/* Split Hand Indicator */}
             {split && (
               <div className="order-1 mb-4 text-center">

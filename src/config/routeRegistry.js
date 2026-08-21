@@ -36,6 +36,7 @@ export const redirectRoutes = [
   { path: "/vip-club", to: "/rewards" },
   { path: "/live-support", to: "/support" },
   { path: "/transactions", to: "/wallet" },
+  { path: "/game/scratch", to: "/game/balloons" },
 ];
 
 export const gameRouteModules = [
@@ -84,7 +85,7 @@ export const gameRouteModules = [
     loader: () => import("../components/Games/Blackjack/Blackjack"),
   },
   {
-    path: "/game/scratch",
+    path: "/game/balloons",
     loader: () => import("../components/Games/BallonScratch/BallonScratch"),
   },
   {

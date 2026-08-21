@@ -106,6 +106,9 @@
 .number:nth-child(36) {
   transform: rotateZ(350.27027027027deg);
 }
+.number:nth-child(37) {
+  transform: rotateZ(360deg);
+}
 .plate {
   background-color: gray;
   width: 350px;
@@ -114,6 +117,33 @@
   border-radius: 50%;
   position: relative;
   animation: rotate 24s infinite linear;
+}
+.roulette-container {
+  position: relative;
+  width: 374px;
+  height: 374px;
+  margin: 0 auto;
+}
+.roulette-result-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.roulette-result-overlay .result-color {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 3rem;
+  padding: 0.65rem 1.1rem;
+  border-radius: 0.5rem;
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1;
+  color: #fff;
 }
 .plate:after,
 .plate:before {
@@ -147,7 +177,7 @@
   text-align: center;
   position: absolute;
   top: 0;
-  left: calc(45%);
+  left: calc(50% - 16px);
   transform-origin: 50% 100%;
   background-color: transparent;
   border-left: 16px solid transparent;
@@ -161,20 +191,32 @@
 .number:nth-child(37) {
   border-top-color: green;
 }
+.number-red {
+  border-top-color: red;
+}
+.number-black {
+  border-top-color: black;
+}
+.number-green {
+  border-top-color: green;
+}
 .pit {
   color: #fff;
   padding-top: 12px;
   width: 32px;
   display: inline-block;
-  font-size: 10px;
+  font-size: 12px;
   transform: scale(1, 1.8);
   position: absolute;
-  top: -190px;
+  top: -175px;
   left: -16px;
 }
 
 .inner {
   display: block;
+  list-style: none;
+  margin: 0;
+  padding: 0;
   height: 350px;
   width: 350px;
   position: relative;
@@ -196,10 +238,10 @@
   border: 3px solid #808080;
 }
 .inner:before {
-  top: 14%;
-  bottom: 14%;
+  top: 24%;
+  bottom: 21%;
   left: 24%;
-  right: 24%;
+  right: 22%;
   content: "";
   color: #fff;
   font-size: 60px;
@@ -210,233 +252,188 @@
   display: none;
 }
 
-:root {
-  --step: 9.72973deg;
-}
-
 .inner[data-spinto="0"]:before {
-  transform: rotateZ(-3610deg);
-
-  left: 22%;
-  transition: transform 9s ease-out;
-  content: "\2022";
-}
-.inner[data-spinto="32"]:before {
-  transform: rotateZ(-3600deg);
-
-  left: 22%;
-  transition: transform 9s ease-out;
-  content: "\2022";
-}
-.inner[data-spinto="15"]:before {
-  transform: rotateZ(-3590.27027deg);
-  left: 22%;
-  transition: transform 9s ease-out;
-  content: "\2022";
-}
-.inner[data-spinto="19"]:before {
-  transform: rotateZ(-3580.54054deg);
-  left: 22%;
-  transition: transform 9s ease-out;
-  content: "\2022";
-}
-.inner[data-spinto="4"]:before {
-  transform: rotateZ(-3570.81081deg);
-  left: 22%;
-  transition: transform 9s ease-out;
-  content: "\2022";
-}
-.inner[data-spinto="21"]:before {
-  transform: rotateZ(-3561.08108deg);
-  left: 22%;
-  transition: transform 9s ease-out;
-  content: "\2022";
-}
-.inner[data-spinto="2"]:before {
-  transform: rotateZ(-3551.35135deg);
-  left: 22%;
-  transition: transform 9s ease-out;
-  content: "\2022";
-}
-.inner[data-spinto="25"]:before {
-  transform: rotateZ(-3541.62162deg);
-  left: 22%;
-  transition: transform 9s ease-out;
-  content: "\2022";
-}
-.inner[data-spinto="17"]:before {
-  transform: rotateZ(-3531.89189deg);
-  left: 22%;
-  transition: transform 9s ease-out;
-  content: "\2022";
-}
-.inner[data-spinto="34"]:before {
-  transform: rotateZ(-3522.16216deg);
-  left: 22%;
-  transition: transform 9s ease-out;
-  content: "\2022";
-}
-.inner[data-spinto="6"]:before {
-  transform: rotateZ(-3512.43243deg);
-  left: 22%;
-  transition: transform 9s ease-out;
-  content: "\2022";
-}
-.inner[data-spinto="27"]:before {
-  transform: rotateZ(-3502.7027deg);
-
-  left: 22%;
-  transition: transform 9s ease-out;
-  content: "\2022";
-}
-.inner[data-spinto="13"]:before {
-  transform: rotateZ(-3492.97297deg);
-  left: 22%;
-  transition: transform 9s ease-out;
-  content: "\2022";
-}
-.inner[data-spinto="36"]:before {
-  transform: rotateZ(-3483.24324deg);
-  left: 22%;
-  transition: transform 9s ease-out;
-  content: "\2022";
-}
-.inner[data-spinto="11"]:before {
-  transform: rotateZ(-3473.51351deg);
-  left: 22%;
-  transition: transform 9s ease-out;
-  content: "\2022";
-}
-.inner[data-spinto="30"]:before {
-  transform: rotateZ(-3463.78378deg);
-  left: 22%;
-  transition: transform 9s ease-out;
-  content: "\2022";
-}
-.inner[data-spinto="8"]:before {
-  transform: rotateZ(-3454.05405deg);
-  left: 22%;
-  transition: transform 9s ease-out;
-  content: "\2022";
-}
-.inner[data-spinto="23"]:before {
-  transform: rotateZ(-3444.32432deg);
-  left: 22%;
-  transition: transform 9s ease-out;
-  content: "\2022";
-}
-.inner[data-spinto="10"]:before {
-  transform: rotateZ(-3434.59459deg);
-  left: 22%;
-  transition: transform 9s ease-out;
-  content: "\2022";
-}
-.inner[data-spinto="5"]:before {
-  transform: rotateZ(-3424.86486deg);
-  left: 22%;
-  transition: transform 9s ease-out;
-  content: "\2022";
-}
-.inner[data-spinto="24"]:before {
-  transform: rotateZ(-3415.13514deg);
-  left: 22%;
-  transition: transform 9s ease-out;
-  content: "\2022";
-}
-.inner[data-spinto="16"]:before {
-  transform: rotateZ(-3405.40541deg);
-  left: 22%;
-  transition: transform 9s ease-out;
-  content: "\2022";
-}
-.inner[data-spinto="33"]:before {
-  transform: rotateZ(-3395.67568deg);
-  left: 22%;
+  transform: rotateZ(-2826.135135135135deg);
   transition: transform 9s ease-out;
   content: "\2022";
 }
 .inner[data-spinto="1"]:before {
-  transform: rotateZ(-3385.94595deg);
-  left: 22%;
+  transform: rotateZ(-2597.135135135135deg);
   transition: transform 9s ease-out;
   content: "\2022";
 }
-.inner[data-spinto="20"]:before {
-  transform: rotateZ(-3376.21622deg);
-  left: 22%;
-  transition: transform 9s ease-out;
-  content: "\2022";
-}
-.inner[data-spinto="14"]:before {
-  transform: rotateZ(-3366.48649deg);
-  left: 22%;
-  transition: transform 9s ease-out;
-  content: "\2022";
-}
-.inner[data-spinto="31"]:before {
-  transform: rotateZ(-3356.75676deg);
-  left: 22%;
-  transition: transform 9s ease-out;
-  content: "\2022";
-}
-.inner[data-spinto="9"]:before {
-  transform: rotateZ(-3347.02703deg);
-  left: 22%;
-  transition: transform 9s ease-out;
-  content: "\2022";
-}
-.inner[data-spinto="22"]:before {
-  transform: rotateZ(-3337.2973deg);
-
-  left: 22%;
-  transition: transform 9s ease-out;
-  content: "\2022";
-}
-.inner[data-spinto="18"]:before {
-  transform: rotateZ(-3327.56757deg);
-  left: 22%;
-  transition: transform 9s ease-out;
-  content: "\2022";
-}
-.inner[data-spinto="29"]:before {
-  transform: rotateZ(-3317.83784deg);
-  left: 22%;
-  transition: transform 9s ease-out;
-  content: "\2022";
-}
-.inner[data-spinto="7"]:before {
-  transform: rotateZ(-3308.10811deg);
-  left: 22%;
-  transition: transform 9s ease-out;
-  content: "\2022";
-}
-.inner[data-spinto="28"]:before {
-  transform: rotateZ(-3298.37838deg);
-  left: 22%;
-  transition: transform 9s ease-out;
-  content: "\2022";
-}
-.inner[data-spinto="12"]:before {
-  transform: rotateZ(-3288.64865deg);
-  left: 22%;
-  transition: transform 9s ease-out;
-  content: "\2022";
-}
-.inner[data-spinto="35"]:before {
-  transform: rotateZ(-3278.91892deg);
-  left: 22%;
+.inner[data-spinto="2"]:before {
+  transform: rotateZ(-2769.135135135135deg);
   transition: transform 9s ease-out;
   content: "\2022";
 }
 .inner[data-spinto="3"]:before {
-  transform: rotateZ(-3269.18919deg);
-  left: 22%;
+  transform: rotateZ(-2845.135135135135deg);
+  transition: transform 9s ease-out;
+  content: "\2022";
+}
+.inner[data-spinto="4"]:before {
+  transform: rotateZ(-2788.135135135135deg);
+  transition: transform 9s ease-out;
+  content: "\2022";
+}
+.inner[data-spinto="5"]:before {
+  transform: rotateZ(-2637.135135135135deg);
+  transition: transform 9s ease-out;
+  content: "\2022";
+}
+.inner[data-spinto="6"]:before {
+  transform: rotateZ(-2729.135135135135deg);
+  transition: transform 9s ease-out;
+  content: "\2022";
+}
+.inner[data-spinto="7"]:before {
+  transform: rotateZ(-2521.135135135135deg);
+  transition: transform 9s ease-out;
+  content: "\2022";
+}
+.inner[data-spinto="8"]:before {
+  transform: rotateZ(-2668.135135135135deg);
+  transition: transform 9s ease-out;
+  content: "\2022";
+}
+.inner[data-spinto="9"]:before {
+  transform: rotateZ(-2559.135135135135deg);
+  transition: transform 9s ease-out;
+  content: "\2022";
+}
+.inner[data-spinto="10"]:before {
+  transform: rotateZ(-2647.135135135135deg);
+  transition: transform 9s ease-out;
+  content: "\2022";
+}
+.inner[data-spinto="11"]:before {
+  transform: rotateZ(-2688.135135135135deg);
+  transition: transform 9s ease-out;
+  content: "\2022";
+}
+.inner[data-spinto="12"]:before {
+  transform: rotateZ(-2863.135135135135deg);
+  transition: transform 9s ease-out;
+  content: "\2022";
+}
+.inner[data-spinto="13"]:before {
+  transform: rotateZ(-2709.135135135135deg);
+  transition: transform 9s ease-out;
+  content: "\2022";
+}
+.inner[data-spinto="14"]:before {
+  transform: rotateZ(-2577.135135135135deg);
+  transition: transform 9s ease-out;
+  content: "\2022";
+}
+.inner[data-spinto="15"]:before {
+  transform: rotateZ(-2808.135135135135deg);
+  transition: transform 9s ease-out;
+  content: "\2022";
+}
+.inner[data-spinto="16"]:before {
+  transform: rotateZ(-2617.135135135135deg);
+  transition: transform 9s ease-out;
+  content: "\2022";
+}
+.inner[data-spinto="17"]:before {
+  transform: rotateZ(-2750.135135135135deg);
+  transition: transform 9s ease-out;
+  content: "\2022";
+}
+.inner[data-spinto="18"]:before {
+  transform: rotateZ(-2540.135135135135deg);
+  transition: transform 9s ease-out;
+  content: "\2022";
+}
+.inner[data-spinto="19"]:before {
+  transform: rotateZ(-2798.135135135135deg);
+  transition: transform 9s ease-out;
+  content: "\2022";
+}
+.inner[data-spinto="20"]:before {
+  transform: rotateZ(-2587.135135135135deg);
+  transition: transform 9s ease-out;
+  content: "\2022";
+}
+.inner[data-spinto="21"]:before {
+  transform: rotateZ(-2779.135135135135deg);
+  transition: transform 9s ease-out;
+  content: "\2022";
+}
+.inner[data-spinto="22"]:before {
+  transform: rotateZ(-2549.135135135135deg);
+  transition: transform 9s ease-out;
+  content: "\2022";
+}
+.inner[data-spinto="23"]:before {
+  transform: rotateZ(-2657.135135135135deg);
+  transition: transform 9s ease-out;
+  content: "\2022";
+}
+.inner[data-spinto="24"]:before {
+  transform: rotateZ(-2627.135135135135deg);
+  transition: transform 9s ease-out;
+  content: "\2022";
+}
+.inner[data-spinto="25"]:before {
+  transform: rotateZ(-2759.135135135135deg);
   transition: transform 9s ease-out;
   content: "\2022";
 }
 .inner[data-spinto="26"]:before {
-  transform: rotateZ(-3259.45946deg);
-  left: 22%;
+  transform: rotateZ(-2835.135135135135deg);
+  transition: transform 9s ease-out;
+  content: "\2022";
+}
+.inner[data-spinto="27"]:before {
+  transform: rotateZ(-2719.135135135135deg);
+  transition: transform 9s ease-out;
+  content: "\2022";
+}
+.inner[data-spinto="28"]:before {
+  transform: rotateZ(-2872.135135135135deg);
+  transition: transform 9s ease-out;
+  content: "\2022";
+}
+.inner[data-spinto="29"]:before {
+  transform: rotateZ(-2530.135135135135deg);
+  transition: transform 9s ease-out;
+  content: "\2022";
+}
+.inner[data-spinto="30"]:before {
+  transform: rotateZ(-2679.135135135135deg);
+  transition: transform 9s ease-out;
+  content: "\2022";
+}
+.inner[data-spinto="31"]:before {
+  transform: rotateZ(-2568.135135135135deg);
+  transition: transform 9s ease-out;
+  content: "\2022";
+}
+.inner[data-spinto="32"]:before {
+  transform: rotateZ(-2817.135135135135deg);
+  transition: transform 9s ease-out;
+  content: "\2022";
+}
+.inner[data-spinto="33"]:before {
+  transform: rotateZ(-2607.135135135135deg);
+  transition: transform 9s ease-out;
+  content: "\2022";
+}
+.inner[data-spinto="34"]:before {
+  transform: rotateZ(-2740.135135135135deg);
+  transition: transform 9s ease-out;
+  content: "\2022";
+}
+.inner[data-spinto="35"]:before {
+  transform: rotateZ(-2494.135135135135deg);
+  transition: transform 9s ease-out;
+  content: "\2022";
+}
+.inner[data-spinto="36"]:before {
+  transform: rotateZ(-2698.135135135135deg);
   transition: transform 9s ease-out;
   content: "\2022";
 }
@@ -593,4 +590,34 @@
 
 .transform.rotate-360 {
   transform: rotate(360deg);
+}
+
+@media (max-width: 1023px) {
+  .roulette-wheel-scene {
+    transform: scale(0.68);
+    transform-origin: center top;
+    margin-bottom: -104px;
+  }
+
+  .plate {
+    margin: 4px auto;
+  }
+
+  .roulette-container {
+    min-height: 0;
+    width: 358px;
+    height: 358px;
+  }
+
+  .roulette-result-overlay .result-color {
+    min-width: 2.25rem;
+    padding: 0.4rem 0.75rem;
+    font-size: 1rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .roulette-wheel-scene {
+    margin-bottom: -12px;
+  }
 }

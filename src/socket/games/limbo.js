@@ -1,10 +1,11 @@
 import { io } from "socket.io-client";
+import { SOCKET_URL } from "../../config/backendUrls";
 
 let limboSocket = null;
 
 // Socket initialization and management
 export const initializeLimboSocket = (token) => {
-  const API_URL = import.meta.env.VITE_APP_SOCKET_URL;
+  const API_URL = SOCKET_URL;
   limboSocket = io(`${API_URL}/limbo`, {
     auth: { token },
     reconnection: true,

@@ -70,7 +70,7 @@ const BetCalculator = ({
   }, [bet, targetMultiplier]);
 
   return (
-    <div className="flex justify-between p-2 bg-gray-800 rounded-lg w-[98%] mx-auto text-white font-sans">
+    <div className="flex w-full justify-between gap-2 rounded-lg bg-gray-800 p-2 text-white font-sans">
       {/* Target Multiplier Field */}
       <div className="flex flex-col w-1/2 pr-2">
         <label className="mb-1 text-sm text-gray-400">Target Multiplier</label>

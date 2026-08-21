@@ -67,8 +67,12 @@ const Frame = () => {
   const [startAutoBet, setStartAutoBet] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const [displayNumber, setDisplayNumber] = useState(null);
-  const animationTimeoutRef = useRef(null);
-  const minAnimationDuration = 3500;
+  const animatingRef = useRef(false);
+  const tickTimeoutRef = useRef(null);
+  const revealTimeoutRef = useRef(null);
+  const startedAtRef = useRef(0);
+  const scrambleRef = useRef(1);
+  const minAnimationDuration = 1600;
 
   const [number, setNumber] = useState(null);
   const [finalNumber, setFinalNumber] = useState(null);
@@ -80,12 +84,8 @@ const Frame = () => {
 
   const validateBet = (betAmount) => {
     const bet = parseFloat(betAmount);
-    if (isNaN(bet) || bet <= 0) {
+    if (isNaN(bet) || bet < 0) {
       toast.error("Please enter a valid bet amount");
-      return false;
-    }
-    if (bet < 0.000001) {
-      toast.error("Minimum bet amount is 0.000001");
       return false;
     }
     if (bet > 1000000) {
@@ -100,33 +100,99 @@ const Frame = () => {
     setStartAutoBet(false);
   };
 
+  const clearAnimationTick = () => {
+    if (tickTimeoutRef.current) {
+      clearTimeout(tickTimeoutRef.current);
+      tickTimeoutRef.current = null;
+    }
+  };
+
+  const clearRevealTimeout = () => {
+    if (revealTimeoutRef.current) {
+      clearTimeout(revealTimeoutRef.current);
+      revealTimeoutRef.current = null;
+    }
+  };
+
   const startNumberAnimation = () => {
-    setIsAnimating(true);
-    setDisplayNumber(null);
+    clearAnimationTick();
     setDefaultColor(true);
+    setFinalNumber(null);
+    setNumber(null);
 
-    const animate = () => {
-      if (!isAnimating) return;
+    if (!animations || instantBet) {
+      animatingRef.current = false;
+      setIsAnimating(false);
+      return;
+    }
 
-      const randomNum = (Math.random() * 100).toFixed(2);
-      setDisplayNumber(randomNum);
+    animatingRef.current = true;
+    startedAtRef.current = Date.now();
+    scrambleRef.current = 1 + Math.random() * 3;
+    setIsAnimating(true);
+    setDisplayNumber(scrambleRef.current.toFixed(2));
 
-      if (isAnimating) {
-        setTimeout(() => {
-          animationTimeoutRef.current = requestAnimationFrame(animate);
-        }, 100);
-      }
+    const tick = () => {
+      if (!animatingRef.current) return;
+      const dir = Math.random() > 0.4 ? 1 : -1;
+      const step = (0.35 + Math.random() * 8.5) * dir;
+      scrambleRef.current = Math.max(
+        1,
+        Math.min(99.99, scrambleRef.current + step)
+      );
+      setDisplayNumber(scrambleRef.current.toFixed(2));
+      tickTimeoutRef.current = setTimeout(tick, 45);
     };
 
-    animationTimeoutRef.current = requestAnimationFrame(animate);
+    tickTimeoutRef.current = setTimeout(tick, 45);
   };
 
   const stopNumberAnimation = () => {
-    if (animationTimeoutRef.current) {
-      cancelAnimationFrame(animationTimeoutRef.current);
-    }
+    animatingRef.current = false;
+    clearAnimationTick();
+    clearRevealTimeout();
     setIsAnimating(false);
   };
+
+  const revealBetResult = (result) => {
+    stopNumberAnimation();
+    const value = Number(result.number);
+    const shown = Number.isFinite(value) ? value.toFixed(2) : result.number;
+    setFinalNumber(result.number);
+    setNumber(result.number);
+    setDisplayNumber(shown);
+    setDefaultColor(false);
+    setBettingStarted(false);
+
+    if (result.error) {
+      setStartAutoBet(false);
+      setIsAutoBetting(false);
+    }
+
+    setBetCompleted(true);
+    setCurrentHistory(addToGameHistory("limbo_game_history", result));
+  };
+
+  const handleBetResult = (result) => {
+    requestWalletRefresh();
+    if (result?.error) {
+      revealBetResult(result);
+      return;
+    }
+
+    const elapsed = Date.now() - startedAtRef.current;
+    const wait = animatingRef.current
+      ? Math.max(0, minAnimationDuration - elapsed)
+      : 0;
+
+    clearRevealTimeout();
+    revealTimeoutRef.current = setTimeout(() => {
+      revealBetResult(result);
+    }, wait);
+  };
+
+  const handleBetResultRef = useRef(handleBetResult);
+  handleBetResultRef.current = handleBetResult;
 
   useEffect(() => {
     return () => {
@@ -179,24 +245,7 @@ const Frame = () => {
 
       onBetResult((result) => {
         console.log("Bet result received:", result);
-        // Reflect the debit/credit in the in-game balance readout.
-        requestWalletRefresh();
-        stopNumberAnimation();
-        setFinalNumber(result.number);
-        setNumber(result.number);
-        setDisplayNumber(result.number);
-        setDefaultColor(false);
-        setBettingStarted(false);
-
-        if (result.error) {
-          setStartAutoBet(false);
-          setIsAutoBetting(false);
-        }
-
-        setBetCompleted(true);
-
-        const updatedHistory = addToGameHistory("limbo_game_history", result);
-        setCurrentHistory(updatedHistory);
+        handleBetResultRef.current(result);
       });
 
       return () => {
@@ -399,24 +448,7 @@ const Frame = () => {
 
       onBetResult((result) => {
         console.log("Bet result received:", result);
-        // Reflect the debit/credit in the in-game balance readout.
-        requestWalletRefresh();
-        stopNumberAnimation();
-        setFinalNumber(result.number);
-        setNumber(result.number);
-        setDisplayNumber(result.number);
-        setDefaultColor(false);
-        setBettingStarted(false);
-
-        if (result.error) {
-          setStartAutoBet(false);
-          setIsAutoBetting(false);
-        }
-
-        setBetCompleted(true);
-
-        const updatedHistory = addToGameHistory("limbo_game_history", result);
-        setCurrentHistory(updatedHistory);
+        handleBetResultRef.current(result);
       });
     } catch (error) {
       console.error("Error during reconnection:", error);
@@ -475,12 +507,12 @@ const Frame = () => {
         }}
       >
         <div
-          className={`my-12 rounded mx-auto bg-primary w-[96%] max-w-[1400px] max-md:max-w-[450px] ${
+          className={`my-12 max-lg:my-3 rounded mx-auto bg-primary w-[96%] max-w-[1400px] max-md:max-w-[450px] ${
             theatreMode ? "max-w-[100%] max-h-screen" : "max-lg:max-w-[450px]"
           }`}
         >
           <div className="flex flex-col gap-[0.15rem] relative">
-            <div className="grid grid-cols-12 lg:min-h-[600px]">
+            <div className="grid grid-cols-12 lg:h-[650px]">
               {/* Left Section */}
               <div
                 className={`col-span-12 ${
@@ -518,19 +550,23 @@ const Frame = () => {
                   theatreMode
                     ? "md:col-span-8 md:order-2"
                     : "lg:col-span-8 lg:order-2"
-                } xl:col-span-9 bg-gray-900 order-1 max-lg:min-h-[470px] relative`}
+                } xl:col-span-9 bg-gray-900 order-1 max-lg:h-auto max-lg:min-h-0 lg:h-[650px] relative`}
               >
                 {isDisconnected && <DisconnectModal />}
-                <div className="w-full px-4 relative text-white h-full items-center justify-center text-3xl">
-                  <History list={currentHistory} />
-                  <GameComponent
-                    targetMultiplier={targetMultiplier}
-                    number={displayNumber || number}
-                    finalNumber={finalNumber}
-                    defaultColor={defaultColor}
-                    isAnimating={isAnimating}
-                  />
-                  <div className="mb-5">
+                <div className="relative flex h-full min-h-0 w-full flex-col px-3 pt-1 text-white lg:px-4">
+                  <div className="pointer-events-none absolute inset-x-0 top-2 z-10">
+                    <History list={currentHistory} />
+                  </div>
+                  <div className="flex min-h-[160px] flex-1 items-center justify-center">
+                    <GameComponent
+                      targetMultiplier={targetMultiplier}
+                      number={displayNumber || number}
+                      finalNumber={finalNumber}
+                      defaultColor={defaultColor}
+                      isAnimating={isAnimating}
+                    />
+                  </div>
+                  <div className="mt-auto w-full shrink-0 pb-3 lg:pb-5">
                     <BetCalculator
                       bet={bet}
                       setMultiplier={setMultipler}

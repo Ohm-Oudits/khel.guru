@@ -1,28 +1,46 @@
 import { io } from "socket.io-client";
+import { SOCKET_URL as API_URL } from "../../config/backendUrls";
+
+const SOCKET_KEY = "__KG_PUMP_SOCKET__";
 
 let pumpSocket = null;
-const API_URL = import.meta.env.VITE_APP_SOCKET_URL;
+
+const readSharedSocket = () => {
+  if (typeof window !== "undefined" && window[SOCKET_KEY]) {
+    pumpSocket = window[SOCKET_KEY];
+  }
+  return pumpSocket;
+};
+
+const shareSocket = (socket) => {
+  pumpSocket = socket;
+  if (typeof window !== "undefined") {
+    window[SOCKET_KEY] = socket;
+  }
+};
 
 export const initializePumpSocket = (token) => {
-  // Reuse a live socket instead of churning a new connection on every mount —
-  // recreating it mid-handshake dropped in-flight bets ("closed before
-  // established").
-  if (pumpSocket) return pumpSocket;
+  if (!token) return null;
 
-  pumpSocket = io(`${API_URL}/pump`, {
-    auth: {
-      token: token,
-    },
+  const existing = readSharedSocket();
+  if (existing) {
+    return existing;
+  }
+
+  const socket = io(`${API_URL}/pump`, {
+    auth: { token },
     transports: ["websocket"],
     reconnection: true,
-    reconnectionAttempts: 3,
+    reconnectionAttempts: Infinity,
+    reconnectionDelay: 500,
   });
 
-  pumpSocket.on("connect", () => {
+  socket.on("connect", () => {
     console.log("Pump namespace connected successfully");
+    socket.emit("get_history");
   });
 
-  pumpSocket.on("connect_error", (error) => {
+  socket.on("connect_error", (error) => {
     console.error("Pump namespace connection error:", error);
     if (
       error.message === "Authentication required" ||
@@ -33,39 +51,57 @@ export const initializePumpSocket = (token) => {
     }
   });
 
-  pumpSocket.on("disconnect", () => {
+  socket.on("disconnect", () => {
     console.log("Pump namespace disconnected");
   });
+
+  shareSocket(socket);
+  return socket;
 };
 
-export const getPumpSocket = () => {
-  return pumpSocket;
-};
+export const getPumpSocket = () => readSharedSocket() || pumpSocket;
 
 export const disconnectPumpSocket = () => {
   if (pumpSocket) {
     pumpSocket.disconnect();
-    pumpSocket = null;
+  }
+  pumpSocket = null;
+  if (typeof window !== "undefined") {
+    delete window[SOCKET_KEY];
   }
 };
 
-// Commit a stake to the current round (debits the wallet server-side).
-export const placePumpBet = (betAmount, walletType = "demo") => {
-  if (!pumpSocket || !betAmount || betAmount <= 0) return false;
-  pumpSocket.emit("place_bet", { betAmount, walletType });
+export const placePumpBet = (betAmount, walletType = "demo", risk = "Low") => {
+  const socket = getPumpSocket();
+  if (
+    !socket ||
+    betAmount == null ||
+    Number.isNaN(Number(betAmount)) ||
+    Number(betAmount) < 0
+  ) {
+    return false;
+  }
+  socket.emit("place_bet", { betAmount, walletType, risk });
   return true;
 };
 
-// Cash out the active bet at the given multiplier (credits stake x multiplier).
-export const cashOutPump = (multiplier) => {
-  if (!pumpSocket) return false;
-  pumpSocket.emit("cash_out", { multiplier });
+export const pumpRound = () => {
+  const socket = getPumpSocket();
+  if (!socket) return false;
+  socket.emit("pump", {});
   return true;
 };
 
-// The balloon popped before a cashout: forfeit the active bet (no credit).
+export const cashOutPump = () => {
+  const socket = getPumpSocket();
+  if (!socket) return false;
+  socket.emit("cash_out", {});
+  return true;
+};
+
 export const bustPump = () => {
-  if (!pumpSocket) return false;
-  pumpSocket.emit("bust", {});
+  const socket = getPumpSocket();
+  if (!socket) return false;
+  socket.emit("bust", {});
   return true;
 };

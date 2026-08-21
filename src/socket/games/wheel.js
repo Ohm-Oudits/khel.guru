@@ -1,7 +1,7 @@
 import { io } from "socket.io-client";
+import { SOCKET_URL as API_URL } from "../../config/backendUrls";
 
 let wheelSocket = null;
-const API_URL = import.meta.env.VITE_APP_SOCKET_URL;
 
 // Socket initialization
 export const initializeWheelSocket = (token) => {
@@ -10,7 +10,8 @@ export const initializeWheelSocket = (token) => {
       auth: { token },
       transports: ["websocket"],
       reconnection: true,
-      reconnectionAttempts: 3,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 500,
     });
 
     wheelSocket.on("connect", () => {

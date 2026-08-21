@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import "../../../styles/Frame.css";
 import "../../../styles/Wheel.css";
 import FairnessModal from "../../Frame/FairnessModal";
@@ -19,6 +19,9 @@ import {
 import checkLoggedIn from "../../../utils/isloggedIn";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
+
+const WHEEL_HISTORY_KEY = "wheel_game_history";
+const MAX_HISTORY_ITEMS = 50;
 
 const Frame = () => {
   const [isFav, setIsFav] = useState(false);
@@ -48,6 +51,7 @@ const Frame = () => {
   const [hotkeysEnabled, setHotkeysEnabled] = useState(false);
   const [betStarted, setBettingStarted] = useState(false);
   const [autoStart, setAutoStart] = useState(false);
+  const [currentHistory, setCurrentHistory] = useState([]);
 
   const token = useSelector((state) => state.auth?.token);
 
@@ -58,14 +62,31 @@ const Frame = () => {
     }
   };
 
-  const history = [
-    { id: 1, value: "1.64", color: "#f7b32b" },
-    { id: 2, value: "0.04", color: "#28a745" },
-    { id: 3, value: "1.24", color: "#f7b32b" },
-    { id: 4, value: "21.64", color: "#5b34eb" },
-    { id: 5, value: "2.94", color: "#f7b32b" },
-    { id: 6, value: "0.64", color: "#28a745" },
-  ];
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(WHEEL_HISTORY_KEY);
+      if (saved) setCurrentHistory(JSON.parse(saved));
+    } catch {
+      setCurrentHistory([]);
+    }
+  }, []);
+
+  const addToHistory = (multiplier) => {
+    const value = parseFloat(multiplier);
+    if (!Number.isFinite(value)) return;
+    setCurrentHistory((prev) => {
+      const next = [
+        ...prev,
+        { id: Date.now(), value, timestamp: new Date().toISOString() },
+      ].slice(-MAX_HISTORY_ITEMS);
+      try {
+        localStorage.setItem(WHEEL_HISTORY_KEY, JSON.stringify(next));
+      } catch {
+        /* ignore quota */
+      }
+      return next;
+    });
+  };
 
   const navigate = useNavigate();
   const handleMineBet = () => {
@@ -103,13 +124,10 @@ const Frame = () => {
   return (
     <>
       <div
-        className="w-full bg-secondry pt-[1px] pb-[12px] max-lg:pb-[36px]"
-        style={{
-          minHeight: "calc(100vh - 70px)",
-        }}
+        className="w-full bg-secondry pt-[1px] pb-[12px] max-lg:pb-[36px] max-lg:min-h-[calc(100vh-69px)] lg:min-h-[calc(100vh-92px)]"
       >
         <div
-          className={`my-12 rounded mx-auto bg-primary w-[96%] max-w-[1400px] max-md:max-w-[450px] ${
+          className={`my-4 max-lg:my-2 lg:my-12 rounded mx-auto bg-primary w-[96%] max-w-[1400px] max-md:max-w-[450px] ${
             theatreMode ? "max-w-[100%] max-h-screen" : "max-lg:max-w-[450px]"
           }`}
         >
@@ -156,12 +174,13 @@ const Frame = () => {
                   theatreMode
                     ? "md:col-span-8 md:order-2"
                     : "lg:col-span-8 lg:order-2"
-                } xl:col-span-9 bg-gray-900 order-1 max-lg:min-h-[470px]`}
+                } xl:col-span-9 order-1 flex min-h-[360px] flex-col bg-gray-900 max-lg:min-h-[380px] lg:min-h-[600px]`}
               >
-                <div className="w-full relative text-white h-full flex items-center justify-center text-3xl">
-                  <div className="absolute top-2 left-0 z-10 w-full">
-                    <History list={history} />
-                  </div>
+                <div className="shrink-0 pt-2">
+                  <History list={currentHistory} palette="wheel" />
+                </div>
+
+                <div className="relative flex min-h-0 flex-1 items-center justify-center">
                   <Game
                     risk={risk}
                     segment={segment}
@@ -171,7 +190,11 @@ const Frame = () => {
                     autoStart={autoStart}
                     setAutoStart={setAutoStart}
                     bet={bet}
+                    onHistory={addToHistory}
                   />
+                </div>
+
+                <div className="shrink-0 px-2 pb-2 pt-1">
                   <Chances risk={risk} segment={segment} />
                 </div>
               </div>

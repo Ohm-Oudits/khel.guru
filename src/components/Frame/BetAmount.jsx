@@ -2,9 +2,8 @@
 const BetAmount = ({ bet, setBet, maxBetEnable, disabled }) => {
   return (
     <div className="order-1 md:order-2 my-2 w-full">
-      <div className="flex items-center mb-[-4px] pl-[2px] justify-between w-full font-semibold text-label">
+      <div className="flex items-center mb-1.5 pl-[2px] justify-between w-full text-[11px] font-semibold uppercase tracking-wide text-label">
         <label htmlFor="betAmount">Bet Amount</label>
-        <h1 className="text-sm">$0.00</h1>
       </div>
       <div className="w-full mt-1 bg-inactive shadow-md flex rounded">
         <div className="w-full relative">

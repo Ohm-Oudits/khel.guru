@@ -1,6 +1,15 @@
 /* eslint-disable */
 import BetAmount from "../../Frame/BetAmount";
-import GameBalanceBadge from "../shared/GameBalanceBadge";
+import {
+  GameLabeledSliderRow,
+  GameRiskAutoRow,
+  RISK_LOW_MEDIUM_HIGH,
+} from "../../Frame/GamePanelControls";
+
+const MIN_ROWS = 8;
+const MAX_ROWS = 16;
+
+const fieldLabel = "mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-label";
 
 const LeftSection = ({
   theatreMode,
@@ -21,261 +30,99 @@ const LeftSection = ({
   startAutoBet,
   isBallInMotion,
 }) => {
-  // Determine if controls should be disabled
-  const isDisabled = isBallInMotion || startAutoBet;
+  const boardLocked = isBallInMotion || startAutoBet;
+  const bettingLocked = startAutoBet;
+  const modeSwitchDisabled = bettingLocked;
 
   return (
-    <>
-      <div
-        className={`col-span-12 ${
-          theatreMode ? "md:col-span-4 md:order-1" : "lg:col-span-4 lg:order-1"
-        } xl:col-span-3 bg-inactive order-2 max-lg:h-[fit-content] lg:h-[600px] overflow-auto`}
-      >
-        <div className="my-4 px-3 flex flex-col">
-          {/* Manual and auto mode switch */}
-          <div className="sticky top-0 z-[1] bg-inactive py-0 rounded-md">
-            <div className="order-[100] max-lg:mt-2 lg:order-1 switch mb-4 w-full bg-primary rounded-full p-1.5 grid grid-cols-2 gap-1">
-              <div
-                onClick={() => {
-                  if (!isDisabled) {
-                    setBetMode("manual");
-                  }
-                }}
-                className={`${
-                  betMode === "manual" ? "bg-inactive scale-95" : ""
-                } ${
-                  isDisabled
-                    ? "opacity-50 cursor-not-allowed"
-                    : "hover:bg-activeHover cursor-pointer"
-                } col-span-1 flex items-center justify-center py-2 text-white font-semibold rounded-full transition-all duration-300 ease-in-out transform active:scale-90`}
-              >
-                Manual
-              </div>
-              <div
-                onClick={() => {
-                  if (!isDisabled) {
-                    setBetMode("auto");
-                  }
-                }}
-                className={`${
-                  betMode === "auto" ? "bg-inactive scale-95" : ""
-                } ${
-                  isDisabled
-                    ? "opacity-50 cursor-not-allowed"
-                    : "hover:bg-activeHover cursor-pointer"
-                } col-span-1 flex items-center justify-center py-2 text-white font-semibold rounded-full transition-all duration-300 ease-in-out transform active:scale-90`}
-              >
-                Auto
-              </div>
-            </div>
-          </div>
+    <div
+      className={`col-span-12 ${
+        theatreMode ? "md:col-span-4 md:order-1" : "lg:col-span-4 lg:order-1"
+      } xl:col-span-3 bg-inactive order-2 max-lg:h-fit lg:h-[600px] overflow-auto`}
+    >
+      <div className="my-4 flex h-full flex-col gap-1 px-3">
+        <GameRiskAutoRow
+          options={RISK_LOW_MEDIUM_HIGH}
+          value={risk}
+          onChange={setRisk}
+          segmentDisabled={boardLocked}
+          betMode={betMode}
+          setBetMode={setBetMode}
+          modeSwitchDisabled={modeSwitchDisabled}
+          className="mb-0 mt-0 shrink-0"
+        />
 
-          {betMode === "manual" && (
-            <>
-              <GameBalanceBadge className="mb-2" />
-              <div className="w-full mb-2">
-                <BetAmount
-                  bet={bet}
-                  setBet={setBet}
-                  maxBetEnable={maxBetEnable}
-                  disabled={isDisabled}
-                  className={`w-full mt-2 h-full rounded bg-secondry outline-none text-white px-3 pr-6 py-2 border border-input ${
-                    isDisabled
-                      ? "opacity-50 cursor-not-allowed"
-                      : "hover:border-primary-4"
-                  }`}
-                />
-              </div>
+        <GameLabeledSliderRow
+          label="Rows"
+          min={MIN_ROWS}
+          max={MAX_ROWS}
+          value={rows}
+          onChange={setRows}
+          disabled={boardLocked}
+          ariaLabel="Plinko rows"
+        />
 
-              {/* Risk Section */}
-              <div className="order-10 md:order-2 mb-2 mt-1 w-full">
-                <label
-                  htmlFor="risk"
-                  className="flex items-center mb-[-4px] pl-[2px] justify-between w-full font-semibold text-label"
-                >
-                  <h1>Risk</h1>
-                </label>
+        <div className="order-2 shrink-0">
+          <BetAmount
+            bet={bet}
+            setBet={setBet}
+            maxBetEnable={maxBetEnable}
+            disabled={bettingLocked}
+          />
+        </div>
 
-                <select
-                  className={`w-full mt-2 h-full rounded bg-secondry outline-none text-white px-3 pr-6 py-2 border border-input ${
-                    isDisabled
-                      ? "opacity-50 cursor-not-allowed"
-                      : "hover:border-primary-4"
-                  }`}
-                  value={risk}
-                  id="risk"
-                  onChange={(e) => !isDisabled && setRisk(e.target.value)}
-                  disabled={isDisabled}
-                >
-                  <option value="Low">Low</option>
-                  <option value="Medium">Medium</option>
-                  <option value="High">High</option>
-                </select>
-              </div>
-
-              {/* Rows Section */}
-              <div className="order-10 md:order-2 mb-2 mt-1 w-full">
-                <label
-                  htmlFor="rows"
-                  className="flex items-center mb-[-4px] pl-[2px] justify-between w-full font-semibold text-label"
-                >
-                  <h1>Rows</h1>
-                </label>
-
-                <select
-                  className={`w-full mt-2 h-full rounded bg-secondry outline-none text-white px-3 pr-6 py-2 border border-input ${
-                    isDisabled
-                      ? "opacity-50 cursor-not-allowed"
-                      : "hover:border-primary-4"
-                  }`}
-                  value={rows}
-                  id="rows"
-                  onChange={(e) =>
-                    !isDisabled && setRows(Number(e.target.value))
-                  }
-                  disabled={isDisabled}
-                >
-                  <option value={8}>8</option>
-                  <option value={9}>9</option>
-                  <option value={10}>10</option>
-                  <option value={11}>11</option>
-                  <option value={12}>12</option>
-                  <option value={13}>13</option>
-                  <option value={14}>14</option>
-                  <option value={15}>15</option>
-                  <option value={16}>16</option>
-                </select>
-              </div>
-
-              {/* Bet button */}
-              <div
-                className={`order-2 max-md:mb-2 md:order-20 transition-all duration-300 ease-in-out transform ${
-                  isDisabled
-                    ? "opacity-50 cursor-not-allowed"
-                    : "active:scale-90"
-                } flex items-center justify-center w-full mx-auto py-1.5 mt-3 max-lg:mt-4 rounded text-lg font-semibold ${
-                  !bettingStarted || isDisabled
-                    ? "bg-inactive text-white"
-                    : "bg-button-primary text-black cursor-pointer"
-                }`}
-                onClick={() => !isDisabled && handleBetClick()}
-              >
-                Bet
-              </div>
-            </>
-          )}
-
+        <div className="order-4 flex flex-col gap-1 lg:order-3">
           {betMode === "auto" && (
-            <>
-              <div className="w-full mb-2">
-                <BetAmount
-                  bet={bet}
-                  setBet={setBet}
-                  maxBetEnable={maxBetEnable}
-                  disabled={isDisabled}
-                  className={`w-full mt-2 h-full rounded bg-secondry outline-none text-white px-3 pr-6 py-2 border border-input ${
-                    isDisabled
-                      ? "opacity-50 cursor-not-allowed"
-                      : "hover:border-primary-4"
-                  }`}
-                />
-              </div>
-
-              {/* Risk Section */}
-              <div className="order-10 md:order-2 mb-2 mt-3 w-full">
-                <label
-                  htmlFor="risk"
-                  className="flex items-center mb-[-4px] pl-[2px] justify-between w-full font-semibold text-label"
-                >
-                  <h1>Risk</h1>
-                </label>
-
-                <select
-                  className={`w-full mt-2 h-full rounded bg-secondry outline-none text-white px-3 pr-6 py-2 border border-input ${
-                    isDisabled
-                      ? "opacity-50 cursor-not-allowed"
-                      : "hover:border-primary-4"
-                  }`}
-                  value={risk}
-                  id="risk"
-                  disabled={isDisabled}
-                  onChange={(e) => !isDisabled && setRisk(e.target.value)}
-                >
-                  <option value="Low">Low</option>
-                  <option value="Medium">Medium</option>
-                  <option value="High">High</option>
-                </select>
-              </div>
-
-              {/* Rows Section */}
-              <div className="order-10 md:order-2 mb-2 mt-1 w-full">
-                <label
-                  htmlFor="rows"
-                  className="flex items-center mb-[-4px] pl-[2px] justify-between w-full font-semibold text-label"
-                >
-                  <h1>Rows</h1>
-                </label>
-
-                <select
-                  className={`w-full mt-2 h-full rounded bg-secondry outline-none text-white px-3 pr-6 py-2 border border-input ${
-                    isDisabled
-                      ? "opacity-50 cursor-not-allowed"
-                      : "hover:border-primary-4"
-                  }`}
-                  value={rows}
-                  id="rows"
-                  disabled={isDisabled}
-                  onChange={(e) =>
-                    !isDisabled && setRows(Number(e.target.value))
-                  }
-                >
-                  <option value={8}>8</option>
-                  <option value={9}>9</option>
-                  <option value={10}>10</option>
-                  <option value={11}>11</option>
-                  <option value={12}>12</option>
-                  <option value={13}>13</option>
-                  <option value={14}>14</option>
-                  <option value={15}>15</option>
-                  <option value={16}>16</option>
-                </select>
-              </div>
-
-              {/* Number of bets */}
-              <div className="w-full mb-1 order-10 md:order-2">
-                <h1 className="font-semibold mt-1 text-label">
-                  Number of Bets
-                </h1>
-                <input
-                  type="number"
-                  value={nbets}
-                  disabled={isDisabled}
-                  onChange={(e) => !isDisabled && setNBets(e.target.value)}
-                  className={`w-full mt-2 h-full rounded bg-secondry outline-none text-white px-2 pr-6 py-2 border border-input ${
-                    isDisabled
-                      ? "opacity-50 cursor-not-allowed"
-                      : "hover:border-primary-4"
-                  }`}
-                />
-              </div>
-
-              {/* Start Autobet button */}
-              <button
-                onClick={handleAutoBet}
-                disabled={isDisabled}
-                className={`order-2 max-md:mb-2 md:order-20 transition-all duration-300 ease-in-out transform flex items-center justify-center w-full mx-auto py-1.5 mt-4 max-lg:mt-4 rounded text-lg font-semibold text-black ${
-                  isDisabled
-                    ? "bg-primary text-white cursor-not-allowed opacity-50"
-                    : "bg-button-primary active:scale-90 cursor-pointer"
+            <div>
+              <label htmlFor="plinko-nbets" className={fieldLabel}>
+                Number of bets
+              </label>
+              <input
+                id="plinko-nbets"
+                type="number"
+                min="1"
+                value={nbets}
+                disabled={bettingLocked}
+                onChange={(e) => !bettingLocked && setNBets(e.target.value)}
+                className={`h-10 w-full rounded-lg border border-input bg-secondry px-3 text-sm text-white outline-none transition ${
+                  bettingLocked
+                    ? "cursor-not-allowed opacity-50"
+                    : "hover:border-primary-4 focus:border-button-primary"
                 }`}
-              >
-                {startAutoBet ? "Auto Betting..." : "Start Autobet"}
-              </button>
-            </>
+              />
+            </div>
           )}
         </div>
+
+        {betMode === "manual" ? (
+          <button
+            type="button"
+            disabled={!bettingStarted || bettingLocked}
+            onClick={() => !bettingLocked && handleBetClick()}
+            className={`order-3 w-full rounded-lg py-3 text-base font-bold transition lg:order-4 lg:mt-auto ${
+              !bettingStarted || bettingLocked
+                ? "cursor-not-allowed bg-[#2a2a2a] text-white/50"
+                : "cursor-pointer bg-button-primary text-black hover:brightness-110 active:scale-[0.98]"
+            }`}
+          >
+            Bet
+          </button>
+        ) : (
+          <button
+            type="button"
+            disabled={bettingLocked}
+            onClick={handleAutoBet}
+            className={`order-3 w-full rounded-lg py-3 text-base font-bold transition lg:order-4 lg:mt-auto ${
+              bettingLocked
+                ? "cursor-not-allowed bg-[#2a2a2a] text-white/50"
+                : "cursor-pointer bg-button-primary text-black hover:brightness-110 active:scale-[0.98]"
+            }`}
+          >
+            {startAutoBet ? "Auto betting…" : "Start autobet"}
+          </button>
+        )}
       </div>
-    </>
+    </div>
   );
 };
 

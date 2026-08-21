@@ -7,6 +7,7 @@ import GameInfoModal from "../../Frame/GameInfoModal";
 import MaxBetModal from "../../Frame/MaxBetModal";
 import SideBar from "./SideBar";
 import Game from "./Game";
+import History from "../../Frame/History";
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import {
@@ -24,6 +25,9 @@ export const balloonTypes = [
   "#9A67EA",
 ];
 export const diamondTypes = ["red", "blue", "green", "yellow", "purple"];
+
+const HISTORY_KEY = "balloons_game_history";
+const MAX_HISTORY_ITEMS = 20;
 
 const Frame = () => {
   const [isFav, setIsFav] = useState(false);
@@ -56,6 +60,44 @@ const Frame = () => {
   const [gameInfo, setGameInfo] = useState(false);
   const [hotkeys, setHotkeys] = useState(false);
   const [startAutoBet, setStartAutoBet] = useState(false);
+  const [history, setHistory] = useState([]);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(HISTORY_KEY);
+      if (saved) {
+        setHistory(JSON.parse(saved));
+      }
+    } catch (error) {
+      console.error("Error loading balloons history:", error);
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+    } catch (error) {
+      console.error("Error saving balloons history:", error);
+    }
+  }, [history]);
+
+  const addToHistory = ({ multiplier, winAmount }) => {
+    const value = parseFloat(multiplier);
+    if (!Number.isFinite(value)) return;
+
+    setHistory((prev) =>
+      [
+        ...prev,
+        {
+          id: Date.now(),
+          timestamp: new Date().toISOString(),
+          multiplier: value,
+          value,
+          isWin: value > 0 || Number(winAmount) > 0,
+        },
+      ].slice(-MAX_HISTORY_ITEMS)
+    );
+  };
 
   const navigate = useNavigate();
   const token = useSelector((state) => state.auth?.token);
@@ -112,13 +154,10 @@ const Frame = () => {
   return (
     <>
       <div
-        className="w-full bg-secondry pt-[1px] pb-[12px] max-lg:pb-[36px]"
-        style={{
-          minHeight: "calc(100vh - 70px)",
-        }}
+        className="w-full bg-secondry pt-[1px] pb-[12px] max-lg:pb-[36px] max-lg:min-h-[calc(100vh-69px)] lg:min-h-[calc(100vh-92px)]"
       >
         <div
-          className={`my-12 rounded mx-auto bg-primary w-[96%] max-w-[1400px] max-md:max-w-[450px] ${
+          className={`my-4 max-lg:my-2 lg:my-12 rounded mx-auto bg-primary w-[96%] max-w-[1400px] max-md:max-w-[450px] ${
             theatreMode ? "max-w-[100%] max-h-screen" : "max-lg:max-w-[450px]"
           }`}
         >
@@ -146,10 +185,13 @@ const Frame = () => {
                   theatreMode
                     ? "md:col-span-8 md:order-2"
                     : "lg:col-span-8 lg:order-2"
-                } xl:col-span-9 bg-gray-900 order-1 relative`}
+                } xl:col-span-9 order-1 bg-gray-900 max-lg:min-h-[340px] lg:min-h-[640px]`}
               >
-                <div className="w-full text-white h-full justify-center text-3xl">
-                  <div className="mb-20 py-6 md:py-0 md:h-auto">
+                <div className="relative flex h-full min-h-[320px] w-full flex-col text-white max-lg:min-h-[300px]">
+                  <div className="pointer-events-none absolute inset-x-0 top-0.5 z-10 lg:top-2">
+                    <History list={history} />
+                  </div>
+                  <div className="flex min-h-0 flex-1 flex-col pt-10 max-lg:pt-[2.5rem] lg:pt-10">
                     <Game
                       betStarted={betStarted}
                       setBettingStarted={setBettingStarted}
@@ -164,6 +206,7 @@ const Frame = () => {
                       setStartAutoBet={setStartAutoBet}
                       nbets={nbets}
                       betAmount={bet}
+                      onRoundComplete={addToHistory}
                     />
                   </div>
                 </div>

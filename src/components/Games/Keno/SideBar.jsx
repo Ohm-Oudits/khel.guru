@@ -1,5 +1,8 @@
 /* eslint-disable react/prop-types */
-import GameBalanceBadge from "../shared/GameBalanceBadge";
+import {
+  GameRiskAutoRow,
+  KENO_RISK_OPTIONS,
+} from "../../Frame/GamePanelControls";
 
 const SideBar = ({
   theatreMode,
@@ -24,10 +27,12 @@ const SideBar = ({
 }) => {
   const handleBetChange = (value) => {
     const parsed = parseFloat(value);
-    if (value === "" || (!isNaN(parsed) && parsed >= 0.000001)) {
+    if (value === "" || (!isNaN(parsed) && parsed >= 0)) {
       setBet(value);
     }
   };
+
+  const modeSwitchDisabled = startAutoBet || bettingStarted;
 
   return (
     <>
@@ -37,38 +42,18 @@ const SideBar = ({
         } xl:col-span-3 bg-inactive order-2 max-lg:h-[fit-content] lg:h-[600px] overflow-auto`}
       >
         <div className="my-4 px-3 flex flex-col">
-          <div className="sticky top-0 z-[1] bg-inactive py-0 rounded-md">
-            <div className="order-[100] max-lg:mt-2 lg:order-1 switch mb-4 w-full bg-primary rounded-full p-1.5 grid grid-cols-2 gap-1">
-              <div
-                onClick={() => {
-                  if (!startAutoBet) {
-                    setBetMode("manual");
-                  }
-                }}
-                className={`${
-                  betMode === "manual" ? "bg-inactive scale-95" : ""
-                } hover:bg-activeHover cursor-pointer col-span-1 flex items-center justify-center py-2 text-white font-semibold rounded-full transition-all duration-300 ease-in-out transform active:scale-90`}
-              >
-                Manual
-              </div>
-              <div
-                onClick={() => {
-                  if (!bettingStarted) {
-                    setBetMode("auto");
-                  }
-                }}
-                className={`${
-                  betMode === "auto" ? "bg-inactive scale-95" : ""
-                } hover:bg-activeHover cursor-pointer col-span-1 flex items-center justify-center py-2 text-white font-semibold rounded-full transition-all duration-300 ease-in-out transform active:scale-90`}
-              >
-                Auto
-              </div>
-            </div>
-          </div>
+          <GameRiskAutoRow
+            options={KENO_RISK_OPTIONS}
+            value={Risk}
+            onChange={setRisk}
+            segmentDisabled={bettingStarted}
+            betMode={betMode}
+            setBetMode={setBetMode}
+            modeSwitchDisabled={modeSwitchDisabled}
+          />
 
           {betMode === "manual" && (
             <>
-              <GameBalanceBadge className="mb-2" />
               <div className="order-1 md:order-2 my-2 w-full">
                 <div className="flex items-center mb-[-4px] pl-[2px] justify-between w-full font-semibold text-label">
                   <label htmlFor="betAmount">Bet Amount</label>
@@ -108,29 +93,6 @@ const SideBar = ({
                       Max
                     </div>
                   )}
-                </div>
-              </div>
-
-              <div className="order-10 md:order-2 mb-2 mt-1 w-full flex items-center gap-3">
-                <div className="w-full">
-                  <label
-                    htmlFor="Risk"
-                    className="flex items-center mb-[-4px] pl-[2px] justify-between w-full font-semibold text-label"
-                  >
-                    <h1>Risk</h1>
-                  </label>
-                  <select
-                    className="w-full mt-2 h-full rounded bg-secondry outline-none text-white px-3 pr-6 py-2 border border-input hover:border-primary-4"
-                    value={Risk}
-                    id="Risk"
-                    disabled={bettingStarted}
-                    onChange={(e) => setRisk(e.target.value)}
-                  >
-                    <option value="Classic">Classic</option>
-                    <option value="Low">Low</option>
-                    <option value="Medium">Medium</option>
-                    <option value="High">High</option>
-                  </select>
                 </div>
               </div>
 
@@ -215,29 +177,6 @@ const SideBar = ({
                       Max
                     </div>
                   )}
-                </div>
-              </div>
-
-              <div className="order-10 md:order-2 mb-2 mt-1 w-full flex items-center gap-3">
-                <div className="w-full">
-                  <label
-                    htmlFor="Risk"
-                    className="flex items-center mb-[-4px] pl-[2px] justify-between w-full font-semibold text-label"
-                  >
-                    <h1>Risk</h1>
-                  </label>
-                  <select
-                    className="w-full mt-2 h-full rounded bg-secondry outline-none text-white px-3 pr-6 py-2 border border-input hover:border-primary-4"
-                    value={Risk}
-                    id="Risk"
-                    disabled={bettingStarted}
-                    onChange={(e) => setRisk(e.target.value)}
-                  >
-                    <option value="Classic">Classic</option>
-                    <option value="Low">Low</option>
-                    <option value="Medium">Medium</option>
-                    <option value="High">High</option>
-                  </select>
                 </div>
               </div>
 

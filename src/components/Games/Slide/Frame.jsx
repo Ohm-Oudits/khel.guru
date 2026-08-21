@@ -1,5 +1,5 @@
 /* eslint-disable */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import "../../../styles/Frame.css";
 import "../../../styles/Wheel.css";
 import FairnessModal from "../../Frame/FairnessModal";
@@ -22,6 +22,7 @@ import {
   placeAutoBet,
   onGameState,
   onTimeUpdate,
+  onRoundStart,
   onRoundResult,
   onNewRound,
   onBetPlaced,
@@ -43,7 +44,7 @@ const DiceFrame = () => {
   const [bet, setBet] = useState("0.000000");
   const [loss, setLoss] = useState("0.000000");
   const [profit, setProfit] = useState("0.000000");
-  const [timeLeft, setTimeLeft] = useState(15);
+  const [timeLeft, setTimeLeft] = useState(null);
   const [bets, setBets] = useState(0);
 
   const [isFairness, setIsFairness] = useState(false);
@@ -79,55 +80,88 @@ const DiceFrame = () => {
   const [startAutoBet, setStartAutoBet] = useState(false);
 
   const [targetMultiplier, setTargetMultiplier] = useState(null);
+  const [phase, setPhase] = useState("waiting");
+  const [elapsedMs, setElapsedMs] = useState(0);
+  const [round, setRound] = useState(1);
+  const deadlineRef = useRef(null);
 
   const navigate = useNavigate();
   const token = useSelector((state) => state.auth?.token);
 
-  useEffect(() => {
-    initializeSlideSocket(token);
+  const applyLiveState = (data) => {
+    if (!data) return;
 
-    onGameState((data) => {
-      console.log("Game state update:", data);
-      setgamestarted(!data.isWaiting);
+    if (typeof data.remainingMs === "number") {
+      deadlineRef.current = Date.now() + data.remainingMs;
+      setTimeLeft(Math.max(0, Math.ceil(data.remainingMs / 1000)));
+    } else if (typeof data.timeLeft === "number") {
+      deadlineRef.current = Date.now() + data.timeLeft * 1000;
       setTimeLeft(data.timeLeft);
+    }
 
-      const formattedHistory = (data.roundResults || []).map((result) => ({
-        id: result.round,
-        value: result.multiplier,
-        color: "#15803D",
-      }));
-      setCurrentHistory(formattedHistory);
-      if (data.targetMultiplier) {
-        setTargetMultiplier(data.targetMultiplier);
-      }
+    if (typeof data.elapsedMs === "number") setElapsedMs(data.elapsedMs);
+    if (typeof data.currentRound === "number") setRound(data.currentRound);
+    if (typeof data.totalBets === "number") setBets(data.totalBets);
+    if (data.roundResults) {
+      setCurrentHistory(
+        data.roundResults.map((result) => ({
+          id: result.round,
+          value: result.multiplier,
+          color: "#15803D",
+        }))
+      );
+    }
+
+    const nextPhase = data.phase || "waiting";
+    setPhase(nextPhase);
+
+    if (nextPhase === "spinning") {
+      setgamestarted(true);
+      setTargetMultiplier(null);
+    } else if (nextPhase === "result") {
+      setgamestarted(true);
+      setTargetMultiplier(
+        data.targetMultiplier ?? data.multiplier ?? null
+      );
+    } else {
+      setgamestarted(false);
+      setTargetMultiplier(null);
+    }
+  };
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (deadlineRef.current == null) return;
+      setTimeLeft(
+        Math.max(0, Math.ceil((deadlineRef.current - Date.now()) / 1000))
+      );
+    }, 250);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    onGameState((data) => {
+      applyLiveState(data);
     });
 
     onTimeUpdate((data) => {
-      console.log("Time update:", data);
-      setTimeLeft(data.timeLeft);
+      applyLiveState(data);
+    });
+
+    onRoundStart((data) => {
+      applyLiveState(data);
     });
 
     onRoundResult((data) => {
-      console.log("Round result:", data);
-      setGameResult(data.multiplier.toString());
-      setTargetMultiplier(data.multiplier);
-
-      const formattedHistory = (data.roundResults || []).map((result) => ({
-        id: result.round,
-        value: result.multiplier,
-        color: "#15803D",
-      }));
-      setCurrentHistory(formattedHistory);
-      setgamestarted(false);
+      applyLiveState(data);
+      if (data.multiplier != null) {
+        setGameResult(data.multiplier.toString());
+      }
     });
 
     onNewRound((data) => {
-      console.log("New round:", data);
-      setgamestarted(false);
-      setTimeLeft(data.timeLeft);
+      applyLiveState(data);
       setGameResult("");
-      setTargetMultiplier(null);
-      setBets(0);
     });
 
     onBetPlaced((data) => {
@@ -183,6 +217,8 @@ const DiceFrame = () => {
       console.log("Bets updated:", data);
       setBets(data.totalBets);
     });
+
+    initializeSlideSocket(token);
 
     return () => {
       removeAllListeners();
@@ -240,11 +276,10 @@ const DiceFrame = () => {
 
   return (
     <div
-      className="w-full bg-secondry pt-[1px] pb-[12px] max-lg:pb-[36px]"
-      style={{ minHeight: "calc(100vh - 70px)" }}
+      className="w-full bg-secondry pt-[1px] pb-[12px] max-lg:pb-[36px] max-lg:min-h-[calc(100vh-69px)] lg:min-h-[calc(100vh-92px)]"
     >
       <div
-        className={`my-12 rounded mx-auto bg-primary w-[96%] max-w-[1400px] max-md:max-w-[450px] ${
+        className={`my-4 max-lg:my-2 lg:my-12 rounded mx-auto bg-primary w-[96%] max-w-[1400px] max-md:max-w-[450px] ${
           theatreMode ? "max-w-[100%]" : "max-lg:max-w-[450px]"
         }`}
       >
@@ -279,18 +314,21 @@ const DiceFrame = () => {
                 theatreMode
                   ? "md:col-span-8 md:order-2"
                   : "lg:col-span-8 lg:order-2"
-              } xl:col-span-9 bg-gray-900 order-1 max-lg:min-h-[450px]`}
+              } xl:col-span-9 bg-gray-900 order-1 max-lg:min-h-[280px]`}
             >
-              <div className="w-full px-5 relative text-white h-full items-center justify-center text-3xl">
-                <History list={currentHistory} displayOrder="right-to-left" />
+              <div className="relative flex h-full min-h-[280px] w-full flex-col items-center justify-center px-3 text-white max-lg:min-h-[260px] lg:min-h-0 lg:px-5">
+                <div className="absolute inset-x-0 top-2 z-10">
+                  <History list={currentHistory} />
+                </div>
                 <GameComponent
                   {...{
-                    setTargetNumber: setTargetMultiplier,
                     gamestarted,
-                    setgamestarted,
                     timeLeft,
                     bets,
                     targetMultiplier,
+                    phase,
+                    elapsedMs,
+                    round,
                   }}
                 />
               </div>

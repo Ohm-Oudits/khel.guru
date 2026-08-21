@@ -1,7 +1,21 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSelector } from "react-redux";
 import apiService from "../config/api";
+import {
+  getActiveWalletType,
+  onWalletModeChange,
+} from "../utils/activeWallet";
 import { onWalletRefresh } from "../utils/walletEvents";
+
+export const useActiveWalletType = () => {
+  const [walletType, setWalletType] = useState(getActiveWalletType);
+
+  useEffect(() => {
+    return onWalletModeChange(() => setWalletType(getActiveWalletType()));
+  }, []);
+
+  return walletType;
+};
 
 // Live balance for a casino wallet (demo by default). Refetches whenever any
 // surface broadcasts a wallet refresh (a placed bet, a settled round, a

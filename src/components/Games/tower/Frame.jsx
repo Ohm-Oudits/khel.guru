@@ -74,7 +74,8 @@ const Frame = () => {
 
     // Validate bet amount
     const betAmount = parseFloat(bet);
-    if (isNaN(betAmount) || betAmount <= 0) {
+    // Allow a 0 bet (testing); reject only a NaN or negative amount.
+    if (isNaN(betAmount) || betAmount < 0) {
       toast.error("Please enter a valid bet amount");
       return;
     }
@@ -105,7 +106,8 @@ const Frame = () => {
 
     // Validate bet amount
     const betAmount = parseFloat(bet);
-    if (isNaN(betAmount) || betAmount <= 0) {
+    // Allow a 0 bet (testing); reject only a NaN or negative amount.
+    if (isNaN(betAmount) || betAmount < 0) {
       toast.error("Please enter a valid bet amount");
       return;
     }

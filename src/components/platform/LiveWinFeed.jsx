@@ -9,7 +9,7 @@ const USERNAMES = [
 
 const CASINO_PLAYS = [
   "Crash", "Mines", "Plinko", "Dice", "Limbo", "Wheel", "Keno", "Roulette",
-  "Blackjack", "Baccarat", "Hilo", "Tower", "Balloons",
+  "Blackjack", "Baccarat", "Hilo", "Tower", "Parachute", "Balloons",
 ];
 
 const SPORTS_PLAYS = [
@@ -18,9 +18,10 @@ const SPORTS_PLAYS = [
   "Real Madrid vs Barca", "Djokovic vs Medvedev",
 ];
 
-// Rendered height of one row (single line vs a two-line detailed card).
 const ROW_PX = 26;
-const DETAILED_ROW_PX = 50;
+const DETAILED_ROW_PX = 56;
+const TABLE_COLUMNS =
+  "minmax(7.5rem,1.5fr) minmax(5rem,1fr) minmax(4.5rem,0.8fr) minmax(6rem,1fr) minmax(5rem,0.85fr) minmax(6rem,1fr)";
 const WIDE_BREAKPOINT = 1280;
 
 const pick = (list) => list[Math.floor(Math.random() * list.length)];
@@ -34,26 +35,27 @@ const makeEntry = (variant, id, ageMs = 0) => {
   const kind =
     variant === "both" ? (Math.random() < 0.5 ? "casino" : "sports") : variant;
   const label = pick(kind === "sports" ? SPORTS_PLAYS : CASINO_PLAYS);
-  const multiplier = (1 + Math.random() * 12).toFixed(2);
-  const payout = Math.floor(40 + Math.random() * 9000);
+  const won = Math.random() > 0.42;
+  const multiplier = Number(
+    (won ? 1.1 + Math.random() * 11.9 : 1 + Math.random() * 4).toFixed(2)
+  );
+  const betAmount = Math.floor(20 + Math.random() * 2400);
+  const payout = won ? Math.floor(betAmount * multiplier) : 0;
   const when = new Date(Date.now() - ageMs);
   return {
     id,
     user: pick(USERNAMES),
     label,
     kind,
-    multiplier,
+    won,
+    multiplier: multiplier.toFixed(2),
+    betAmount: `₹${betAmount.toLocaleString("en-IN")}`,
     payout: `₹${payout.toLocaleString("en-IN")}`,
     date: fmtDate(when),
     time: fmtTime(when),
   };
 };
 
-// A live-updating wins feed. New rows animate in at the top and the oldest
-// drops off the bottom. The scroll window has a FIXED pixel height with
-// overflow clipped, so row enter/exit never resizes the panel (no border
-// bounce). `fill` measures the parent height (desktop only); `detailed`
-// shows date + time columns.
 const LiveWinFeed = ({
   variant = "both",
   rows = 8,
@@ -90,7 +92,6 @@ const LiveWinFeed = ({
     return () => window.removeEventListener("resize", apply);
   }, [fill, rows, rowPx]);
 
-  // Keep the entry list sized to `count`.
   useEffect(() => {
     setEntries((prev) => {
       if (prev.length === count) return prev;
@@ -116,70 +117,116 @@ const LiveWinFeed = ({
 
   return (
     <div ref={rootRef} className="flex h-full flex-col">
-      <div ref={headerRef} className="mb-2 flex items-center gap-2">
-        <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
-        <h2 className="text-sm font-black uppercase tracking-[0.18em] text-white">
-          {title}
-        </h2>
+      <div ref={headerRef}>
+        {detailed ? (
+          <div className="mb-5 flex items-center gap-3 border-b border-white/10 pb-4">
+            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-rose-400 shadow-[0_0_8px_rgba(251,113,133,0.7)]" />
+            <h2 className="text-xl font-black tracking-tight text-white">
+              {title}
+            </h2>
+          </div>
+        ) : (
+          <div className="mb-2">
+            <div className="mb-3 flex items-center gap-2.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-rose-400 shadow-[0_0_8px_rgba(251,113,133,0.7)]" />
+              <h2 className="text-sm font-black uppercase tracking-[0.18em] text-white">
+                {title}
+              </h2>
+            </div>
+          </div>
+        )}
       </div>
-      <div
-        className="space-y-0.5 overflow-hidden"
-        style={{ height: count * rowPx }}
-      >
-        <AnimatePresence initial={false}>
-          {entries.map((entry) => (
-            <motion.div
-              key={entry.id}
-              layout
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.25 }}
-              className="rounded-lg bg-black/20 px-3 py-1 text-xs"
-            >
-              {detailed ? (
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex min-w-0 flex-col">
-                    <span className="truncate text-sm font-semibold text-white">
-                      {entry.user}{" "}
-                      <span className="font-normal text-text-tertiary">
-                        {entry.label}
-                      </span>
-                    </span>
-                    <span className="text-[11px] text-text-tertiary">
-                      {entry.date} · {entry.time}
-                    </span>
-                  </div>
-                  <div className="flex shrink-0 flex-col items-end">
-                    <span className="text-sm font-bold text-brand-primary">
-                      {entry.payout}
-                    </span>
-                    <span className="text-[11px] text-text-tertiary">
-                      {entry.multiplier}x
-                    </span>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex min-w-0 items-center gap-2">
+      <div className={detailed ? "min-w-0 overflow-x-auto" : ""}>
+        {detailed ? (
+          <div
+            className="mb-1 grid min-w-[42rem] gap-x-6 px-3 pb-3 text-xs font-semibold uppercase tracking-[0.16em] text-text-tertiary"
+            style={{ gridTemplateColumns: TABLE_COLUMNS }}
+          >
+            <span>Game</span>
+            <span>User</span>
+            <span>Time</span>
+            <span className="text-right">Bet Amount</span>
+            <span className="text-right">Multiplier</span>
+            <span className="text-right">Payout</span>
+          </div>
+        ) : null}
+        <div
+          className={detailed ? "overflow-hidden" : "space-y-0.5 overflow-hidden"}
+          style={{
+            height: count * rowPx,
+            minWidth: detailed ? "42rem" : undefined,
+          }}
+        >
+          <AnimatePresence initial={false}>
+            {entries.map((entry) => (
+              <motion.div
+                key={entry.id}
+                layout
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.25 }}
+                className={
+                  detailed
+                    ? "border-t border-white/[0.06] px-3 text-[15px] leading-none"
+                    : "rounded-lg bg-black/20 px-3 py-1 text-xs"
+                }
+                style={detailed ? { height: DETAILED_ROW_PX } : undefined}
+              >
+                {detailed ? (
+                  <div
+                    className="grid h-full items-center gap-x-6"
+                    style={{ gridTemplateColumns: TABLE_COLUMNS }}
+                  >
                     <span className="truncate font-semibold text-white">
-                      {entry.user}
-                    </span>
-                    <span className="truncate text-text-tertiary">
                       {entry.label}
                     </span>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-3 text-text-tertiary">
-                    <span>{entry.multiplier}x</span>
-                    <span className="font-bold text-brand-primary">
+                    <span className="truncate text-text-secondary">
+                      {entry.user}
+                    </span>
+                    <span className="truncate tabular-nums text-sm text-text-tertiary">
+                      {entry.time}
+                    </span>
+                    <span className="truncate text-right tabular-nums text-text-secondary">
+                      {entry.betAmount}
+                    </span>
+                    <span
+                      className={`truncate text-right tabular-nums ${
+                        entry.won ? "text-emerald-400" : "text-rose-400"
+                      }`}
+                    >
+                      {entry.multiplier}x
+                    </span>
+                    <span
+                      className={`truncate text-right tabular-nums font-semibold ${
+                        entry.won ? "text-brand-primary" : "text-text-tertiary"
+                      }`}
+                    >
                       {entry.payout}
                     </span>
                   </div>
-                </div>
-              )}
-            </motion.div>
-          ))}
-        </AnimatePresence>
+                ) : (
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className="truncate font-semibold text-white">
+                        {entry.user}
+                      </span>
+                      <span className="truncate text-text-tertiary">
+                        {entry.label}
+                      </span>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-3 text-text-tertiary">
+                      <span>{entry.multiplier}x</span>
+                      <span className="font-bold text-brand-primary">
+                        {entry.payout}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </div>
       </div>
     </div>
   );

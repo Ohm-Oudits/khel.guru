@@ -64,7 +64,7 @@ const BetCalculator = ({
   }, [targetMultiplier, calculateRollFromMultiplier, setRollUnder, setRoll]);
 
   return (
-    <div className="flex justify-between p-2 bg-gray-800 rounded-lg w-[98%] mx-auto text-white font-sans">
+    <div className="flex w-full justify-between gap-1 rounded-lg bg-gray-800 p-2 text-white font-sans">
       {/* Target Multiplier Input */}
       <div className="flex flex-col w-1/3 pr-2">
         <label

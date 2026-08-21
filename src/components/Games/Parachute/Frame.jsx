@@ -1,11 +1,12 @@
 /* eslint-disable */
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import "../../../styles/Frame.css";
 import FairnessModal from "../../Frame/FairnessModal";
 import FrameFooter from "../../Frame/FrameFooter";
 import HotKeysModal from "../../Frame/HotKeysModal";
 import GameInfoModal from "../../Frame/GameInfoModal";
 import MaxBetModal from "../../Frame/MaxBetModal";
+import History from "../../Frame/History";
 import Game from "./Game";
 import SideBar from "./Sidebar";
 import checkLoggedIn from "../../../utils/isloggedIn";
@@ -13,8 +14,12 @@ import { useNavigate } from "react-router-dom";
 import {
   getParachuteSocket,
   initializeParachuteSocket,
+  subscribeParachuteHistory,
+  checkoutParachute,
 } from "../../../socket/games/parachute";
 import { useSelector } from "react-redux";
+
+const PARACHUTE_HISTORY_KEY = "parachute-crash-history";
 
 const Frame = () => {
   const [isFav, setIsFav] = useState(false);
@@ -41,17 +46,124 @@ const Frame = () => {
   const [pause, setPause] = useState(false);
   const [difficulty, setDifficulty] = useState("medium");
   const [autoMultipyTarget, setAutoMultipyTarget] = useState("1.01");
+  const [crashHistory, setCrashHistory] = useState([]);
+  const [roundLocked, setRoundLocked] = useState(false);
 
   const navigate = useNavigate();
   const token = useSelector((state) => state.auth?.token);
-  const initSocket = () => {
-    const parachuteSocket = getParachuteSocket();
-    if (!parachuteSocket) {
-      initializeParachuteSocket(token);
+
+  const addCrashHistory = useCallback((multiplier) => {
+    const nextValue = Math.floor(parseFloat(multiplier) * 100) / 100;
+    if (!Number.isFinite(nextValue)) return;
+    setCrashHistory((prev) => {
+      const last = prev[prev.length - 1];
+      if (last && last.value === nextValue) return prev;
+      return [
+        ...prev,
+        { id: Date.now(), value: nextValue, timestamp: new Date().toISOString() },
+      ].slice(-50);
+    });
+  }, []);
+
+  const hydrateCrashHistory = useCallback((entries) => {
+    if (!Array.isArray(entries)) return;
+    setCrashHistory(
+      entries
+        .filter((item) => Number.isFinite(Number(item.value)))
+        .map((item) => ({
+          id: item.id,
+          value: Number(item.value),
+          timestamp: item.timestamp || new Date().toISOString(),
+        }))
+        .reverse()
+    );
+  }, []);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(PARACHUTE_HISTORY_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length) {
+          setCrashHistory(parsed);
+        }
+      }
+    } catch {
+      setCrashHistory([]);
     }
+  }, []);
+
+  useEffect(() => {
+    if (!crashHistory.length) return;
+    try {
+      localStorage.setItem(PARACHUTE_HISTORY_KEY, JSON.stringify(crashHistory));
+    } catch {
+      // ignore quota errors
+    }
+  }, [crashHistory]);
+
+  const initSocket = () => {
+    const authToken = token || localStorage.getItem("token");
+    if (!authToken) return;
+    initializeParachuteSocket(authToken);
   };
 
+  useEffect(() => {
+    const authToken = token || localStorage.getItem("token");
+    if (!authToken) return;
+
+    initializeParachuteSocket(authToken);
+
+    const unsubscribe = subscribeParachuteHistory((event) => {
+      if (event.type === "history") {
+        hydrateCrashHistory(event.history);
+        return;
+      }
+
+      if (event.type === "crash") {
+        if (Array.isArray(event.history) && event.history.length) {
+          hydrateCrashHistory(event.history);
+          return;
+        }
+        if (Number.isFinite(Number(event.multiplier))) {
+          addCrashHistory(event.multiplier);
+        }
+        return;
+      }
+
+      if (event.type === "checkout") {
+        if (Array.isArray(event.history) && event.history.length) {
+          hydrateCrashHistory(event.history);
+        } else if (Number.isFinite(Number(event.crashPoint))) {
+          addCrashHistory(event.crashPoint);
+        }
+      }
+    });
+
+    const socket = getParachuteSocket();
+    if (socket?.connected) {
+      socket.emit("get_history");
+    }
+
+    return unsubscribe;
+  }, [token, hydrateCrashHistory, addCrashHistory]);
+
+  const handleRoundSettle = useCallback(() => {
+    setRoundLocked(true);
+    setBettingStarted(false);
+    setCheckout(false);
+  }, []);
+
+  const handleRoundReady = useCallback(() => {
+    setRoundLocked(false);
+    setPause(false);
+    setBettingStarted(false);
+    setCheckout(false);
+  }, []);
+
   const handleBetClick = () => {
+    if (roundLocked || bettingStarted) return;
+
     if (!checkLoggedIn()) {
       navigate(`?tab=${"login"}`, { replace: true });
       return;
@@ -64,20 +176,23 @@ const Frame = () => {
   };
 
   const handleCheckout = () => {
+    if (roundLocked || !bettingStarted) return;
+
     const parachuteSocket = getParachuteSocket();
-    if (parachuteSocket) {
-      parachuteSocket.emit("checkout", { value });
-      console.log("Emitted checkout event");
-    } else {
+    if (!parachuteSocket) {
       console.error("Parachute socket not initialized");
       alert("Failed to join game: Socket not connected");
+      return;
     }
 
-    setCheckout(false);
+    handleRoundSettle();
     setPause(true);
+    checkoutParachute();
   };
 
   const handleAutoBet = () => {
+    if (roundLocked || bettingStarted) return;
+
     if (!checkLoggedIn()) {
       navigate(`?tab=${"login"}`, { replace: true });
       return;
@@ -99,12 +214,12 @@ const Frame = () => {
         }}
       >
         <div
-          className={`my-12 rounded mx-auto bg-primary w-[96%] max-w-[1400px] max-md:max-w-[450px] ${
+          className={`my-12 max-lg:my-2 rounded mx-auto bg-primary w-[96%] max-w-[1400px] max-md:max-w-[450px] ${
             theatreMode ? "max-w-[100%] max-h-screen" : "max-lg:max-w-[450px]"
           }`}
         >
           <div className="flex flex-col gap-[0.15rem] relative">
-            <div className="grid grid-cols-12 lg:h-[600px]">
+            <div className="grid grid-cols-12 max-lg:min-h-0 lg:h-[600px]">
               {/* Left Section */}
               <SideBar
                 theatreMode={theatreMode}
@@ -126,6 +241,7 @@ const Frame = () => {
                 setCheckout={setCheckout}
                 handleBetClick={handleBetClick}
                 handleCheckout={handleCheckout}
+                roundLocked={roundLocked}
                 value={value}
                 difficulty={difficulty}
                 setDifficulty={setDifficulty}
@@ -141,9 +257,12 @@ const Frame = () => {
                   theatreMode
                     ? "md:col-span-8 md:order-2"
                     : "lg:col-span-8 lg:order-2"
-                } xl:col-span-9 bg-gray-900 order-1`}
+                } xl:col-span-9 order-1 max-lg:min-h-[260px] max-lg:max-h-[300px] bg-gray-900`}
               >
-                <div className="w-full relative text-white h-full flex items-center justify-center text-3xl">
+                <div className="relative flex h-full w-full items-center justify-center text-3xl max-lg:text-xl text-white">
+                  <div className="pointer-events-none absolute inset-x-0 top-0 z-20 bg-gradient-to-b from-black/40 via-black/10 to-transparent px-1 pb-5 pt-2">
+                    <History list={crashHistory} palette="parachute" />
+                  </div>
                   <Game
                     bettingStarted={bettingStarted}
                     setBettingStarted={setBettingStarted}
@@ -159,6 +278,10 @@ const Frame = () => {
                     startAutoBet={startAutoBet}
                     setStartAutoBet={setStartAutoBet}
                     nbets={nbets}
+                    onRoundCrash={addCrashHistory}
+                    onRoundSettle={handleRoundSettle}
+                    onRoundReady={handleRoundReady}
+                    roundLocked={roundLocked}
                   />
                 </div>
               </div>

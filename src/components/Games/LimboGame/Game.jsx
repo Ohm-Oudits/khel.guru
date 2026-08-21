@@ -1,5 +1,3 @@
-import React, { useEffect, useState } from "react";
-
 const GameComponent = ({
   number,
   finalNumber,
@@ -8,9 +6,13 @@ const GameComponent = ({
   isAnimating,
 }) => {
   const parsedTargetMultiplier = parseFloat(targetMultiplier).toFixed(2);
+  const shown =
+    number !== null && number !== undefined
+      ? Number(number).toFixed(2)
+      : "1.00";
 
   const getNumberColor = () => {
-    if (defaultColor) return "text-gray-400";
+    if (isAnimating || defaultColor) return "text-white";
     if (finalNumber === null) return "text-gray-400";
     return Number(finalNumber) >= Number(parsedTargetMultiplier)
       ? "text-green-500"
@@ -18,17 +20,15 @@ const GameComponent = ({
   };
 
   return (
-    <div className="flex flex-col items-center justify-center max-h-[500px] h-[80vh] bg-gray-900 text-white">
+    <div className="relative flex w-full flex-col items-center justify-center px-3 pt-11 pb-2 lg:pt-4 lg:pb-2">
       <div
-        className={`font-bold py-4 px-8 mb-6 rounded-md transition-colors duration-300 ${getNumberColor()} ${
-          isAnimating ? "animate-pulse" : ""
-        }`}
+        className={`tabular-nums rounded-md px-4 py-2 font-bold lg:px-8 lg:py-4 ${getNumberColor()}`}
         style={{
-          fontSize: "clamp(4rem, 8vw, 8rem)",
-          transition: isAnimating ? "none" : "all 0.3s ease-in-out",
+          fontSize: "clamp(3rem, 16vw, 8rem)",
+          lineHeight: 1,
         }}
       >
-        {number !== null ? number : "1.00"}x
+        {shown}x
       </div>
     </div>
   );

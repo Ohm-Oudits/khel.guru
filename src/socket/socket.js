@@ -1,4 +1,5 @@
 import { io } from "socket.io-client";
+import { SOCKET_URL } from "../config/backendUrls";
 
 let socket = null;
 
@@ -12,7 +13,7 @@ export const initializeSocket = (token) => {
     socket.disconnect();
   }
 
-  const API_URL = import.meta.env.VITE_APP_SOCKET_URL;
+  const API_URL = SOCKET_URL;
 
   socket = io(API_URL, {
     auth: {

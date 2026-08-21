@@ -1,7 +1,7 @@
 import { io } from "socket.io-client";
+import { SOCKET_URL as API_URL } from "../../config/backendUrls";
 
 let minesSocket = null;
-const API_URL = import.meta.env.VITE_APP_SOCKET_URL;
 
 export const initializeMinesSocket = (token) => {
   // Reuse a live socket instead of churning a new connection on every mount —
@@ -36,6 +36,8 @@ export const initializeMinesSocket = (token) => {
   minesSocket.on("disconnect", () => {
     console.log("Mines namespace disconnected");
   });
+
+  return minesSocket;
 };
 
 export const getMinesSocket = () => {
@@ -52,6 +54,10 @@ export const disconnectMinesSocket = () => {
 // Start a round: commits the stake (debited server-side from walletType).
 export const addMinesGame = (betAmount, mines, walletType = "demo") => {
   if (!minesSocket) return false;
-  minesSocket.emit("add_game", { betAmount, mines, walletType });
+  minesSocket.emit("add_game", {
+    betAmount: Number(betAmount),
+    mines: Number(mines),
+    walletType,
+  });
   return true;
 };

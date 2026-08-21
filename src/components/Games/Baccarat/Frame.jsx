@@ -44,6 +44,14 @@ const Frame = () => {
   const [tieBet, setTieBet] = useState(0);
   const [bankerBet, setBankerBet] = useState(0);
 
+  // Track which spots the player has placed a chip on, independent of the
+  // chip amount, so a 0 stake (testing) still counts as a selected bet spot.
+  const [selectedSpots, setSelectedSpots] = useState({
+    player: false,
+    tie: false,
+    banker: false,
+  });
+
   const totalBet = playerBet + tieBet + bankerBet;
 
   const navigate = useNavigate();
@@ -106,7 +114,8 @@ const Frame = () => {
       return;
     }
 
-    if (totalBet <= 0) {
+    // Require a bet spot to be selected, but allow its stake to be 0 (testing).
+    if (!selectedSpots.player && !selectedSpots.tie && !selectedSpots.banker) {
       toast.error("Place a chip on Player, Tie or Banker first");
       return;
     }
@@ -135,11 +144,14 @@ const Frame = () => {
         "game_joined"
       );
 
+      // Send a stake for every selected spot, including 0-amount ones (testing).
       const bets = [
-        ["player", playerBet],
-        ["tie", tieBet],
-        ["banker", bankerBet],
-      ].filter(([, amount]) => amount > 0);
+        ["player", playerBet, selectedSpots.player],
+        ["tie", tieBet, selectedSpots.tie],
+        ["banker", bankerBet, selectedSpots.banker],
+      ]
+        .filter(([, , selected]) => selected)
+        .map(([betType, amount]) => [betType, amount]);
 
       for (const [betType, amount] of bets) {
         await emitAndWait(
@@ -224,6 +236,8 @@ const Frame = () => {
                     setBankerBet={setBankerBet}
                     tieBet={tieBet}
                     setTieBet={setTieBet}
+                    selectedSpots={selectedSpots}
+                    setSelectedSpots={setSelectedSpots}
                   />
                 </div>
               </div>

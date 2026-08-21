@@ -1,5 +1,7 @@
-import { useState } from "react";
-import GameBalanceBadge from "../shared/GameBalanceBadge";
+import {
+  GameRiskAutoRow,
+  TOWER_DIFFICULTY_OPTIONS,
+} from "../../Frame/GamePanelControls";
 
 const SideBar = ({
   theatreMode,
@@ -26,25 +28,6 @@ const SideBar = ({
   clearAutoSelectBoxes,
   disabled,
 }) => {
-  const options = [
-    { value: "Easy", label: "Easy", extra: ["❌", "✅", "✅", "✅"] },
-    { value: "Medium", label: " Medium", extra: ["❌", "✅", "✅"] },
-    { value: "Hard", label: " Hard", extra: ["❌", "✅"] },
-    { value: "Extreme", label: "Extreme", extra: ["❌", "❌", "✅"] },
-    {
-      value: "Nightmare",
-      label: " Nightmare",
-      extra: ["❌", "❌", "❌", "✅"],
-    },
-  ];
-
-  const handleSelect = (value) => {
-    setDifficulty(value);
-    setIsOpen(false);
-  };
-
-  const [isOpen, setIsOpen] = useState(false);
-
   const handleBetChange = (e) => {
     const value = e.target.value;
     // Only allow numbers and decimal point
@@ -52,6 +35,21 @@ const SideBar = ({
       setBet(value);
     }
   };
+
+  const handleModeSwitch = (mode) => {
+    if (disabled) return;
+    if (mode === "manual") {
+      if (startAutoBet) return;
+      setSelectBoxes(false);
+      setSelectedBoxes([]);
+    } else if (bettingStarted) {
+      return;
+    }
+    setBetMode(mode);
+  };
+
+  const modeSwitchDisabled =
+    disabled || startAutoBet || bettingStarted;
 
   return (
     <>
@@ -63,41 +61,21 @@ const SideBar = ({
         }`}
       >
         <div className="my-4 px-3 flex flex-col">
-          {/* Manual and auto  */}
-          <div className="sticky top-0 z-[1] bg-inactive py-0 rounded-md">
-            <div className="order-[100] max-lg:mt-2 lg:order-1 switch mb-4 w-full bg-primary rounded-full p-1.5 grid grid-cols-2 gap-1">
-              <div
-                onClick={() => {
-                  if (!startAutoBet && !disabled) {
-                    setBetMode("manual");
-                    setSelectBoxes(false);
-                    setSelectedBoxes([]);
-                  }
-                }}
-                className={`${
-                  betMode === "manual" ? "bg-inactive scale-95" : ""
-                } hover:bg-activeHover cursor-pointer col-span-1 flex items-center justify-center py-2 text-white font-semibold rounded-full transition-all duration-300 ease-in-out transform active:scale-90`}
-              >
-                Manual
-              </div>
-              <div
-                onClick={() => {
-                  if (!bettingStarted && !disabled) {
-                    setBetMode("auto");
-                  }
-                }}
-                className={`${
-                  betMode === "auto" ? "bg-inactive scale-95" : ""
-                } hover:bg-activeHover cursor-pointer col-span-1 flex items-center justify-center py-2 text-white font-semibold rounded-full transition-all duration-300 ease-in-out transform active:scale-90`}
-              >
-                Auto
-              </div>
-            </div>
-          </div>
+          <GameRiskAutoRow
+            label="Difficulty"
+            options={TOWER_DIFFICULTY_OPTIONS}
+            value={Difficulty}
+            onChange={setDifficulty}
+            segmentDisabled={bettingStarted || disabled}
+            betMode={betMode}
+            setBetMode={setBetMode}
+            modeSwitchDisabled={modeSwitchDisabled}
+            onModeSwitch={handleModeSwitch}
+            ariaLabel="Difficulty level"
+          />
 
           {betMode === "manual" && (
             <>
-              <GameBalanceBadge className="mb-2" />
               <div className="order-1 md:order-2 my-2 w-full">
                 <div className="flex items-center mb-[-4px] pl-[2px] justify-between w-full font-semibold text-label">
                   <label htmlFor="betAmount">Bet Amount</label>
@@ -139,41 +117,6 @@ const SideBar = ({
                       Max
                     </div>
                   )}
-                </div>
-              </div>
-
-              <div className="order-10 md:order-2 mb-2 mt-1 w-full flex items-center gap-3">
-                <div className="w-full">
-                  <label
-                    htmlFor="Difficulty"
-                    className="flex items-center mb-[-4px] pl-[2px] justify-between w-full font-semibold text-label"
-                  >
-                    <h1>Difficulty</h1>
-                  </label>
-                  <div className="relative w-full">
-                    <button
-                      className="w-full mt-2 h-full flex justify-between  rounded-md bg-black p-3 text-white px-3 pr-6 py-2 border border-input hover:border-primary-4"
-                      onClick={() => setIsOpen(!isOpen)}
-                      disabled={bettingStarted || disabled}
-                    >
-                      {options.find((opt) => opt.value === Difficulty)?.label ||
-                        "Select Difficulty"}
-                    </button>
-
-                    {isOpen && (
-                      <div className="absolute z-10 mt-2 w-full bg-black border border-primary-4 rounded-md shadow-lg">
-                        {options.map((opt) => (
-                          <div
-                            key={opt.value}
-                            className="flex items-center text-[0.9rem] justify-between p-3 hover:bg-primary-4 cursor-pointer text-white"
-                            onClick={() => handleSelect(opt.value)}
-                          >
-                            <span>{opt.label}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
                 </div>
               </div>
 
@@ -259,41 +202,6 @@ const SideBar = ({
                   />
                 </div>
               )}
-
-              <div className="order-10 md:order-2 mb-2 mt-1 w-full flex items-center gap-3">
-                <div className="w-full">
-                  <label
-                    htmlFor="Difficulty"
-                    className="flex items-center mb-[-4px] pl-[2px] justify-between w-full font-semibold text-label"
-                  >
-                    <h1>Difficulty</h1>
-                  </label>
-                  <div className="relative w-full">
-                    <button
-                      className="w-full mt-2 h-full flex justify-between  rounded-md bg-black p-3 text-white px-3 pr-6 py-2 border border-input hover:border-primary-4"
-                      onClick={() => setIsOpen(!isOpen)}
-                      disabled={startAutoBet || disabled}
-                    >
-                      {options.find((opt) => opt.value === Difficulty)?.label ||
-                        "Select Difficulty"}
-                    </button>
-
-                    {isOpen && (
-                      <div className="absolute z-10 mt-2 w-full bg-black border border-primary-4 rounded-md shadow-lg">
-                        {options.map((opt) => (
-                          <div
-                            key={opt.value}
-                            className="flex items-center text-[0.9rem] justify-between p-3 hover:bg-primary-4 cursor-pointer text-white"
-                            onClick={() => handleSelect(opt.value)}
-                          >
-                            <span>{opt.label}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
 
               {selectBoxes ? (
                 <>

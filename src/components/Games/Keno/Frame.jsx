@@ -103,8 +103,8 @@ const Frame = () => {
       }
 
       const parsedBet = parseFloat(bet);
-      if (isNaN(parsedBet) || parsedBet < 0.000001) {
-        toast.error("Bet amount must be at least 0.000001");
+      if (isNaN(parsedBet) || parsedBet < 0) {
+        toast.error("Bet amount must be 0 or greater");
         return;
       }
 
@@ -142,8 +142,8 @@ const Frame = () => {
     }
 
     const parsedBet = parseFloat(bet);
-    if (isNaN(parsedBet) || parsedBet < 0.000001) {
-      toast.error("Bet amount must be at least 0.000001");
+    if (isNaN(parsedBet) || parsedBet < 0) {
+      toast.error("Bet amount must be 0 or greater");
       return;
     }
 

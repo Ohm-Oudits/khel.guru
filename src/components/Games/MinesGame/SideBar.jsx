@@ -1,5 +1,3 @@
-import GameBalanceBadge from "../shared/GameBalanceBadge";
-
 const SideBar = ({
   theatreMode,
   setBetMode,
@@ -28,13 +26,19 @@ const SideBar = ({
   loading,
   setGrid,
   connectionStatus,
+  stakeBlockReason = null,
 }) => {
   const getButtonText = () => {
     if (connectionStatus === "Connecting") return "Connecting...";
     if (connectionStatus === "Disconnected") return "Disconnected";
     if (connectionStatus === "Not Logged In") return "Please Login";
-    return bettingStarted ? `Cashout (${totalprofit.toFixed(2)})` : "Bet";
+    if (stakeBlockReason && !bettingStarted) return stakeBlockReason;
+    const profitValue = Number(totalprofit);
+    return bettingStarted
+      ? `Cashout (${Number.isFinite(profitValue) ? profitValue.toFixed(2) : "0.00"})`
+      : "Bet";
   };
+  const betLocked = disabled || Boolean(stakeBlockReason);
 
   return (
     <>
@@ -93,7 +97,6 @@ const SideBar = ({
 
           {betMode === "manual" && (
             <>
-              <GameBalanceBadge className="mb-2" />
               <div className="order-1 md:order-2 my-2 w-full">
                 <div className="flex items-center mb-[-4px] pl-[2px] justify-between w-full font-semibold text-label">
                   <label htmlFor="betAmount">Bet Amount</label>
@@ -152,7 +155,7 @@ const SideBar = ({
                     value={mines}
                     id="mines"
                     disabled={bettingStarted}
-                    onChange={(e) => setMines(e.target.value)}
+                    onChange={(e) => setMines(Number(e.target.value))}
                   >
                     {Array.from({ length: 24 }, (_, i) => (
                       <option key={i} value={i + 1}>
@@ -229,9 +232,9 @@ const SideBar = ({
               {!bettingStarted && (
                 <div
                   className={`order-2 max-md:mb-2 md:order-20 transition-all duration-300 ease-in-out transform active:scale-90 flex items-center justify-center w-full mx-auto py-1.5 mt-3 max-lg:mt-4 rounded text-lg font-semibold bg-button-primary text-black cursor-pointer ${
-                    disabled ? "opacity-50 cursor-not-allowed" : ""
+                    betLocked ? "opacity-50 cursor-not-allowed" : ""
                   }`}
-                  onClick={disabled ? undefined : handleMineBet}
+                  onClick={betLocked ? undefined : handleMineBet}
                 >
                   {getButtonText()}
                 </div>
@@ -315,7 +318,7 @@ const SideBar = ({
                     value={mines}
                     id="mines"
                     disabled={startAutoBet}
-                    onChange={(e) => setMines(e.target.value)}
+                    onChange={(e) => setMines(Number(e.target.value))}
                   >
                     {Array.from({ length: 24 }, (_, i) => (
                       <option key={i} value={i + 1}>
@@ -339,13 +342,13 @@ const SideBar = ({
                     Change The Boxes
                   </button>
                   <button
-                    onClick={disabled ? undefined : handleAutoBet}
-                    disabled={startAutoBet || disabled}
+                    onClick={betLocked ? undefined : handleAutoBet}
+                    disabled={startAutoBet || betLocked}
                     className={`order-2 max-md:mb-2 md:order-20 transition-all duration-300 ease-in-out transform flex items-center justify-center w-full mx-auto py-1.5 mt-4 max-lg:mt-4 rounded text-lg font-semibold text-black cursor-pointer ${
                       startAutoBet
                         ? "bg-primary text-white cursor-text"
                         : "bg-button-primary active:scale-90"
-                    } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
+                    } ${betLocked ? "opacity-50 cursor-not-allowed" : ""}`}
                   >
                     Start Autobet
                   </button>

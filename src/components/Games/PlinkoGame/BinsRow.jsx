@@ -59,16 +59,19 @@ const BinRow = ({
 
   const binAnimationsRef = useRef({});
   const currentBinIndex = usePlinkoStore((state) => state.currentBinIndex);
+  const landNonce = usePlinkoStore((state) => state.landNonce);
 
   const initAnimation = (node, binIndex) => {
+    if (!node || binAnimationsRef.current[binIndex]) return;
+
     const bounceAnimation = node.animate(
       [
         { transform: "translateY(0)" },
-        { transform: "translateY(30%)" },
+        { transform: "translateY(35%)" },
         { transform: "translateY(0)" },
       ],
       {
-        duration: 300,
+        duration: 380,
         easing: "cubic-bezier(0.18, 0.89, 0.32, 1.28)",
       }
     );
@@ -76,9 +79,8 @@ const BinRow = ({
     binAnimationsRef.current[binIndex] = bounceAnimation;
   };
 
-
   const playAnimation = (binIndex) => {
-    if (!isAnimationOn) return;
+    if (!isAnimationOn || binIndex == null) return;
 
     const animation = binAnimationsRef.current[binIndex];
     if (!animation) return;
@@ -87,11 +89,8 @@ const BinRow = ({
   };
 
   useEffect(() => {
-    if (currentBinIndex !== undefined) {
-      playAnimation(currentBinIndex);
-    }
-    
-  }, [currentBinIndex]);
+    playAnimation(currentBinIndex);
+  }, [currentBinIndex, landNonce, isAnimationOn]);
   
   if (!plinkoEngine) {
     return null;
@@ -110,9 +109,7 @@ const BinRow = ({
             <div
               key={binIndex}
               ref={(node) => {
-                if (node) {
-                  initAnimation(node, binIndex);
-                }
+                if (node) initAnimation(node, binIndex);
               }}
               className="flex flex-1 items-center justify-center rounded-sm text-[clamp(6px,2.784px+0.87vw,8px)] font-bold text-gray-950 shadow-[0_2px_var(--shadow-color)] lg:rounded-md lg:text-[clamp(10px,-16.944px+2.632vw,12px)] lg:shadow-[0_3px_var(--shadow-color)]"
               style={{

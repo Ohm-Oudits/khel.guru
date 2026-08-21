@@ -1,11 +1,12 @@
 import { io } from "socket.io-client";
+import { SOCKET_URL as API_URL } from "../../config/backendUrls";
 
 let slideSocket = null;
-const API_URL = import.meta.env.VITE_APP_SOCKET_URL;
 
 // Event handlers
 let onGameStateHandler = null;
 let onTimeUpdateHandler = null;
+let onRoundStartHandler = null;
 let onRoundResultHandler = null;
 let onNewRoundHandler = null;
 let onBetPlacedHandler = null;
@@ -18,11 +19,14 @@ let onBetResultHandler = null;
 
 export const initializeSlideSocket = (token) => {
   if (slideSocket) {
-    return;
+    if (slideSocket.connected) {
+      slideSocket.emit("join_game");
+    }
+    return slideSocket;
   }
 
   slideSocket = io(`${API_URL}/slide`, {
-    auth: { token },
+    ...(token ? { auth: { token } } : {}),
     transports: ["websocket"],
     reconnection: true,
     reconnectionAttempts: 3,
@@ -36,10 +40,7 @@ export const initializeSlideSocket = (token) => {
 
   slideSocket.on("connect_error", (error) => {
     console.error("[Slide] Connection error:", error);
-    if (
-      error.message === "Authentication required" ||
-      error.message === "Invalid token"
-    ) {
+    if (error.message === "Invalid token") {
       console.log("[Slide] Authentication failed, disconnecting");
       disconnectSlideSocket();
     }
@@ -57,6 +58,11 @@ export const initializeSlideSocket = (token) => {
 
   slideSocket.on("time_update", (data) => {
     if (onTimeUpdateHandler) onTimeUpdateHandler(data);
+  });
+
+  slideSocket.on("round_start", (data) => {
+    console.log("[Slide] Round start:", data);
+    if (onRoundStartHandler) onRoundStartHandler(data);
   });
 
   slideSocket.on("round_result", (data) => {
@@ -103,10 +109,16 @@ export const initializeSlideSocket = (token) => {
     console.log("[Slide] Bet result:", data);
     if (onBetResultHandler) onBetResultHandler(data);
   });
+
+  return slideSocket;
 };
 
 export const getSlideSocket = () => {
   return slideSocket;
+};
+
+export const onRoundStart = (handler) => {
+  onRoundStartHandler = handler;
 };
 
 export const disconnectSlideSocket = () => {
@@ -178,6 +190,7 @@ export const placeAutoBet = (autoBetData) => {
 export const removeAllListeners = () => {
   onGameStateHandler = null;
   onTimeUpdateHandler = null;
+  onRoundStartHandler = null;
   onRoundResultHandler = null;
   onNewRoundHandler = null;
   onBetPlacedHandler = null;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 
 const Game = ({
   rollover,
@@ -17,45 +17,49 @@ const Game = ({
   targetPosition,
 }) => {
   const draggingRef = useRef(false);
-  const [isAnimating, setIsAnimating] = useState(false);
+  const trackRef = useRef(null);
   const [resultValue, setResultValue] = useState(null);
-
-  const handleMouseDown = () => {
-    if (!Start && !isAnimating) {
-      draggingRef.current = true;
-    }
-  };
 
   useEffect(() => {
     setFixedPosition(rollover);
   }, [rollover]);
 
-  const handleMouseMove = (e) => {
-    if (draggingRef.current && !Start && !isAnimating) {
-      const rect = e.target.parentElement.getBoundingClientRect();
-      setGameResult("");
-      setResultValue(null);
-
-      let newLeft = ((e.clientX - rect.left) / rect.width) * 100;
-      newLeft = Math.max(0, Math.min(100, newLeft));
-      const roundedLeft = Math.round(newLeft * 10) / 10;
-
-      setFixedPosition(roundedLeft);
-      setRollover(roundedLeft);
-      const newMultiplier = calculateMultiplier(winChance);
-      setMultiplier(parseFloat(newMultiplier).toFixed(2));
-      setDicePosition(roundedLeft);
-    }
+  const applyPosition = (raw) => {
+    const rounded = Math.round(Math.max(0, Math.min(100, raw)) * 10) / 10;
+    setGameResult("");
+    setResultValue(null);
+    setFixedPosition(rounded);
+    setRollover(rounded);
+    const newMultiplier = calculateMultiplier(winChance);
+    setMultiplier(parseFloat(newMultiplier).toFixed(2));
+    setDicePosition(rounded);
   };
 
-  const handleMouseUp = () => {
+  const positionFromClientX = (clientX) => {
+    const rect = trackRef.current?.getBoundingClientRect();
+    if (!rect || rect.width === 0) return null;
+    return ((clientX - rect.left) / rect.width) * 100;
+  };
+
+  const locked = Boolean(Start);
+
+  const handlePointerDown = (e) => {
+    if (locked) return;
+    draggingRef.current = true;
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    const next = positionFromClientX(e.clientX);
+    if (next != null) applyPosition(next);
+  };
+
+  const handlePointerMove = (e) => {
+    if (!draggingRef.current || locked) return;
+    const next = positionFromClientX(e.clientX);
+    if (next != null) applyPosition(next);
+  };
+
+  const handlePointerUp = () => {
     draggingRef.current = false;
   };
-
-  useEffect(() => {
-    window.addEventListener("mouseup", handleMouseUp);
-    return () => window.removeEventListener("mouseup", handleMouseUp);
-  }, []);
 
   useEffect(() => {
     if (Start && targetPosition !== null) {
@@ -68,71 +72,72 @@ const Game = ({
   }, [Start, targetPosition, winChance]);
 
   return (
-    <>
-      <div className="flex flex-col items-center justify-center h-[450px] bg-gray-900 text-white">
-        <div className="relative w-full max-w-2xl flex justify-between px-2 text-sm mb-1">
-          <span>0</span>
-          <span>25</span>
-          <span>50</span>
-          <span>75</span>
-          <span>100</span>
+    <div className="relative flex w-full flex-col items-center justify-center px-3 pt-8 pb-2 lg:px-8 lg:pt-4 lg:pb-2">
+      {resultValue && (
+        <div className="mb-2 flex h-10 w-full max-w-2xl items-center justify-center">
+          <div className="rounded-lg bg-gray-800/80 px-4 py-1.5 text-center backdrop-blur-sm">
+            <div className="text-base font-bold leading-tight">
+              {resultValue.percentage}
+            </div>
+            <div className="text-xs text-gray-400">
+              {resultValue.multiplier}x
+            </div>
+          </div>
         </div>
+      )}
+
+      <div className="mb-1 flex w-full max-w-2xl justify-between px-1 text-[11px] text-white/60 lg:text-sm">
+        <span>0</span>
+        <span>25</span>
+        <span>50</span>
+        <span>75</span>
+        <span>100</span>
+      </div>
+
+      <div
+        ref={trackRef}
+        className={`relative h-12 w-full max-w-2xl overflow-visible rounded-lg bg-gray-700 lg:h-16 ${
+          locked ? "cursor-not-allowed" : "cursor-pointer"
+        }`}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+      >
+        <div
+          className={`pointer-events-none absolute top-1/2 h-2 -translate-y-1/2 ${
+            rollUnder ? "bg-green-500" : "bg-red-500"
+          }`}
+          style={{ width: `${fixedPosition}%` }}
+        ></div>
 
         <div
-          className="relative w-full max-w-2xl h-16 bg-gray-700 rounded-lg overflow-x-hidden overflow-y-visible"
-          onMouseMove={handleMouseMove}
-        >
+          className={`pointer-events-none absolute top-1/2 h-2 -translate-y-1/2 ${
+            rollUnder ? "bg-red-500" : "bg-green-500"
+          }`}
+          style={{
+            left: `${fixedPosition}%`,
+            width: `${100 - fixedPosition}%`,
+          }}
+        ></div>
+
+        <div
+          className={`pointer-events-none absolute top-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-md bg-blue-500 ${
+            locked ? "" : "shadow-md"
+          }`}
+          style={{ left: `${fixedPosition}%` }}
+        ></div>
+
+        {Start && (
           <div
-            className={`absolute top-1/2 -translate-y-1/2 h-2 ${
-              rollUnder ? "bg-green-500" : "bg-red-500"
-            }`}
-            style={{ width: `${fixedPosition}%` }}
-          ></div>
-
-          <div
-            className={`absolute top-1/2 -translate-y-1/2 h-2 ${
-              rollUnder ? "bg-red-500" : "bg-green-500"
-            }`}
-            style={{
-              left: `${fixedPosition}%`,
-              width: `${100 - fixedPosition}%`,
-            }}
-          ></div>
-
-          <div
-            className={`absolute top-1/2 w-6 h-6 bg-blue-500 rounded-md -translate-y-1/2 -translate-x-1/2 ${
-              !Start && !isAnimating ? "cursor-pointer" : "cursor-not-allowed"
-            }`}
-            style={{ left: `${fixedPosition}%` }}
-            onMouseDown={handleMouseDown}
-          ></div>
-
-          {Start && (
-            <div
-              className={`absolute top-1/2 w-12 h-12 text-black font-bold flex items-center justify-center rounded-lg -translate-y-1/2 -translate-x-1/2 transition-all duration-1000 ease-in-out`}
-              style={{
-                left: `${dicePosition}%`,
-                zIndex: 10,
-                transform: `translate(-50%, -50%) scale(1.2)`,
-              }}
-            >
-              🎲
-            </div>
-          )}
-        </div>
-
-        {resultValue && (
-          <div className="absolute top-[20%] left-1/2 py-2 px-4 text-white font-bold flex items-center justify-center rounded-lg -translate-y-1/2 -translate-x-1/2 transition-all duration-300 bg-gray-800/80 backdrop-blur-sm">
-            <div className="flex flex-col items-center">
-              <span className="text-lg">{resultValue.percentage}</span>
-              <span className="text-sm text-gray-400">
-                {resultValue.multiplier}x
-              </span>
-            </div>
+            className="pointer-events-none absolute top-1/2 z-10 flex h-10 w-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center text-2xl transition-all duration-1000 ease-in-out lg:h-12 lg:w-12"
+            style={{ left: `${dicePosition}%` }}
+          >
+            🎲
           </div>
         )}
       </div>
-    </>
+    </div>
   );
 };
 

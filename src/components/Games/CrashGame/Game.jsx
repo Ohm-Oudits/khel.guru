@@ -1,5 +1,5 @@
 /* eslint-disable */
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Line } from "react-chartjs-2";
 import {
   Chart as ChartJS,
@@ -15,7 +15,7 @@ import "tailwindcss/tailwind.css";
 import "../../../styles/Crash.css";
 
 import { getCrashSocket } from "../../../socket/games/crash";
-import { toast } from "react-toastify";
+import { CrashMarker } from "./CrashMarker";
 
 ChartJS.register(
   CategoryScale,
@@ -27,188 +27,294 @@ ChartJS.register(
   Legend
 );
 
+const GROWTH_K = 18;
+const TICK_MS = 50;
+
+const liveMultiplier = (elapsedSec) => Math.exp(elapsedSec / GROWTH_K);
+
+const seedCurve = (elapsedSec, current) => {
+  const points = [{ time: 0, multiplier: 1 }];
+  if (elapsedSec <= 0.05) return points;
+  const step = Math.min(0.08, Math.max(0.05, elapsedSec / 120));
+  for (let t = step; t < elapsedSec; t += step) {
+    points.push({ time: t, multiplier: liveMultiplier(t) });
+  }
+  points.push({ time: elapsedSec, multiplier: current });
+  return points;
+};
+
 const Game = ({
   multiplier,
   setMultiplier,
-  setBettingStarted,
   setDisableBet,
-  autoMultipyTarget,
-  startAutoBet,
-  setStartAutoBet,
-  nbets,
-  onRoundCrashed,
-  onAutoRoundStart,
+  onCrashHistory,
+  onHistoryHydrate,
+  onPhase,
   onAutoCashout,
+  autoCashoutAt,
+  autoCashoutEnabled,
 }) => {
-  const [isPlaying, setIsPlaying] = useState(false);
+  const [phase, setPhase] = useState("waiting");
+  const [hasSynced, setHasSynced] = useState(false);
+  const [countdown, setCountdown] = useState(0);
+  const [tip, setTip] = useState({ x: null, y: null, angle: -25 });
+  const chartRef = useRef(null);
   const [data, setData] = useState([{ time: 0, multiplier: 1.0 }]);
-  const [time, setTime] = useState(0);
-  const [countdown, setCountdown] = useState(5);
-  const [isCrashed, setIsCrashed] = useState(false);
   const [xMax, setXMax] = useState(12);
   const [yMax, setYMax] = useState(2);
-  const [targetHitCount, setTargetHitCount] = useState(0);
+
+  const phaseRef = useRef("waiting");
+  const hasSyncedRef = useRef(false);
+  const roundRef = useRef(null);
+  const roundStartRef = useRef(Date.now());
+  const waitUntilRef = useRef(null);
+  const lastHistoryId = useRef(null);
+  const hydratedHistory = useRef(false);
+  const autoCashoutFired = useRef(false);
+  const dataRef = useRef([{ time: 0, multiplier: 1.0 }]);
+  const xMaxRef = useRef(12);
+  const yMaxRef = useRef(2);
+
+  const onPhaseRef = useRef(onPhase);
+  const onCrashHistoryRef = useRef(onCrashHistory);
+  const onHistoryHydrateRef = useRef(onHistoryHydrate);
+  const onAutoCashoutRef = useRef(onAutoCashout);
+  const autoCashoutAtRef = useRef(autoCashoutAt);
+  const autoCashoutEnabledRef = useRef(autoCashoutEnabled);
+  const setMultiplierRef = useRef(setMultiplier);
+  const setDisableBetRef = useRef(setDisableBet);
+
+  onPhaseRef.current = onPhase;
+  onCrashHistoryRef.current = onCrashHistory;
+  onHistoryHydrateRef.current = onHistoryHydrate;
+  onAutoCashoutRef.current = onAutoCashout;
+  autoCashoutAtRef.current = autoCashoutAt;
+  autoCashoutEnabledRef.current = autoCashoutEnabled;
+  setMultiplierRef.current = setMultiplier;
+  setDisableBetRef.current = setDisableBet;
+
+  const applyPoints = (points) => {
+    dataRef.current = points;
+    setData(points);
+  };
+
+  const resetGraph = () => {
+    applyPoints([{ time: 0, multiplier: 1 }]);
+    xMaxRef.current = 12;
+    yMaxRef.current = 2;
+    setXMax(12);
+    setYMax(2);
+    setTip({ x: null, y: null, angle: -25 });
+    setMultiplierRef.current(1);
+  };
 
   useEffect(() => {
-    if (countdown > 0) {
-      const timer = setTimeout(() => {
-        setCountdown(countdown - 1);
-      }, 1000);
-      return () => clearTimeout(timer);
-    } else {
-      startGame();
-    }
-  }, [countdown]);
+    let cancelled = false;
+    let boundSocket = null;
+    let timer = null;
 
-  useEffect(() => {
-    if (isPlaying && startAutoBet) {
-      const crashSocket = getCrashSocket();
-      if (crashSocket) {
-        crashSocket.emit("add_game", {});
-        console.log("Emitted add_game event");
-        // Commit the auto-bet stake for this round (debited server-side).
-        if (onAutoRoundStart) {
-          onAutoRoundStart();
-        }
-      } else {
-        console.error("Wheel socket not initialized");
-        toast.error("Failed to join game: Socket not connected");
+    const onState = (state) => {
+      const nextPhase = state.phase || "waiting";
+      const nextRound = state.round;
+      const elapsedSec = (state.elapsedMs || 0) / 1000;
+      const nextMult = Number(state.multiplier) || 1;
+      const isFirstSync = !hasSyncedRef.current;
+      const phaseChanged = nextPhase !== phaseRef.current;
+      const roundChanged = nextRound !== roundRef.current;
+
+      if (isFirstSync) {
+        hasSyncedRef.current = true;
+        setHasSynced(true);
       }
-    }
-  }, [isPlaying, startAutoBet]);
 
-  useEffect(() => {
-    let interval;
-    if (isPlaying) {
-      interval = setInterval(() => {
-        setTime((prev) => prev + 0.1);
-        const newMultiplier = Math.exp(time / 18);
-        setMultiplier(newMultiplier);
+      if (phaseChanged || isFirstSync) {
+        phaseRef.current = nextPhase;
+        setPhase(nextPhase);
+        setDisableBetRef.current(nextPhase !== "waiting");
+        if (onPhaseRef.current) onPhaseRef.current(nextPhase);
+        if (nextPhase === "waiting") {
+          autoCashoutFired.current = false;
+          resetGraph();
+        }
+      }
 
-        const rand = Math.random();
-        if (rand < 0.01) {
-          setIsCrashed(true);
-          if (startAutoBet && newMultiplier < autoMultipyTarget) {
-            console.log("Crashed Before Reaching Target");
-            // Auto bet busted: the stake stays debited, nothing is credited.
-            if (onRoundCrashed) {
-              onRoundCrashed();
+      if (nextPhase === "waiting" && Number.isFinite(Number(state.remainingMs))) {
+        waitUntilRef.current = Date.now() + Number(state.remainingMs);
+        setCountdown(Math.max(0, Math.ceil(Number(state.remainingMs) / 1000)));
+      } else if (nextPhase !== "waiting") {
+        waitUntilRef.current = null;
+      }
+
+      if (!hydratedHistory.current && Array.isArray(state.history)) {
+        hydratedHistory.current = true;
+        if (state.history[0]) lastHistoryId.current = state.history[0].id;
+        if (onHistoryHydrateRef.current) {
+          onHistoryHydrateRef.current(state.history);
+        }
+      }
+
+      if (
+        nextPhase === "running" &&
+        (roundChanged || phaseChanged || isFirstSync)
+      ) {
+        roundRef.current = nextRound;
+        roundStartRef.current = Date.now() - (state.elapsedMs || 0);
+        autoCashoutFired.current = false;
+        const points =
+          elapsedSec < 0.2
+            ? [{ time: 0, multiplier: 1 }]
+            : seedCurve(elapsedSec, nextMult);
+        applyPoints(points);
+        xMaxRef.current = Math.max(12, elapsedSec * 1.25);
+        yMaxRef.current = Math.max(2, nextMult * 1.15);
+        setXMax(xMaxRef.current);
+        setYMax(yMaxRef.current);
+        setMultiplierRef.current(nextMult);
+      }
+
+      if (nextPhase === "crashed") {
+        roundRef.current = nextRound;
+        const crashAt = Number(state.crashPoint) || nextMult;
+        setMultiplierRef.current(crashAt);
+        setData((prev) => {
+          const last = prev[prev.length - 1];
+          if (last && Math.abs(last.multiplier - crashAt) < 0.001) {
+            dataRef.current = prev;
+            return prev;
+          }
+          const t = last ? last.time : elapsedSec;
+          const next = [...prev, { time: t, multiplier: crashAt }];
+          dataRef.current = next;
+          return next;
+        });
+
+        if (Array.isArray(state.history) && state.history[0]) {
+          const newest = state.history[0];
+          if (newest.id !== lastHistoryId.current) {
+            lastHistoryId.current = newest.id;
+            if (onCrashHistoryRef.current) {
+              onCrashHistoryRef.current(newest.value);
             }
           }
-          if (startAutoBet && newMultiplier >= autoMultipyTarget) {
-            console.log("Checkout Point Reached");
-            // The auto cashout fired at the target before the crash.
-            if (onAutoCashout) {
-              onAutoCashout(autoMultipyTarget);
-            }
-          }
-          if (!startAutoBet && onRoundCrashed) {
-            // Manual bet still in play at the crash: forfeit it.
-            onRoundCrashed();
-          }
-          if (startAutoBet && targetHitCount < nbets) {
-            setTargetHitCount((prev) => (prev += 1));
-          }
-          stopGame(false);
+        }
+      }
+    };
+
+    const bind = (crashSocket) => {
+      boundSocket = crashSocket;
+      crashSocket.on("round_state", onState);
+      if (crashSocket.connected) {
+        crashSocket.emit("get_state", {});
+      } else {
+        crashSocket.once("connect", () => {
+          crashSocket.emit("get_state", {});
+        });
+      }
+    };
+
+    const existing = getCrashSocket();
+    if (existing) {
+      bind(existing);
+    } else {
+      timer = setInterval(() => {
+        if (cancelled) return;
+        const crashSocket = getCrashSocket();
+        if (crashSocket) {
+          clearInterval(timer);
+          timer = null;
+          bind(crashSocket);
         }
       }, 100);
-    } else if (!isPlaying && multiplier !== 1.0) {
-      clearInterval(interval);
-    }
-
-    return () => clearInterval(interval);
-  }, [
-    isPlaying,
-    time,
-    multiplier,
-    autoMultipyTarget,
-    startAutoBet,
-    nbets,
-    targetHitCount,
-  ]);
-
-  useEffect(() => {
-    const crashSocket = getCrashSocket();
-
-    if (crashSocket) {
-      crashSocket.on("error", ({ message }) => {
-        console.error("Join game error:", message);
-        toast.error(`Error joining game: ${message}`);
-      });
     }
 
     return () => {
-      // Only detach our listener; don't tear down the shared socket on every
-      // effect re-run, which disconnected it mid-handshake and dropped bets.
-      const crashSocket = getCrashSocket();
-      if (crashSocket) {
-        crashSocket.off("error");
-      }
+      cancelled = true;
+      if (timer) clearInterval(timer);
+      boundSocket?.off("round_state", onState);
     };
   }, []);
 
   useEffect(() => {
-    if (targetHitCount >= nbets) {
-      setStartAutoBet(false);
-      setTargetHitCount(0);
-    }
-  }, [targetHitCount]);
+    const id = setInterval(() => {
+      if (!hasSyncedRef.current) return;
 
-  useEffect(() => {
-    if (isPlaying) {
-      setData((prevData) => [...prevData, { time, multiplier }]);
-    }
-  }, [multiplier, time, isPlaying]);
+      if (phaseRef.current === "waiting" && waitUntilRef.current) {
+        const left = Math.max(0, waitUntilRef.current - Date.now());
+        setCountdown(Math.ceil(left / 1000));
+        return;
+      }
 
-  useEffect(() => {
-    if (time > xMax * 0.9) {
-      setXMax(time * 1.1);
-      setYMax(multiplier * 1.1);
-    }
+      if (phaseRef.current !== "running") return;
 
-    if (multiplier * 0.8 > yMax) {
-      setXMax(time * 1.1);
-      setYMax(Math.exp(time / 18) * 1.1);
-    }
-  }, [time, multiplier, yMax, xMax]);
+      const elapsedSec = Math.max(
+        0,
+        (Date.now() - roundStartRef.current) / 1000
+      );
+      const nextMult = liveMultiplier(elapsedSec);
+      setMultiplierRef.current(nextMult);
 
-  const startGame = () => {
-    setXMax(12);
-    setYMax(2);
-    setIsPlaying(true);
-    setIsCrashed(false);
-    setDisableBet(true);
-  };
+      const prev = dataRef.current;
+      const last = prev[prev.length - 1];
+      let next;
+      if (last && elapsedSec - last.time < 0.045) {
+        next = [...prev.slice(0, -1), { time: elapsedSec, multiplier: nextMult }];
+      } else {
+        next = [...prev, { time: elapsedSec, multiplier: nextMult }];
+      }
+      applyPoints(next);
 
-  const stopGame = (success) => {
-    setIsPlaying(false);
-    setIsCrashed(!success);
-    setTimeout(() => {
-      setCountdown(5);
-      resetGame();
-    }, 3000);
-  };
+      const chart = chartRef.current;
+      if (chart) {
+        const meta = chart.getDatasetMeta(0);
+        const pts = meta?.data || [];
+        if (pts.length) {
+          const last = pts[pts.length - 1];
+          const prev = pts[Math.max(0, pts.length - 5)];
+          setTip({
+            x: last.x,
+            y: last.y,
+            angle: (Math.atan2(last.y - prev.y, last.x - prev.x) * 180) / Math.PI,
+          });
+        }
+      }
 
-  const resetGame = () => {
-    setMultiplier(1.0);
-    setData([{ time: 0, multiplier: 1.0 }]);
-    setTime(0);
-    setIsCrashed(false);
-    setBettingStarted(false);
-    setDisableBet(false);
-  };
+      // Keep the tip in view the original way: when X grows, Y grows with it.
+      if (elapsedSec > xMaxRef.current * 0.9) {
+        xMaxRef.current = elapsedSec * 1.1;
+        yMaxRef.current = Math.max(2, nextMult * 1.1);
+        setXMax(xMaxRef.current);
+        setYMax(yMaxRef.current);
+      }
+      if (nextMult * 0.8 > yMaxRef.current) {
+        xMaxRef.current = elapsedSec * 1.1;
+        yMaxRef.current = nextMult * 1.1;
+        setXMax(xMaxRef.current);
+        setYMax(yMaxRef.current);
+      }
+
+      if (
+        autoCashoutEnabledRef.current &&
+        !autoCashoutFired.current &&
+        onAutoCashoutRef.current &&
+        Number(autoCashoutAtRef.current) >= 1.01 &&
+        nextMult >= Number(autoCashoutAtRef.current)
+      ) {
+        autoCashoutFired.current = true;
+        onAutoCashoutRef.current(Number(autoCashoutAtRef.current));
+      }
+    }, TICK_MS);
+
+    return () => clearInterval(id);
+  }, []);
 
   const chartData = {
-    labels: data.map((d) => d.time),
     datasets: [
       {
         label: "Multiplier",
-        data: data.map((d) => d.multiplier),
-        borderColor: isCrashed ? "gray" : "white",
-        backgroundColor: isCrashed ? "gray" : "white",
-        pointRadius: data.map((_, index) =>
-          index === data.length - 1 ? 5 : 0
-        ),
+        data: data.map((d) => ({ x: d.time, y: d.multiplier })),
+        borderColor: phase === "crashed" ? "gray" : "white",
+        backgroundColor: phase === "crashed" ? "gray" : "white",
+        pointRadius: 0,
         borderWidth: 6,
         tension: 0.4,
         fill: true,
@@ -248,25 +354,48 @@ const Game = ({
   };
 
   return (
-    <div className="flex relative pt-16 flex-col items-center justify-center w-full h-full bg-gray-900 text-white">
-      <div className="w-full h-full max-lg:h-[350px] p-6 ">
-        <Line data={chartData} options={chartOptions} />
+    <div className="flex relative pt-10 flex-col items-center justify-center w-full h-full bg-gray-900 text-white max-lg:pt-8 lg:pt-16">
+      <div className="w-full h-full max-lg:h-[240px] max-lg:p-3 p-6 lg:h-full">
+        <div className="relative h-full w-full">
+          <Line ref={chartRef} data={chartData} options={chartOptions} />
+          <CrashMarker
+            crashed={phase === "crashed"}
+            visible={
+              hasSynced && (phase === "running" || phase === "crashed")
+            }
+            x={tip.x}
+            y={tip.y}
+            angle={tip.angle}
+          />
+        </div>
       </div>
 
       <div
         className={`absolute text-3xl flex items-center flex-col max-md:text-xl font-semibold ${
-          countdown !== 0 ? "blink" : ""
-        } ${isCrashed ? "zoom-in" : ""}`}
+          hasSynced && phase === "waiting" && countdown > 0 ? "blink" : ""
+        } ${phase === "crashed" ? "zoom-in" : ""}`}
       >
-        {isCrashed ? (
+        {!hasSynced ? (
           <>
-            <span className="text-red-500">{`${multiplier.toFixed(2)}x`}</span>
+            <span className="text-white/70">—</span>
+            <span className="text-white/50 text-sm font-medium mt-1">
+              Syncing round
+            </span>
+          </>
+        ) : phase === "crashed" ? (
+          <>
+            <span className="text-red-500">{`${Number(multiplier).toFixed(2)}x`}</span>
             <span>Crashed</span>
           </>
-        ) : countdown !== 0 ? (
-          <span>{countdown}</span>
+        ) : phase === "waiting" ? (
+          <>
+            <span>{Math.max(countdown, 0)}</span>
+            <span className="text-white/50 text-sm font-medium mt-1">
+              Next round
+            </span>
+          </>
         ) : (
-          <span>{`${multiplier.toFixed(2)}x`}</span>
+          <span>{`${Number(multiplier).toFixed(2)}x`}</span>
         )}
       </div>
     </div>

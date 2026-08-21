@@ -15,9 +15,14 @@ import {
   initializeMinesSocket,
 } from "../../../socket/games/mines";
 import checkLoggedIn from "../../../utils/isloggedIn";
+import { toast } from "react-toastify";
+import { useGameBalance, useActiveWalletType } from "../../../hooks/useGameBalance";
 
 const Frame = () => {
   const token = useSelector((state) => state.auth?.token);
+  const walletType = useActiveWalletType();
+  const { balance, loading: balanceLoading } = useGameBalance(walletType);
+  const navigate = useNavigate();
   const [connectionStatus, setConnectionStatus] = useState("Connecting");
   const [history, setHistory] = useState([]);
   // const user = useSelector((state) => state.auth.user.user);
@@ -30,7 +35,6 @@ const Frame = () => {
   const [mines, setMines] = useState(3);
   const [gems, setGems] = useState(25 - mines);
   const [betStarted, setBettingStarted] = useState(false);
-  const [loading, setLoading] = useState(false);
   // eslint-disable-next-line
   const [totalProfit, setTotalProfit] = useState("0.000000");
   const [grid, setGrid] = useState(
@@ -64,36 +68,50 @@ const Frame = () => {
       return;
     }
 
-    const minesSocket = getMinesSocket();
-    if (!minesSocket) {
-      initializeMinesSocket(token);
-    }
+    const minesSocket = initializeMinesSocket(token);
 
     const onConnect = () => setConnectionStatus("Connected");
     const onDisconnect = () => setConnectionStatus("Disconnected");
 
-    const socket = getMinesSocket();
-    if (socket) {
-      // The socket (a reused singleton) may already be connected before this
-      // handler is attached, so the "connect" event would never fire again —
-      // seed the status from the live connection state to avoid a permanently
-      // disabled Bet button.
-      if (socket.connected) setConnectionStatus("Connected");
-      socket.on("connect", onConnect);
-      socket.on("disconnect", onDisconnect);
+    if (minesSocket) {
+      if (minesSocket.connected) setConnectionStatus("Connected");
+      minesSocket.on("connect", onConnect);
+      minesSocket.on("disconnect", onDisconnect);
     }
 
     return () => {
-      if (getMinesSocket()) {
-        getMinesSocket().off("connect", onConnect);
-        getMinesSocket().off("disconnect", onDisconnect);
+      if (minesSocket) {
+        minesSocket.off("connect", onConnect);
+        minesSocket.off("disconnect", onDisconnect);
       }
     };
   }, [token]);
 
+  const getStakeBlockReason = () => {
+    const stake = Number(bet);
+    if (!Number.isFinite(stake) || stake < 0) {
+      return "Enter a valid bet amount";
+    }
+    if (walletType === "cash" && stake <= 0) {
+      return "Enter a bet amount";
+    }
+    if (!balanceLoading && (balance == null || stake > balance)) {
+      return walletType === "cash"
+        ? "Insufficient real balance"
+        : "Insufficient demo balance";
+    }
+    return null;
+  };
+
   const handleMineBet = () => {
     if (!checkLoggedIn()) {
       navigate(`?tab=${"login"}`, { replace: true });
+      return;
+    }
+
+    const blocked = getStakeBlockReason();
+    if (blocked) {
+      toast.error(blocked);
       return;
     }
 
@@ -114,21 +132,18 @@ const Frame = () => {
   };
 
   useEffect(() => {
-    setLoading(true);
-    const loadingTimeout = setTimeout(() => {
-      setLoading(false);
-    }, 2000);
-
-    return () => clearTimeout(loadingTimeout);
-  }, [setLoading]);
-
-  useEffect(() => {
     setGems(25 - mines);
   }, [mines]);
 
   const handleAutoBet = () => {
     if (!checkLoggedIn()) {
       navigate(`?tab=${"login"}`, { replace: true });
+      return;
+    }
+
+    const blocked = getStakeBlockReason();
+    if (blocked) {
+      toast.error(blocked);
       return;
     }
 
@@ -158,13 +173,10 @@ const Frame = () => {
   return (
     <>
       <div
-        className="w-full bg-secondry pt-[1px] pb-[12px] max-lg:pb-[36px]"
-        style={{
-          minHeight: "calc(100vh - 70px)",
-        }}
+        className="w-full bg-secondry pt-[1px] pb-[12px] max-lg:pb-[36px] max-lg:min-h-[calc(100vh-69px)] lg:min-h-[calc(100vh-92px)]"
       >
         <div
-          className={`my-12 rounded mx-auto bg-primary w-[96%] max-w-[1400px] max-md:max-w-[450px] ${
+          className={`my-4 max-lg:my-2 lg:my-12 rounded mx-auto bg-primary w-[96%] max-w-[1400px] max-md:max-w-[450px] ${
             theatreMode ? "max-w-[100%] max-h-screen" : "max-lg:max-w-[450px]"
           }`}
         >
@@ -203,6 +215,7 @@ const Frame = () => {
                 disabled={sidebarDisabled || connectionStatus !== "Connected"}
                 connectionStatus={connectionStatus}
                 setGrid={setGrid}
+                stakeBlockReason={getStakeBlockReason()}
               />
 
               {/* Right Section */}
@@ -211,40 +224,36 @@ const Frame = () => {
                   theatreMode
                     ? "md:col-span-8 md:order-2"
                     : "lg:col-span-8 lg:order-2"
-                } xl:col-span-9 bg-gray-900 order-1`}
+                } xl:col-span-9 bg-gray-900 order-1 max-lg:h-[fit-content] lg:h-[600px]`}
               >
-                <div className="w-full relative text-white h-full flex items-center justify-center text-3xl min-h-[450px]">
-                  <History list={history} />
-                  {loading ? (
-                    <>
-                      <h1 className="text-xl font-semibold">Loading...</h1>
-                    </>
-                  ) : (
-                    <Game
-                      mines={mines}
-                      randomSelect={randomSelect}
-                      setRandomSelect={setRandomSelect}
-                      setGems={setGems}
-                      betStarted={betStarted}
-                      setBetStarted={setBettingStarted}
-                      gameCheckout={gameCheckout}
-                      setGameCheckout={setGameCheckout}
-                      selectBoxes={selectBoxes}
-                      startAutoBet={startAutoBet}
-                      setStartAutoBet={setStartAutoBet}
-                      selectedBoxes={selectedBoxes}
-                      setSelectBoxes={setSelectBoxes}
-                      setSelectedBoxes={setSelectedBoxes}
-                      mode={betMode}
-                      nbets={nbets}
-                      bet={bet}
-                      setBet={setBet}
-                      setSidebarDisabled={setSidebarDisabled}
-                      grid={grid}
-                      setGrid={setGrid}
-                      setHistory={setHistory}
-                    />
-                  )}
+                <div className="relative flex h-full min-h-[280px] w-full items-center justify-center text-white max-lg:min-h-[260px] lg:min-h-0">
+                  <div className="absolute top-2 left-0 z-10 w-full">
+                    <History list={history} />
+                  </div>
+                  <Game
+                    mines={mines}
+                    randomSelect={randomSelect}
+                    setRandomSelect={setRandomSelect}
+                    setGems={setGems}
+                    betStarted={betStarted}
+                    setBetStarted={setBettingStarted}
+                    gameCheckout={gameCheckout}
+                    setGameCheckout={setGameCheckout}
+                    selectBoxes={selectBoxes}
+                    startAutoBet={startAutoBet}
+                    setStartAutoBet={setStartAutoBet}
+                    selectedBoxes={selectedBoxes}
+                    setSelectBoxes={setSelectBoxes}
+                    setSelectedBoxes={setSelectedBoxes}
+                    mode={betMode}
+                    nbets={nbets}
+                    bet={bet}
+                    setBet={setBet}
+                    setSidebarDisabled={setSidebarDisabled}
+                    grid={grid}
+                    setGrid={setGrid}
+                    setHistory={setHistory}
+                  />
                 </div>
               </div>
             </div>

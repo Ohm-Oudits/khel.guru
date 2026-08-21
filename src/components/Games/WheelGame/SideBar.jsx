@@ -1,8 +1,16 @@
-import { useState } from "react";
 import { toast } from "react-toastify";
-import GameBalanceBadge from "../shared/GameBalanceBadge";
-
 /* eslint-disable react/prop-types */
+import {
+  GameAutoModeRow,
+  GameLabeledSliderRow,
+  GameRiskAutoRow,
+  RISK_LOW_MEDIUM_HIGH,
+} from "../../Frame/GamePanelControls";
+
+const MIN_SEGMENTS = 10;
+const MAX_SEGMENTS = 50;
+const SEGMENT_STEP = 10;
+
 const SideBar = ({
   theatreMode,
   setBet,
@@ -23,34 +31,6 @@ const SideBar = ({
   autoStart,
   handleAutoBet,
 }) => {
-  const options = [
-    { value: "Low", label: "Low" },
-    { value: "Medium", label: " Medium" },
-    { value: "High", label: " High" },
-  ];
-
-  const handleRiskSelect = (value) => {
-    setRisk(value);
-    setIsOpen(false);
-  };
-  const [isOpen, setIsOpen] = useState(false);
-
-  const segmentOptions = [
-    { value: 10, label: 10 },
-    { value: 20, label: 20 },
-    { value: 30, label: 30 },
-    { value: 40, label: 40 },
-    { value: 50, label: 50 },
-  ];
-
-  const handleSegmentSelect = (value) => {
-    setSegment(value);
-    setIsOpen1(false);
-  };
-
-  const [isOpen1, setIsOpen1] = useState(false);
-
-  // Add handler for mode switching
   const handleModeSwitch = (mode) => {
     if (autoStart) {
       toast.error("Cannot switch modes while autobetting is in progress");
@@ -59,6 +39,8 @@ const SideBar = ({
     setBetMode(mode);
   };
 
+  const modeSwitchDisabled = autoStart || bettingStarted;
+
   return (
     <>
       <div
@@ -66,40 +48,44 @@ const SideBar = ({
           theatreMode ? "md:col-span-4 md:order-1" : "lg:col-span-4 lg:order-1"
         } xl:col-span-3 bg-inactive order-2 max-lg:h-[fit-content] lg:h-[600px] overflow-auto`}
       >
-        <div className="my-4 px-3 flex flex-col">
-          {/* Manual and auto mode switch */}
-          <div className="sticky top-0 z-[1] bg-inactive py-0 rounded-md">
-            <div className="order-[100] max-lg:mt-2 lg:order-1 switch mb-4 w-full bg-primary rounded-full p-1.5 grid grid-cols-2 gap-1">
-              <div
-                onClick={() => handleModeSwitch("manual")}
-                className={`${
-                  betMode === "manual" ? "bg-inactive scale-95" : ""
-                } ${
-                  autoStart
-                    ? "opacity-50 cursor-not-allowed"
-                    : "hover:bg-activeHover cursor-pointer"
-                } col-span-1 flex items-center justify-center py-2 text-white font-semibold rounded-full transition-all duration-300 ease-in-out transform active:scale-90`}
-              >
-                Manual
-              </div>
-              <div
-                onClick={() => handleModeSwitch("auto")}
-                className={`${
-                  betMode === "auto" ? "bg-inactive scale-95" : ""
-                } ${
-                  autoStart
-                    ? "opacity-50 cursor-not-allowed"
-                    : "hover:bg-activeHover cursor-pointer"
-                } col-span-1 flex items-center justify-center py-2 text-white font-semibold rounded-full transition-all duration-300 ease-in-out transform active:scale-90`}
-              >
-                Auto
-              </div>
-            </div>
-          </div>
+        <div className="my-4 flex flex-col gap-1 px-3">
+          {riskSection ? (
+            <GameRiskAutoRow
+              options={RISK_LOW_MEDIUM_HIGH}
+              value={risk}
+              onChange={setRisk}
+              segmentDisabled={bettingStarted}
+              betMode={betMode}
+              setBetMode={setBetMode}
+              modeSwitchDisabled={modeSwitchDisabled}
+              onModeSwitch={handleModeSwitch}
+              className="mb-0 mt-0 shrink-0"
+            />
+          ) : (
+            <GameAutoModeRow
+              betMode={betMode}
+              setBetMode={setBetMode}
+              modeSwitchDisabled={modeSwitchDisabled}
+              onModeSwitch={handleModeSwitch}
+              className="mb-0 mt-0 shrink-0"
+            />
+          )}
+
+          {segmentSection && (
+            <GameLabeledSliderRow
+              label="Segments"
+              min={MIN_SEGMENTS}
+              max={MAX_SEGMENTS}
+              step={SEGMENT_STEP}
+              value={segment}
+              onChange={setSegment}
+              disabled={bettingStarted || autoStart}
+              ariaLabel="Number of segments"
+            />
+          )}
 
           {betMode === "manual" && (
             <>
-              <GameBalanceBadge className="mb-2" />
               <div className="order-1 md:order-2 my-2 w-full">
                 <div className="flex items-center mb-[-4px] pl-[2px] justify-between w-full font-semibold text-label">
                   <label htmlFor="betAmount">Bet Amount</label>
@@ -142,91 +128,7 @@ const SideBar = ({
                   )}
                 </div>
               </div>
-              {/* Checkout box */}
 
-              {/* Risk Section */}
-              {riskSection && (
-                <div className="order-10 md:order-2 mb-2 mt-1 w-full">
-                  <div className="w-full">
-                    <label
-                      htmlFor="Difficulty"
-                      className="flex items-center mb-[-4px] pl-[2px] justify-between w-full font-semibold text-label"
-                    >
-                      <h1>Risk</h1>
-                    </label>
-                    <div className="relative w-full">
-                      <button
-                        className="w-full mt-2  h-full flex justify-between  rounded-md bg-black p-3 text-white px-3 pr-6 py-2 border border-input hover:border-primary-4"
-                        onClick={() => {
-                          setIsOpen1(false);
-                          setIsOpen(!isOpen);
-                        }}
-                        disabled={bettingStarted}
-                      >
-                        {options.find((opt) => opt.value === risk)?.label ||
-                          "Select Risk"}
-                      </button>
-
-                      {isOpen && (
-                        <div className="absolute z-10 mt-2 w-full bg-black border border-primary-4 rounded-md shadow-lg">
-                          {options.map((opt) => (
-                            <div
-                              key={opt.value}
-                              className="flex items-center text-[0.88rem] justify-between p-3 hover:bg-primary-4 cursor-pointer text-white"
-                              onClick={() => handleRiskSelect(opt.value)}
-                            >
-                              <span>{opt.label}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Segment Section */}
-              {segmentSection && (
-                <div className="order-10 md:order-2 mb-2 mt-1 w-full">
-                  <div className="w-full">
-                    <label
-                      htmlFor="Difficulty"
-                      className="flex items-center mb-[-4px] pl-[2px] justify-between w-full font-semibold text-label"
-                    >
-                      <h1>Segments</h1>
-                    </label>
-                    <div className="relative w-full">
-                      <button
-                        className="w-full mt-2  h-full flex justify-between  rounded-md bg-black p-3 text-white px-3 pr-6 py-2 border border-input hover:border-primary-4"
-                        onClick={() => {
-                          setIsOpen(false);
-                          setIsOpen1(!isOpen1);
-                        }}
-                        disabled={bettingStarted}
-                      >
-                        {segmentOptions.find((opt) => opt.value === segment)
-                          ?.label || "Select Segment"}
-                      </button>
-
-                      {isOpen1 && (
-                        <div className="absolute z-10 mt-2 w-full bg-black border border-primary-4 rounded-md shadow-lg">
-                          {segmentOptions.map((opt) => (
-                            <div
-                              key={opt.value}
-                              className="flex items-center text-[0.88rem] justify-between p-3 hover:bg-primary-4 cursor-pointer text-white"
-                              onClick={() => handleSegmentSelect(opt.value)}
-                            >
-                              <span>{opt.label}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Bet button */}
               <div
                 className={`order-2 max-md:mb-2 md:order-20 transition-all duration-300 ease-in-out transform active:scale-90 flex items-center justify-center w-full mx-auto py-1.5 mt-3 max-lg:mt-4 rounded text-lg font-semibold ${
                   bettingStarted
@@ -244,7 +146,7 @@ const SideBar = ({
             <>
               <div className="order-1 md:order-2 my-2 w-full">
                 <div className="flex items-center mb-[-4px] pl-[2px] justify-between w-full font-semibold text-label">
-                  <label htmlFor="betAmount">Bet Amount</label>
+                  <label htmlFor="betAmountAuto">Bet Amount</label>
                   <h1 className="text-sm">$0.00</h1>
                 </div>
                 <div className="w-full mt-1 bg-inactive shadow-md flex rounded">
@@ -252,7 +154,7 @@ const SideBar = ({
                     <input
                       type="text"
                       value={bet}
-                      id="betAmount"
+                      id="betAmountAuto"
                       onChange={(e) => setBet(e.target.value)}
                       className="w-full h-full rounded bg-secondry outline-none text-white px-2 pr-6 border border-inactive hover:border-primary-4"
                     />
@@ -285,89 +187,6 @@ const SideBar = ({
                 </div>
               </div>
 
-              {/* Risk Section */}
-              {riskSection && (
-                <div className="order-10 md:order-2 mb-2 mt-1 w-full">
-                  <div className="w-full">
-                    <label
-                      htmlFor="Difficulty"
-                      className="flex items-center mb-[-4px] pl-[2px] justify-between w-full font-semibold text-label"
-                    >
-                      <h1>Risk</h1>
-                    </label>
-                    <div className="relative w-full">
-                      <button
-                        className="w-full mt-2  h-full flex justify-between  rounded-md bg-black p-3 text-white px-3 pr-6 py-2 border border-input hover:border-primary-4"
-                        onClick={() => {
-                          setIsOpen1(false);
-                          setIsOpen(!isOpen);
-                        }}
-                        disabled={bettingStarted}
-                      >
-                        {options.find((opt) => opt.value === risk)?.label ||
-                          "Select Risk"}
-                      </button>
-
-                      {isOpen && (
-                        <div className="absolute z-10 mt-2 w-full bg-black border border-primary-4 rounded-md shadow-lg">
-                          {options.map((opt) => (
-                            <div
-                              key={opt.value}
-                              className="flex items-center text-[0.88rem] justify-between p-3 hover:bg-primary-4 cursor-pointer text-white"
-                              onClick={() => handleRiskSelect(opt.value)}
-                            >
-                              <span>{opt.label}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Segment Section */}
-              {segmentSection && (
-                <div className="order-10 md:order-2 mb-2 mt-1 w-full">
-                  <div className="w-full">
-                    <label
-                      htmlFor="Difficulty"
-                      className="flex items-center mb-[-4px] pl-[2px] justify-between w-full font-semibold text-label"
-                    >
-                      <h1>Segments</h1>
-                    </label>
-                    <div className="relative w-full">
-                      <button
-                        className="w-full mt-2  h-full flex justify-between  rounded-md bg-black p-3 text-white px-3 pr-6 py-2 border border-input hover:border-primary-4"
-                        onClick={() => {
-                          setIsOpen(false);
-                          setIsOpen1(!isOpen1);
-                        }}
-                        disabled={bettingStarted}
-                      >
-                        {segmentOptions.find((opt) => opt.value === segment)
-                          ?.label || "Select Segment"}
-                      </button>
-
-                      {isOpen1 && (
-                        <div className="absolute z-10 mt-2 w-full bg-black border border-primary-4 rounded-md shadow-lg">
-                          {segmentOptions.map((opt) => (
-                            <div
-                              key={opt.value}
-                              className="flex items-center text-[0.88rem] justify-between p-3 hover:bg-primary-4 cursor-pointer text-white"
-                              onClick={() => handleSegmentSelect(opt.value)}
-                            >
-                              <span>{opt.label}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Number of bets */}
               <div className="w-full mb-1 order-10 md:order-2">
                 <h1 className="font-semibold mt-1 text-label">
                   Number of Bets
@@ -380,7 +199,6 @@ const SideBar = ({
                 />
               </div>
 
-              {/* Modified Bet button */}
               <button
                 disabled={autoStart}
                 onClick={handleAutoBet}

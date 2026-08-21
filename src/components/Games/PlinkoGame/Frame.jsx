@@ -82,7 +82,11 @@ const Frame = () => {
         setEngine(null);
       };
     }
-  }, [bet, rows, risk]);
+  }, [rows, risk]);
+
+  useEffect(() => {
+    if (engine) engine.betAmount = bet;
+  }, [bet, engine]);
 
   useEffect(() => {
     const handleBallState = (event) => {
@@ -97,41 +101,30 @@ const Frame = () => {
   }, []);
 
   const handleBetClick = () => {
-    if (isBallInMotion) {
-      toast.error("Please wait for the current game to finish");
-      return;
-    }
-
-    if (!bet || isNaN(bet) || parseFloat(bet) <= 0) {
+    if (bet === "" || bet == null || isNaN(bet) || parseFloat(bet) < 0) {
       toast.error("Please enter a valid bet amount");
       return;
     }
 
-    initSocket();
-    const plinkoSocket = getPlinkoSocket();
-    if (plinkoSocket) {
-      plinkoSocket.emit("add_game", {});
-      console.log("Emitted add_game event");
-    } else {
-      console.error("Plinko socket not initialized");
-      toast.error("Failed to join game: Socket not connected");
-      return;
-    }
-
-    engine.dropBall();
     if (!checkLoggedIn()) {
       navigate(`?tab=${"login"}`, { replace: true });
       return;
     }
-  };
 
-  const handleAutoBet = () => {
-    if (isBallInMotion) {
-      toast.error("Please wait for the current game to finish");
+    if (!engine) return;
+
+    initSocket();
+    if (!getPlinkoSocket()) {
+      toast.error("Failed to join game: Socket not connected");
       return;
     }
 
-    if (!bet || isNaN(bet) || parseFloat(bet) <= 0) {
+    engine.betAmount = bet;
+    engine.dropBall();
+  };
+
+  const handleAutoBet = () => {
+    if (bet === "" || bet == null || isNaN(bet) || parseFloat(bet) < 0) {
       toast.error("Please enter a valid bet amount");
       return;
     }
@@ -146,6 +139,8 @@ const Frame = () => {
       return;
     }
 
+    if (!engine) return;
+
     initSocket();
 
     if (!startAutoBet) {
@@ -153,11 +148,7 @@ const Frame = () => {
       const plinkoSocket = getPlinkoSocket();
 
       if (plinkoSocket) {
-        for (let i = 0; i < nbets; i++) {
-          plinkoSocket.emit("add_game", {});
-        }
-        console.log(`Emitted ${nbets} add_game events`);
-
+        engine.betAmount = bet;
         for (let i = 0; i < nbets; i++) {
           engine.dropBall();
         }
@@ -166,7 +157,6 @@ const Frame = () => {
           setStartAutoBet(false);
         }, 10000);
       } else {
-        console.error("Plinko socket not initialized");
         toast.error("Failed to join game: Socket not connected");
         setStartAutoBet(false);
       }
@@ -176,13 +166,13 @@ const Frame = () => {
   return (
     <>
       <div
-        className="w-full bg-secondry pt-[1px] pb-[12px] max-lg:pb-[36px]"
+        className="w-full bg-secondry pt-[1px] pb-[12px] max-lg:pb-[96px]"
         style={{
           minHeight: "calc(100vh - 70px)",
         }}
       >
         <div
-          className={`my-12 rounded mx-auto bg-primary w-[96%] max-w-[1400px] max-md:max-w-[450px] ${
+          className={`my-12 max-lg:my-3 rounded mx-auto bg-primary w-[96%] max-w-[1400px] max-md:max-w-[450px] ${
             theatreMode ? "max-w-[100%] max-h-screen" : "max-lg:max-w-[450px]"
           }`}
         >
@@ -216,7 +206,7 @@ const Frame = () => {
                   theatreMode
                     ? "md:col-span-8 md:order-2"
                     : "lg:col-span-8 lg:order-2"
-                } xl:col-span-9 bg-gray-900 order-1 max-lg:min-h-[470px] h-[600px]`}
+                } xl:col-span-9 bg-gray-900 order-1 max-lg:h-auto max-lg:min-h-0 lg:h-[600px]`}
               >
                 <div className="w-full relative text-white h-full flex items-center justify-center text-3xl">
                   {/* <History list={history} /> */}

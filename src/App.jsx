@@ -54,14 +54,15 @@ function App() {
         {/* Toast Notifications */}
         <ToastContainer
           position="top-right"
-          autoClose={5000}
-          hideProgressBar={false}
-          newestOnTop={false}
+          autoClose={150}
+          limit={3}
+          hideProgressBar
+          newestOnTop
           closeOnClick
           rtl={false}
-          pauseOnFocusLoss
-          draggable
-          pauseOnHover
+          pauseOnFocusLoss={false}
+          draggable={false}
+          pauseOnHover={false}
           theme="dark"
           toastClassName="bg-background-secondary border border-border-primary"
         />

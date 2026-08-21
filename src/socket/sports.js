@@ -1,4 +1,5 @@
 import { io } from "socket.io-client";
+import { SOCKET_URL } from "../config/backendUrls";
 
 let sportsSocket = null;
 
@@ -42,7 +43,7 @@ export const initializeSportsSocket = (token) => {
     return;
   }
 
-  const API_URL = import.meta.env.VITE_APP_SOCKET_URL;
+  const API_URL = SOCKET_URL;
   sportsSocket = io(`${API_URL}/sports`, {
     auth: { token },
     transports: ["websocket"],

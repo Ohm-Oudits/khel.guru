@@ -1,128 +1,112 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import "../../../../styles/Roulette.css";
 import {
-  getRouletteSocket,
-  onGameResult,
-} from "../../../../socket/games/roulette";
-import { toast } from "react-toastify";
+  ROULETTE_WHEEL_ORDER,
+  getRoulettePocketColor,
+} from "../roulette.constants";
+
+const SPIN_DURATION_MS = 9000;
+const RESULT_HOLD_MS = 1000;
 
 const Roulette = ({
-  redNumbers,
-  betStarted,
-  setBettingStarted,
-  gameResult,
+  spinPocket,
+  spinKey = 0,
+  onBallLand,
   onAnimationComplete,
 }) => {
-  const [isSpinning, setIsSpinning] = useState(false);
   const [result, setResult] = useState(null);
-  const [spinNumber, setSpinNumber] = useState(-1);
-  const [isAnimationComplete, setIsAnimationComplete] = useState(false);
+  const [spinto, setSpinto] = useState("");
+  const timersRef = useRef([]);
+  const plateRef = useRef(null);
+  const activeSpinKeyRef = useRef(null);
+  const onBallLandRef = useRef(onBallLand);
+  const onCompleteRef = useRef(onAnimationComplete);
 
-  const numbers = [
-    32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24,
-    16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26, 0,
-  ];
+  onBallLandRef.current = onBallLand;
 
-  useEffect(() => {
-    const socket = getRouletteSocket();
-    if (!socket) return;
-
-    onGameResult((data) => {
-      console.log("[Roulette Wheel] Received game result:", data);
-      const resultNumber = parseInt(data.result);
-      if (!isNaN(resultNumber)) {
-        setIsAnimationComplete(false);
-        setSpinNumber(resultNumber);
-
-        // After 9 seconds, show the result
-        setTimeout(() => {
-          setResult({
-            number: resultNumber,
-            color:
-              resultNumber === 0
-                ? "green"
-                : redNumbers.includes(resultNumber)
-                ? "red"
-                : "black",
-          });
-          setIsSpinning(false);
-        }, 9000);
-
-        // After 10 seconds (when result is fully shown), notify animation is complete
-        setTimeout(() => {
-          setSpinNumber(-1);
-          setResult(null);
-          setIsAnimationComplete(true);
-          if (onAnimationComplete) {
-            onAnimationComplete();
-          }
-        }, 10000);
-      }
-    });
-
-    return () => {};
-  }, [redNumbers, onAnimationComplete]);
-
-  const spinRoulette = () => {
-    if (isSpinning) return;
-
-    const rouletteSocket = getRouletteSocket();
-    if (rouletteSocket) {
-      rouletteSocket.emit("add_game", {});
-      console.log("Emitted add_game event");
-      setIsSpinning(true);
-    } else {
-      console.error("Roulette socket not initialized");
-      toast.error("Failed to join game: Socket not connected");
+  const resetPlateSpin = () => {
+    const plate = plateRef.current;
+    if (!plate) {
       return;
     }
+    plate.style.animation = "none";
+    void plate.offsetWidth;
+    plate.style.animation = "";
+  };
+
+  onCompleteRef.current = onAnimationComplete;
+
+  const clearTimers = () => {
+    timersRef.current.forEach(clearTimeout);
+    timersRef.current = [];
   };
 
   useEffect(() => {
-    if (betStarted) {
-      setIsAnimationComplete(false);
-      spinRoulette();
-      setTimeout(() => {
-        setBettingStarted(false);
-      }, 10000);
+    if (spinPocket == null || Number.isNaN(Number(spinPocket))) {
+      return undefined;
     }
-  }, [betStarted, setBettingStarted]);
+
+    if (activeSpinKeyRef.current === spinKey) {
+      return undefined;
+    }
+    activeSpinKeyRef.current = spinKey;
+
+    const pocket = Number(spinPocket);
+    clearTimers();
+    setResult(null);
+    setSpinto("");
+    resetPlateSpin();
+
+    const startTimer = setTimeout(() => {
+      setSpinto(String(pocket));
+    }, 50);
+
+    const revealTimer = setTimeout(() => {
+      setResult({
+        number: pocket,
+        color: getRoulettePocketColor(pocket),
+      });
+      onBallLandRef.current?.(pocket);
+    }, SPIN_DURATION_MS);
+
+    const completeTimer = setTimeout(() => {
+      setSpinto("");
+      setResult(null);
+      onCompleteRef.current?.();
+    }, SPIN_DURATION_MS + RESULT_HOLD_MS);
+
+    timersRef.current = [startTimer, revealTimer, completeTimer];
+
+    return () => {
+      if (activeSpinKeyRef.current !== spinKey) {
+        clearTimers();
+      }
+    };
+  }, [spinPocket, spinKey]);
+
+  useEffect(() => () => clearTimers(), []);
 
   return (
     <div className="roulette-container">
-      <div className={`plate `} data-spinto={spinNumber}>
-        {numbers.map((num, index) => (
-          <div
-            key={index}
-            className="number"
-            style={{ transform: `rotateZ(${(index * 360) / 37}deg)` }}
-          >
-            <div className="pit">{num}</div>
-          </div>
-        ))}
-        <div
-          className={`inner ${spinNumber === -1 && "inner-hide"}`}
-          data-spinto={spinNumber}
-        ></div>
+      <div className="plate" ref={plateRef}>
+        <ul className="inner" data-spinto={spinto || undefined}>
+          {ROULETTE_WHEEL_ORDER.map((num) => {
+            const color = getRoulettePocketColor(num);
+            return (
+              <li key={num} className={`number number-${color}`}>
+                <div className="pit">{num}</div>
+              </li>
+            );
+          })}
+        </ul>
       </div>
-
-      <div>
-        <div className="result absolute top-[50%] text-lg left-1/2 -translate-x-1/2 -translate-y-1/2">
-          {result ? (
-            <div>
-              <span
-                className={`result-color p-4 px-6 rounded text-lg color-${result.color}`}
-              >
-                {result.number}
-              </span>
-            </div>
-          ) : betStarted ? (
-            <span className="text-gray-500">Spinning...</span>
-          ) : (
-            <span className="text-gray-500">Place Your Bet</span>
-          )}
+      {result ? (
+        <div className="roulette-result-overlay" aria-live="polite">
+          <span className={`result-color color-${result.color}`}>
+            {result.number}
+          </span>
         </div>
-      </div>
+      ) : null}
     </div>
   );
 };

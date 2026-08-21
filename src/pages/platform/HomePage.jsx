@@ -1,3 +1,4 @@
+import { FaHeart } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
 import LiveWinFeed from "../../components/platform/LiveWinFeed";
 import PlatformFeatureTile from "../../components/platform/PlatformFeatureTile";
@@ -13,8 +14,41 @@ import {
   supportLinks,
 } from "../../config/platformNavigation";
 
-const featuredGames = originals.slice(0, 6);
 const featuredSports = sportsbookBrowseLinks.slice(0, 4);
+
+const gameLikes = (game) => {
+  const seed = String(game.name)
+    .split("")
+    .reduce((sum, char) => sum + char.charCodeAt(0), game.id || 0);
+  return 4200 + (seed * 733) % 95000;
+};
+
+const sportLikes = (sport) => {
+  const seed = String(sport.label)
+    .split("")
+    .reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  return 6100 + (seed * 911) % 88000;
+};
+
+const formatCount = (count) =>
+  count >= 1000 ? `${(count / 1000).toFixed(1)}K` : String(count);
+
+const trendingItems = [
+  ...originals.map((game) => ({
+    kind: "game",
+    key: game.link,
+    likes: gameLikes(game),
+    game,
+  })),
+  ...featuredSports.map((sport) => ({
+    kind: "sport",
+    key: sport.label,
+    likes: sportLikes(sport),
+    sport,
+  })),
+]
+  .sort((a, b) => b.likes - a.likes)
+  .slice(0, 10);
 
 const HomePage = () => {
   const navigate = useNavigate();
@@ -23,6 +57,7 @@ const HomePage = () => {
     <PlatformPage className="text-text-primary">
       <PlatformHero
         eyebrow="Khel Guru"
+        hideEyebrowOnMobile
         title="Casino & sportsbook in one premium shell."
         description="Fast browse, strong category entry points, visible rewards, and support that is not buried."
         tone="emerald"
@@ -39,12 +74,6 @@ const HomePage = () => {
               onClick={() => navigate("/sports")}
             >
               Browse Sports
-            </button>
-            <button
-              className="rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-xs font-bold text-text-secondary transition hover:border-emerald-300/30 hover:text-white xl:rounded-2xl xl:px-5 xl:py-3 xl:text-sm"
-              onClick={() => navigate("/?tab=register")}
-            >
-              Open Register Flow
             </button>
           </>
         }
@@ -89,64 +118,63 @@ const HomePage = () => {
 
       <section className="grid gap-6 xl:grid-cols-[1.75fr_0.7fr]">
         <PlatformPanel>
-          <div className="flex items-end justify-between gap-4">
-            <div>
-              <p className="text-xs uppercase tracking-[0.22em] text-brand-accent">
-                Trending
-              </p>
-              <h2 className="mt-2 text-2xl font-black text-white">
-                Top games and sports
-              </h2>
-            </div>
-            <Link
-              to="/casino"
-              className="text-sm font-semibold text-brand-primary transition hover:text-white"
-            >
-              View all
-            </Link>
+          <div>
+            <p className="text-xs uppercase tracking-[0.22em] text-brand-accent">
+              Trending
+            </p>
+            <h2 className="mt-2 text-2xl font-black leading-tight text-white md:text-3xl xl:text-4xl">
+              Top games and sports
+            </h2>
           </div>
 
           <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-            {featuredGames.map((game) => (
-              <Link
-                key={`${game.name}-${game.link}`}
-                to={game.link}
-                className="group overflow-hidden rounded-[20px] border border-white/10 bg-background-tertiary transition hover:-translate-y-1 hover:border-brand-primary/40"
-              >
-                <div
-                  className="aspect-[4/5] bg-cover bg-center"
-                  style={{ backgroundImage: `url(${game.img})` }}
-                />
-                <div className="p-3">
-                  <p className="text-[10px] uppercase tracking-[0.18em] text-text-tertiary">
-                    {game.exclusive ? "Exclusive" : "Ready to play"}
-                  </p>
-                  <h3 className="mt-1 truncate text-sm font-bold text-white">
-                    {game.name}
-                  </h3>
-                </div>
-              </Link>
-            ))}
+            {trendingItems.map((item) => {
+              if (item.kind === "game") {
+                return (
+                  <Link
+                    key={item.key}
+                    to={item.game.link}
+                    className="group overflow-hidden rounded-[20px] border border-white/10 bg-background-tertiary transition hover:-translate-y-1 hover:border-brand-primary/40"
+                  >
+                    <div
+                      className="aspect-[4/5] bg-cover bg-center"
+                      style={{ backgroundImage: `url(${item.game.img})` }}
+                    />
+                    <div className="flex items-center justify-between gap-1 p-2">
+                      <h3 className="truncate text-sm font-bold text-white">
+                        {item.game.name}
+                      </h3>
+                      <span className="flex shrink-0 items-center gap-1 text-[11px] text-text-tertiary">
+                        {formatCount(item.likes)}
+                        <FaHeart className="text-[10px] text-red-500" />
+                      </span>
+                    </div>
+                  </Link>
+                );
+              }
 
-            {featuredSports.map((sport) => (
-              <Link
-                key={sport.label}
-                to={sport.path}
-                className="group overflow-hidden rounded-[20px] border border-white/10 bg-background-tertiary transition hover:-translate-y-1 hover:border-brand-primary/40"
-              >
-                <div className="flex aspect-[4/5] items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(0,212,170,0.25),_transparent_55%),linear-gradient(180deg,_rgba(8,8,8,0.9),_rgba(18,18,18,1))]">
-                  <sport.icon className="text-4xl text-brand-primary" />
-                </div>
-                <div className="p-3">
-                  <p className="text-[10px] uppercase tracking-[0.18em] text-text-tertiary">
-                    Sports
-                  </p>
-                  <h3 className="mt-1 truncate text-sm font-bold text-white">
-                    {sport.label}
-                  </h3>
-                </div>
-              </Link>
-            ))}
+              const SportIcon = item.sport.icon;
+              return (
+                <Link
+                  key={item.key}
+                  to={item.sport.path}
+                  className="group overflow-hidden rounded-[20px] border border-white/10 bg-background-tertiary transition hover:-translate-y-1 hover:border-brand-primary/40"
+                >
+                  <div className="flex aspect-[4/5] items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(0,212,170,0.25),_transparent_55%),linear-gradient(180deg,_rgba(8,8,8,0.9),_rgba(18,18,18,1))]">
+                    <SportIcon className="text-4xl text-brand-primary" />
+                  </div>
+                  <div className="flex items-center justify-between gap-1 p-2">
+                    <h3 className="truncate text-sm font-bold text-white">
+                      {item.sport.label}
+                    </h3>
+                    <span className="flex shrink-0 items-center gap-1 text-[11px] text-text-tertiary">
+                      {formatCount(item.likes)}
+                      <FaHeart className="text-[10px] text-red-500" />
+                    </span>
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         </PlatformPanel>
 

@@ -1,10 +1,11 @@
 import { io } from "socket.io-client";
+import { SOCKET_URL } from "../../config/backendUrls";
 
 let hiloSocket = null;
 
 export const initializeHiloSocket = (token) => {
   if (!hiloSocket) {
-    hiloSocket = io(`${import.meta.env.VITE_APP_SOCKET_URL}/hilo`, {
+    hiloSocket = io(`${SOCKET_URL}/hilo`, {
       auth: { token },
     });
 

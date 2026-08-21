@@ -21,7 +21,7 @@ export const originals = [
   },
   {
     id: 3,
-    name: "Balloons",
+    name: "Parachute",
     creator: "Khel Guru",
     img: "/games/balloons.avif",
     exclusive: true,
@@ -57,12 +57,12 @@ export const originals = [
   },
   {
     id: 7,
-    name: "Scratch",
+    name: "Balloons",
     creator: "Khel Guru",
-    img: "",
+    img: "/games/balloons.avif",
     exclusive: false,
     new: false,
-    link: "/game/scratch",
+    link: "/game/balloons",
   },
   {
     id: 8,
@@ -639,6 +639,7 @@ export const segments = [
           "1.20",
           "1.20",
           "1.20",
+          "1.20",
         ],
         sections: [
           { id: 1, multiplier: "0.00", terms: 6, color: "#406c82" },
@@ -800,7 +801,7 @@ export const segments = [
         ],
         colors: {
           "0.00": "#406c82",
-          9.9: "#fc1144",
+          "9.9": "#fc1144",
         },
       },
       {
@@ -834,7 +835,7 @@ export const segments = [
         ],
         colors: {
           "0.00": "#406c82",
-          19.8: "#fc1144",
+          "19.8": "#fc1144",
         },
       },
       {
@@ -878,7 +879,7 @@ export const segments = [
         ],
         colors: {
           "0.00": "#406c82",
-          29.7: "#fc1144",
+          "29.7": "#fc1144",
         },
       },
       {
@@ -932,7 +933,7 @@ export const segments = [
         ],
         colors: {
           "0.00": "#406c82",
-          39.6: "#fc1144",
+          "39.6": "#fc1144",
         },
       },
       {
@@ -996,7 +997,7 @@ export const segments = [
         ],
         colors: {
           "0.00": "#406c82",
-          49.5: "#fc1144",
+          "49.5": "#fc1144",
         },
       },
     ],

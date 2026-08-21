@@ -27,171 +27,247 @@ const Game = ({
   startAutoBet,
   setStartAutoBet,
   nbets,
+  onRoundCrash,
+  onRoundSettle,
+  onRoundReady,
+  roundLocked,
 }) => {
   const [isCrashed, setIsCrashed] = useState(false);
+  const [roundActive, setRoundActive] = useState(false);
   const [currentBetCount, setCurrentBetCount] = useState(0);
-  const gameIntervalRef = useRef(null);
-  const speed = 100;
   const cloudCount = 1000;
-  const [mult, setMult] = useState(18);
+  const autoCashoutFired = useRef(false);
+  const startAutoBetRef = useRef(startAutoBet);
+  const autoTargetRef = useRef(autoMultipyTarget);
+  const roundHandlersRef = useRef(null);
+  const lastStateAtRef = useRef(0);
+  const valueRef = useRef(value);
+  const crashHandledRef = useRef(false);
+  const onRoundCrashRef = useRef(onRoundCrash);
+  const onRoundSettleRef = useRef(onRoundSettle);
+  const onRoundReadyRef = useRef(onRoundReady);
 
-  // Attach wallet settlement listeners once per socket instance.
-  const attachWalletHandlers = () => {
-    const parachuteSocket = getParachuteSocket();
-    if (!parachuteSocket || parachuteSocket.__walletHandlersBound) return;
-    parachuteSocket.__walletHandlersBound = true;
+  useEffect(() => {
+    startAutoBetRef.current = startAutoBet;
+  }, [startAutoBet]);
 
-    parachuteSocket.on("game_started", () => {
-      // Stake debited server-side; refresh the balance readout.
-      requestWalletRefresh();
-    });
+  useEffect(() => {
+    autoTargetRef.current = autoMultipyTarget;
+  }, [autoMultipyTarget]);
 
-    parachuteSocket.on("checkout_success", ({ winAmount, multiplier }) => {
-      toast.success(
-        `Cashed out at ${Number(multiplier).toFixed(2)}x for ${Number(
-          winAmount
-        ).toFixed(2)}`
-      );
-      requestWalletRefresh();
-    });
+  useEffect(() => {
+    valueRef.current = value;
+  }, [value]);
 
-    parachuteSocket.on("game_crashed", () => {
-      // Bust: the stake stays debited, nothing was credited.
-      requestWalletRefresh();
-    });
+  useEffect(() => {
+    onRoundCrashRef.current = onRoundCrash;
+  }, [onRoundCrash]);
 
-    parachuteSocket.on("error", ({ message }) => {
-      console.error("Parachute game error:", message);
-      requestWalletRefresh();
+  useEffect(() => {
+    onRoundSettleRef.current = onRoundSettle;
+  }, [onRoundSettle]);
 
-      // The server round can crash on its own before the client round does;
-      // the follow-up crash/checkout emits then find no active game. Money
-      // already settled correctly (the stake stands), so stay quiet.
-      if (message === "No active game found") return;
+  useEffect(() => {
+    onRoundReadyRef.current = onRoundReady;
+  }, [onRoundReady]);
 
-      toast.error(message);
+  const handleRoundCrash = (multiplier) => {
+    if (crashHandledRef.current) return;
+    crashHandledRef.current = true;
+    onRoundSettleRef.current?.();
 
-      // A rejected bet (e.g. insufficient balance) never started a server
-      // round: stop the local round so the player can bet again.
-      if (
-        message === "Insufficient balance" ||
-        message === "Invalid bet amount" ||
-        message === "Game already in progress"
-      ) {
-        stopGame();
-      }
-    });
+    const crashAt = Number(multiplier);
+    if (Number.isFinite(crashAt)) {
+      setValue(crashAt);
+      onRoundCrashRef.current?.(crashAt);
+    }
+    setRoundActive(false);
+    setIsCrashed(true);
+    stopGame();
+    setCheckout(false);
+    requestWalletRefresh();
+    setTimeout(() => resetGame(), 2000);
   };
-
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token) {
-      attachWalletHandlers();
-    }
-
-    return () => {
-      // Only detach our listener; don't tear down the shared socket on every
-      // effect re-run, which disconnected it mid-handshake and dropped bets.
-      const parachuteSocket = getParachuteSocket();
-      if (parachuteSocket) {
-        parachuteSocket.off("error");
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (bettingStarted) {
-      const parachuteSocket = getParachuteSocket();
-      if (parachuteSocket) {
-        attachWalletHandlers();
-        // Commit the stake for this round exactly once (demo wallet); the
-        // server debits it and starts its round.
-        addParachuteGame(parseFloat(bet), difficulty, "demo");
-        console.log("Emitted add_game event");
-      } else {
-        console.error("Parachute socket not initialized");
-        toast.error("Failed to join game: Socket not connected");
-      }
-    }
-  }, [bettingStarted]);
-
-  useEffect(() => {
-    setMult(difficulty === "low" ? 24 : difficulty === "medium" ? 18 : 12);
-  }, [difficulty]);
 
   const stopGame = () => {
-    if (gameIntervalRef.current) {
-      clearInterval(gameIntervalRef.current);
-      gameIntervalRef.current = null;
-    }
     setBettingStarted(false);
-  };
-
-  const runGame = () => {
-    if (pause || isCrashed || !bettingStarted) return;
-
-    let localTime = 0;
-    gameIntervalRef.current = setInterval(() => {
-      localTime += 0.1;
-      const newValue = Math.exp(localTime / mult);
-      setValue(newValue);
-
-      if (startAutoBet && newValue >= autoMultipyTarget) {
-        // Auto cashout hit the target: settle the round server-side so the
-        // payout (stake x multiplier) is credited exactly once.
-        checkoutParachute();
-        stopGame();
-        setPause(true);
-        setCheckout(true);
-        return;
-      }
-
-      let rand = Math.random();
-      if (rand < 0.01) {
-        const parachuteSocket = getParachuteSocket();
-        if (parachuteSocket) {
-          parachuteSocket.emit("crash", { value: newValue });
-          console.log("Emitted crash event");
-        } else {
-          console.error("Parachute socket not initialized");
-          alert("Failed to join game: Socket not connected");
-        }
-
-        setIsCrashed(true);
-        stopGame();
-        setValue(1);
-        setCheckout(false);
-        setTimeout(() => setIsCrashed(false), 2000);
-      }
-    }, speed);
+    autoCashoutFired.current = false;
   };
 
   const resetGame = () => {
     stopGame();
     setValue(1);
     setIsCrashed(false);
-    setBettingStarted(false);
+    setRoundActive(false);
     setCheckout(false);
     setPause(false);
+    crashHandledRef.current = false;
+    onRoundReadyRef.current?.();
+  };
+
+  const attachRoundHandlers = () => {
+    const parachuteSocket = getParachuteSocket();
+    if (!parachuteSocket || parachuteSocket.__roundHandlersBound) return;
+
+    const onGameStarted = () => {
+      autoCashoutFired.current = false;
+      crashHandledRef.current = false;
+      lastStateAtRef.current = Date.now();
+      setRoundActive(true);
+      setValue(1);
+      setIsCrashed(false);
+      setPause(false);
+      requestWalletRefresh();
+    };
+
+    const onGameState = ({ multiplier, isCrashed: crashed, hasCheckedOut }) => {
+      lastStateAtRef.current = Date.now();
+
+      if (hasCheckedOut) {
+        setRoundActive(false);
+        return;
+      }
+
+      if (Number.isFinite(Number(multiplier))) {
+        const next = Number(multiplier);
+        setValue(next);
+
+        const target = parseFloat(autoTargetRef.current);
+        if (
+          startAutoBetRef.current &&
+          !autoCashoutFired.current &&
+          Number.isFinite(target) &&
+          next >= target
+        ) {
+          autoCashoutFired.current = true;
+          onRoundSettleRef.current?.();
+          checkoutParachute();
+          setPause(true);
+          setCheckout(true);
+          stopGame();
+        }
+      }
+
+      if (crashed) {
+        handleRoundCrash(multiplier);
+      }
+    };
+
+    const onCheckoutSuccess = ({ winAmount, multiplier }) => {
+      crashHandledRef.current = true;
+      setRoundActive(false);
+      setValue(Number(multiplier));
+      setPause(true);
+      setCheckout(true);
+      stopGame();
+
+      toast.success(
+        `Cashed out at ${Number(multiplier).toFixed(2)}x for ${Number(
+          winAmount
+        ).toFixed(2)}`
+      );
+      requestWalletRefresh();
+    };
+
+    const onGameCrashed = ({ multiplier }) => {
+      handleRoundCrash(multiplier);
+    };
+
+    const onError = ({ message }) => {
+      console.error("Parachute game error:", message);
+      requestWalletRefresh();
+
+      if (message === "No active game found") return;
+
+      toast.error(message);
+
+      if (
+        message === "Insufficient balance" ||
+        message === "Invalid bet amount" ||
+        message === "Game already in progress"
+      ) {
+        resetGame();
+      }
+    };
+
+    roundHandlersRef.current = {
+      game_started: onGameStarted,
+      game_state: onGameState,
+      checkout_success: onCheckoutSuccess,
+      game_crashed: onGameCrashed,
+      error: onError,
+    };
+
+    Object.entries(roundHandlersRef.current).forEach(([event, handler]) => {
+      parachuteSocket.on(event, handler);
+    });
+    parachuteSocket.__roundHandlersBound = true;
+  };
+
+  const detachRoundHandlers = () => {
+    const parachuteSocket = getParachuteSocket();
+    const handlers = roundHandlersRef.current;
+    if (!parachuteSocket || !handlers) return;
+
+    Object.entries(handlers).forEach(([event, handler]) => {
+      parachuteSocket.off(event, handler);
+    });
+    roundHandlersRef.current = null;
+    parachuteSocket.__roundHandlersBound = false;
   };
 
   useEffect(() => {
-    if (pause) {
+    const token = localStorage.getItem("token");
+    if (token) {
+      attachRoundHandlers();
+    }
+
+    return () => {
+      detachRoundHandlers();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (bettingStarted && !roundLocked) {
+      setRoundActive(true);
+      crashHandledRef.current = false;
+      lastStateAtRef.current = Date.now();
+      const parachuteSocket = getParachuteSocket();
+      if (parachuteSocket) {
+        attachRoundHandlers();
+        addParachuteGame(parseFloat(bet), difficulty, "demo");
+      } else {
+        console.error("Parachute socket not initialized");
+        toast.error("Failed to join game: Socket not connected");
+        setBettingStarted(false);
+      }
+    }
+  }, [bettingStarted, roundLocked]);
+
+  useEffect(() => {
+    if (!roundActive || pause || isCrashed) return undefined;
+
+    const watchdog = setInterval(() => {
+      if (Date.now() - lastStateAtRef.current > 450) {
+        handleRoundCrash(valueRef.current);
+      }
+    }, 150);
+
+    return () => clearInterval(watchdog);
+  }, [roundActive, pause, isCrashed]);
+
+  useEffect(() => {
+    if (pause && !crashHandledRef.current) {
       setIsCrashed(true);
       stopGame();
       setTimeout(() => resetGame(), 2000);
     }
-  }, [pause, value, setIsCrashed]);
+  }, [pause]);
 
   const user = useSelector((state) => state.auth?.user);
 
   useEffect(() => {
-    if (bettingStarted) {
-      toast.error("Game Intterupted");
-    }
-
     if (!user) {
-      setBettingStarted(false);
       resetGame();
     }
   }, [user]);
@@ -213,12 +289,18 @@ const Game = ({
       }
 
       const interval = setInterval(() => {
-        if (currentBetCount > 0 && !bettingStarted && !pause && !isCrashed) {
+        if (
+          currentBetCount > 0 &&
+          !bettingStarted &&
+          !roundLocked &&
+          !pause &&
+          !isCrashed
+        ) {
           performAutoBet();
-        } else if (currentBetCount >= nbets || pause || isCrashed) {
+        } else if (currentBetCount >= nbets || pause || isCrashed || roundLocked) {
           clearInterval(interval);
         }
-      }, 1000 + speed);
+      }, 2000);
 
       return () => clearInterval(interval);
     }
@@ -228,22 +310,17 @@ const Game = ({
     currentBetCount,
     setStartAutoBet,
     bettingStarted,
+    roundLocked,
     pause,
     isCrashed,
   ]);
 
-  useEffect(() => {
-    if (bettingStarted) {
-      runGame();
-    }
-  }, [bettingStarted]);
-
   return (
-    <div className="relative w-full h-full bg-primary overflow-hidden max-lg:min-h-[500px]">
+    <div className="relative z-0 h-full w-full overflow-hidden bg-primary max-lg:min-h-[260px] lg:min-h-0">
       {/* Background */}
       <div
         className={`absolute bottom-0 left-0 overflow-hidden ${
-          bettingStarted || isCrashed || pause ? "moving-up" : ""
+          roundActive || isCrashed || pause ? "moving-up" : ""
         }`}
       >
         <div>
@@ -263,7 +340,7 @@ const Game = ({
 
       {/* Balloon */}
       <div
-        className={`absolute flex items-center justify-center w-1/2 h-1/2 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 ${
+        className={`absolute flex items-center justify-center w-[65%] h-[65%] max-lg:w-[55%] max-lg:h-[55%] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 ${
           isCrashed ? "animate-balloon" : ""
         }`}
       >
@@ -272,7 +349,7 @@ const Game = ({
 
       {/* Game Value Display */}
       <h1
-        className={`absolute px-10 aspect-square flex items-center justify-center rounded-full font-bold top-[45%] left-1/2 -translate-x-1/2 -translate-y-1/2 ${
+        className={`absolute flex aspect-square items-center justify-center rounded-full px-10 font-bold top-[45%] left-1/2 -translate-x-1/2 -translate-y-1/2 max-lg:top-[46%] max-lg:px-6 max-lg:text-xl ${
           isCrashed ? "zoom-text" : ""
         }`}
       >

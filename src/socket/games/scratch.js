@@ -1,4 +1,5 @@
 import { io } from "socket.io-client";
+import { SOCKET_URL } from "../../config/backendUrls";
 
 let scratchSocket = null;
 let isConnecting = false;
@@ -29,7 +30,7 @@ export const initializeScratchSocket = (token) => {
       scratchSocket = null;
     }
 
-    const socketUrl = `${import.meta.env.VITE_APP_SOCKET_URL}/scratch`;
+    const socketUrl = `${SOCKET_URL}/scratch`;
     console.log("Connecting to socket URL:", socketUrl);
 
     scratchSocket = io(socketUrl, {

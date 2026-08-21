@@ -52,6 +52,7 @@ const PlatformHero = ({
   tone = "emerald",
   actions,
   aside,
+  hideEyebrowOnMobile = false,
   className = "",
 }) => {
   const styles = toneStyles[tone] || toneStyles.emerald;
@@ -81,7 +82,8 @@ const PlatformHero = ({
           {eyebrow ? (
             <div
               className={classNames(
-                "inline-flex w-fit items-center rounded-full border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.22em]",
+                "w-fit items-center rounded-full border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.22em]",
+                hideEyebrowOnMobile ? "hidden md:inline-flex" : "inline-flex",
                 styles.badge
               )}
             >

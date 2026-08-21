@@ -14,7 +14,8 @@ const Game = ({ bet, rows, risk, engine, width, height, canvasRef }) => {
   }, [rows]);
 
   useEffect(() => {
-    const isValid = bet && !isNaN(bet) && parseFloat(bet) > 0;
+    const isValid =
+      bet !== "" && bet != null && !isNaN(bet) && parseFloat(bet) >= 0;
     setIsValidBet(isValid);
 
     if (!isValid && bet !== "0.000000") {
@@ -33,9 +34,13 @@ const Game = ({ bet, rows, risk, engine, width, height, canvasRef }) => {
     }
 
     const handleGameResult = (event) => {
-      const { balance, payout, multiplier } = event.detail;
-
-      toast.success(`Win! ${payout.toFixed(8)} (${multiplier}x)`);
+      const { payout, multiplier } = event.detail;
+      const amount = Number(payout) || 0;
+      const toastText =
+        amount > 0
+          ? `${amount.toFixed(2)} · ${multiplier}x`
+          : `${multiplier}x`;
+      toast.success(toastText);
     };
 
     const handleGameError = (event) => {
@@ -47,8 +52,6 @@ const Game = ({ bet, rows, risk, engine, width, height, canvasRef }) => {
     window.addEventListener("plinko:error", handleGameError);
 
     return () => {
-      // Only detach our listeners; don't tear down the shared socket on every
-      // effect re-run, which disconnected it mid-handshake and dropped bets.
       const plinkoSocket = getPlinkoSocket();
       if (plinkoSocket) {
         plinkoSocket.off("error");
@@ -60,19 +63,17 @@ const Game = ({ bet, rows, risk, engine, width, height, canvasRef }) => {
   }, []);
 
   return (
-    <div className="relative w-full h-full bg-gray-900">
+    <div className="relative w-full h-full bg-gray-900 overflow-hidden">
       <div
-        className="mx-auto flex h-full flex-col items-center justify-center px-4 pb-4"
+        className="mx-auto flex h-full w-full flex-col items-center justify-center px-2 py-2 lg:px-4 lg:pb-4"
         style={{ maxWidth: `${width}px` }}
       >
-        {/* Canvas container */}
         <div
-          className="relative w-full h-full"
+          className="relative w-full max-h-full"
           style={{
             aspectRatio: `${width} / ${height}`,
           }}
         >
-          {/* Loader for engine initialization */}
           {engine === null && (
             <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
               <CircleNotch
@@ -81,7 +82,6 @@ const Game = ({ bet, rows, risk, engine, width, height, canvasRef }) => {
               />
             </div>
           )}
-          {/* Canvas rendering the Plinko game */}
           <canvas
             ref={canvasRef}
             width={width}
@@ -90,7 +90,6 @@ const Game = ({ bet, rows, risk, engine, width, height, canvasRef }) => {
           />
         </div>
 
-        {/*Bin row at the bottom */}
         <BinsRow
           plinkoEngine={engine}
           rowCount={rows}

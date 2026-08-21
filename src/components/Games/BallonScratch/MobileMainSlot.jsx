@@ -1,195 +1,178 @@
-import { useEffect, useState } from "react";
-const slotsData = [
-  { multiplier: "100.00×", chance: "0.5%" },
-  { multiplier: "10.00×", chance: "1.0%" },
-  { multiplier: "7.00×", chance: "5.0%" },
-  { multiplier: "5.00×", chance: "10.0%" },
-  { multiplier: "3.50×", chance: "15.0%" },
-  { multiplier: "2.35×", chance: "20.0%" },
-  { multiplier: "1.45×", chance: "35.0%" },
-  { multiplier: "0.85×", chance: "35.0%" },
-  { multiplier: "0.45×", chance: "45.0%" },
-  { multiplier: "0.15×", chance: "35.0%" },
-  { multiplier: "0.00×", chance: "35.0%" },
-  { multiplier: "0.00×", chance: "35.0%" },
-];
+import { useEffect, useMemo, useRef, useState } from "react";
+import DiamondSlots from "./Slots";
+import {
+  computeHighestCounts,
+  getMobileBarCounts,
+  MOBILE_BAR_ICONS,
+  findMatchingSlotIndex,
+} from "./slotConfig";
 
-const MobileSlot = ({ diamondCounts, slotindex }) => {
-  const colors = ["red", "yellow", "green", "purple", "blue"];
-  const [highest, setHighest] = useState({
-    main: {
-      color: "",
-      count: 0,
-    },
-    second: {
-      color: "",
-      count: 0,
-    },
-  });
+export { normalizeDiamondCounts } from "./slotConfig";
 
-  const colorClasses = {
-    red: "bg-red-500",
-    blue: "bg-blue-500",
-    green: "bg-green-500",
-    yellow: "bg-yellow-500",
-    purple: "bg-purple-500",
-    default: "bg-black",
+const colorClasses = {
+  red: "bg-red-500",
+  blue: "bg-blue-500",
+  green: "bg-green-500",
+  yellow: "bg-yellow-500",
+  purple: "bg-purple-500",
+  default: "bg-black",
+};
+
+const freeClasses = ["bg-gray-500 relative", "bg-black border-2 border-red-400"];
+
+const LONG_PRESS_MS = 420;
+
+const MobileSlot = ({ diamondCounts, setslotindex, gridHeight = 0 }) => {
+  const [showPayoutTable, setShowPayoutTable] = useState(false);
+  const longPressTimerRef = useRef(null);
+  const longPressOpenedRef = useRef(false);
+
+  const highest = useMemo(
+    () => computeHighestCounts(diamondCounts),
+    [diamondCounts]
+  );
+
+  const main = highest.main.count;
+  const second = highest.second.count;
+  const matchedIndex = findMatchingSlotIndex(main, second);
+  const bar = getMobileBarCounts(main, second, matchedIndex);
+
+  useEffect(() => {
+    if (!setslotindex) return;
+    setslotindex(matchedIndex);
+  }, [matchedIndex, setslotindex]);
+
+  useEffect(() => {
+    if (!showPayoutTable) return;
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") setShowPayoutTable(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [showPayoutTable]);
+
+  const clearLongPressTimer = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
   };
 
-  const freeClasses = [
-    "bg-gray-500 relative",
-    "bg-black border-2 border-red-400",
-  ];
+  const openPayoutTable = () => setShowPayoutTable(true);
+  const closePayoutTable = () => setShowPayoutTable(false);
 
-  const displaySlots = [
-    { diamonds: 8, different: 0, free: 0 },
-    { diamonds: 7, different: 0, free: 1 },
-    { diamonds: 6, different: 0, free: 2 },
-    { diamonds: 5, different: 3, free: 0 },
-    { diamonds: 5, different: 0, free: 3 },
-    { diamonds: 4, different: 4, free: 0 },
-    { diamonds: 4, different: 3, free: 1 },
-    { diamonds: 4, different: 0, free: 4 },
-    { diamonds: 3, different: 3, free: 2 },
-    { diamonds: 3, different: 2, free: 3 },
-    { diamonds: 2, different: 2, free: 4 },
-    { diamonds: 2, different: 0, free: 6 },
-  ];
+  const handlePointerDown = () => {
+    longPressOpenedRef.current = false;
+    clearLongPressTimer();
+    longPressTimerRef.current = setTimeout(() => {
+      longPressOpenedRef.current = true;
+      openPayoutTable();
+    }, LONG_PRESS_MS);
+  };
 
-  useEffect(() => {
-    console.log(Object.keys(diamondCounts).length);
-
-    if (!diamondCounts || Object.keys(diamondCounts).length === 0) {
-      setHighest({
-        main: {
-          color: "",
-          count: 0,
-        },
-        second: {
-          color: "",
-          count: 0,
-        },
-      });
-      return;
+  const handlePointerUp = () => {
+    clearLongPressTimer();
+    if (!longPressOpenedRef.current) {
+      setShowPayoutTable((prev) => !prev);
     }
+  };
 
-    let newHighest = {
-      main: {
-        color: "",
-        count: 0,
-      },
-      second: {
-        color: "",
-        count: 0,
-      },
-    };
+  const handlePointerCancel = () => {
+    clearLongPressTimer();
+    longPressOpenedRef.current = false;
+  };
 
-    displaySlots.forEach(({ diamonds, different, free }) => {
-      Object.entries(diamondCounts).forEach(([color, data]) => {
-        if (data.count > newHighest.main.count) {
-          if (newHighest.main.count > newHighest.second.count) {
-            newHighest.second.color = newHighest.main.color;
-            newHighest.second.count = newHighest.main.count;
-          }
-          newHighest.main.color = color;
-          newHighest.main.count = data.count;
-        } else if (
-          data.count > newHighest.second.count &&
-          color !== newHighest.main.color
-        ) {
-          newHighest.second.color = color;
-          newHighest.second.count = data.count;
-        }
-      });
-    });
+  const renderFreeIcon = (key) => (
+    <div
+      key={key}
+      className={`mobile-slot-icon mobile-slot-icon--vertical rounded-md transform rotate-45 ${freeClasses[0]}`}
+    >
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="w-[2px] h-[10px] bg-gray-300 rotate-0" />
+        <div className="w-[2px] h-[10px] bg-gray-300 -rotate-90 absolute" />
+      </div>
+    </div>
+  );
 
-    setHighest(newHighest);
-  }, [diamondCounts]);
+  const renderGemIcon = (key, color) => (
+    <div
+      key={key}
+      className={`mobile-slot-icon mobile-slot-icon--vertical rounded-l-sm rounded-r-sm rounded-ss-xl transform rotate-45 ${
+        colorClasses[color] || colorClasses.default
+      }`}
+    />
+  );
 
-  useEffect(() => {
-    const main = highest.main.count;
-    const second = highest.second.count;
-    if (main == 0) {
-    }
-
-    displaySlots.map((i, idx) => {
-      if (i.diamonds == main && i.different == second) {
-      }
-    });
-  }, [highest]);
+  const railStyle = gridHeight > 0 ? { height: gridHeight } : undefined;
 
   return (
-    <div className="flex flex-col gap-1 px-4 w-[100%] sm:py-0 md:py-6 text-gray-500 rounded-lg">
-      {/* <div className="flex items-center justify-between p-3 rounded py-0.5 bg-gray-800">
-        <h2 className="justify-center text-2xl font-bold text-yellow-200">
-          😛 💰 Jackpot 💰 😛
-        </h2>
-        <span className="text-[14px] font-semibold">1000.00×</span>
-      </div> */}
-      {slotindex === null && (
-        <div
-          key={slotindex}
-          className="flex items-center justify-between p-3 rounded py-0.5 bg-gray-800"
+    <>
+      <div
+        className="mobile-slot-rail flex shrink-0 touch-manipulation select-none"
+        style={railStyle}
+      >
+        <button
+          type="button"
+          aria-label="Show payout table"
+          aria-expanded={showPayoutTable}
+          className="mobile-slot-column flex h-full w-full flex-col rounded-md bg-gray-800 text-gray-500"
+          onPointerDown={handlePointerDown}
+          onPointerUp={handlePointerUp}
+          onPointerLeave={handlePointerCancel}
+          onPointerCancel={handlePointerCancel}
+          onContextMenu={(event) => event.preventDefault()}
         >
-          <div className="flex">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <div
-                key={`free-${i}`}
-                className={`w-4 h-4 mx-2 rounded-md transform rotate-45 ${freeClasses[0]}`}
-              >
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-[2px] h-[12px] bg-gray-300 rotate-0"></div>
-                  <div className="w-[2px] h-[12px] bg-gray-300 -rotate-90 absolute"></div>
-                </div>
-              </div>
-            ))}
+          <div className="mobile-slot-icons mobile-slot-icons--vertical flex min-h-0 flex-1 flex-col items-center">
+            {bar.idle
+              ? Array.from({ length: MOBILE_BAR_ICONS }).map((_, i) =>
+                  renderFreeIcon(`idle-${i}`)
+                )
+              : (
+                <>
+                  {[...Array(bar.diamonds)].map((_, i) =>
+                    renderGemIcon(`diamond-${i}`, highest.main.color)
+                  )}
+                  {[...Array(bar.different)].map((_, i) =>
+                    renderGemIcon(`different-${i}`, highest.second.color)
+                  )}
+                  {[...Array(bar.free)].map((_, i) => renderFreeIcon(`free-${i}`))}
+                </>
+              )}
           </div>
-          <div className="text-right flex pl-5 my-5transition-opacity duration-300">
-            <div className="text-[14px] font-semibold">
-              {slotsData[slotindex]?.multiplier || "0.00×"}
-            </div>
-          </div>
-        </div>
-      )}
+        </button>
+      </div>
 
-      {slotindex !== null && (
-        <div
-          key={slotindex}
-          className="flex items-center justify-between p-3 rounded py-0.5 bg-gray-800"
-        >
-          <div className="flex">
-            {[...Array(displaySlots[slotindex].diamonds)].map((_, i) => (
-              <div
-                key={`diamond-${i}`}
-                className={`w-4 h-4 mx-2 rounded-l-sm rounded-r-sm rounded-ss-xl transform rotate-45 ${highest.main.color}`}
-              ></div>
-            ))}
-            {[...Array(displaySlots[slotindex].different)].map((_, i) => (
-              <div
-                key={`different-${i}`}
-                className={`w-4 h-4 mx-2 rounded-l-sm rounded-r-sm rounded-ss-xl transform rotate-45 ${highest.second.color}`}
-              ></div>
-            ))}
-            {[...Array(displaySlots[slotindex].free)].map((_, i) => (
-              <div
-                key={`free-${i}`}
-                className={`w-4 h-4 mx-2 rounded-md transform rotate-45 ${freeClasses[0]}`}
+      {showPayoutTable && (
+        <div className="mobile-payout-overlay" role="dialog" aria-modal="true">
+          <button
+            type="button"
+            aria-label="Close payout table"
+            className="mobile-payout-backdrop"
+            onClick={closePayoutTable}
+          />
+          <div className="mobile-payout-sheet">
+            <div className="mobile-payout-sheet__header">
+              <span className="text-sm font-semibold text-white">Payouts</span>
+              <button
+                type="button"
+                className="mobile-payout-close"
+                onClick={closePayoutTable}
               >
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-[2px] h-[12px] bg-gray-300 rotate-0"></div>
-                  <div className="w-[2px] h-[12px] bg-gray-300 -rotate-90 absolute"></div>
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className="text-right flex pl-5 my-5transition-opacity duration-300">
-            <div className="text-[14px] font-semibold">
-              {slotsData[slotindex]?.multiplier || "0.00×"}
+                ✕
+              </button>
+            </div>
+            <div className="mobile-payout-sheet__body custom-scrollbar">
+              <DiamondSlots
+                diamondCounts={diamondCounts}
+                slotindex={matchedIndex}
+                setslotindex={setslotindex}
+                compact
+              />
             </div>
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 };
 
