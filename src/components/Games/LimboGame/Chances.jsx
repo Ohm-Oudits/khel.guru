@@ -12,7 +12,7 @@ const BetCalculator = ({
   setTargetMultiplier,
   startAutoBet,
 }) => {
-  const [winChance, setWinChance] = useState(98.9999);
+  const [winChance, setWinChance] = useState("49.5000");
 
   useEffect(() => {
     const newWinChance = calculateWinChance(targetMultiplier || 1.01);
@@ -20,12 +20,11 @@ const BetCalculator = ({
   }, [targetMultiplier]);
 
   const calculateWinChance = (multiplier) => {
-    const rawChance = ((100 - multiplier) / 100) * 100;
-
-    const houseEdge = 1;
-    const finalChance = Math.max(rawChance - houseEdge, 0);
-
-    return finalChance.toFixed(4);
+    const target = parseFloat(multiplier);
+    if (!Number.isFinite(target) || target < 1.01) return "0.0000";
+    const houseEdge = 0.01;
+    const chance = ((1 - houseEdge) / target) * 100;
+    return Math.max(0, chance).toFixed(4);
   };
 
   const handleMultiplierChange = (e) => {

@@ -387,6 +387,14 @@ class PlinkoEngine {
               bin: data.bin,
               physicsBin,
               multiplier: data.multiplier,
+              fairness: data.fairness || {
+                nonce: data.nonce,
+                clientSeed: data.clientSeed,
+                serverSeedHash: data.serverSeedHash,
+                path: data.path,
+                bin: data.bin,
+                multiplier: data.multiplier,
+              },
             },
           })
         );

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { binPayouts } from "./constant";
+import { getBinPayouts } from "./constant";
 import usePlinkoStore from "./store";
 
 const BinRow = ({
@@ -104,7 +104,7 @@ const BinRow = ({
         // eslint-disable-next-line react/prop-types
         style={{ width: `${(plinkoEngine.binsWidthPercentage ?? 0) * 100}%` }}
       >
-        {binPayouts[rowCount][riskLevel].map((payout, binIndex) => {
+        {getBinPayouts(rowCount, riskLevel).map((payout, binIndex) => {
           return (
             <div
               key={binIndex}

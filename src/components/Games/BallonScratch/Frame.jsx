@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import "../../../styles/Frame.css";
-import FairnessModal from "../../Frame/FairnessModal";
+import SeedPairFairnessModal from "../../Frame/SeedPairFairnessModal";
+import { SCRATCH_FAIRNESS_FORMULA } from "../../../utils/scratchFairness";
 import FrameFooter from "../../Frame/FrameFooter";
 import HotKeysModal from "../../Frame/HotKeysModal";
 import GameInfoModal from "../../Frame/GameInfoModal";
@@ -49,6 +50,7 @@ const Frame = () => {
   const [reset, setReset] = useState(false);
 
   const [isFairness, setIsFairness] = useState(false);
+  const [fairnessPrefill, setFairnessPrefill] = useState(null);
   const [isGameSettings, setIsGamings] = useState(false);
   const [maxBetEnable, setMaxBetEnable] = useState(false);
   const [theatreMode, setTheatreMode] = useState(false);
@@ -207,6 +209,7 @@ const Frame = () => {
                       nbets={nbets}
                       betAmount={bet}
                       onRoundComplete={addToHistory}
+                      onFairness={setFairnessPrefill}
                     />
                   </div>
                 </div>
@@ -235,6 +238,9 @@ const Frame = () => {
               setMaxBetEnable={setMaxBetEnable}
               theatreMode={theatreMode}
               setTheatreMode={setTheatreMode}
+              betMode={betMode}
+              onBetModeChange={setBetMode}
+              modeSwitchDisabled={startAutoBet || betStarted}
             />
 
             {isGameSettings && (
@@ -256,7 +262,25 @@ const Frame = () => {
                       className="max-h-[90%] custom-scrollbar overflow-y-auto w-[95%] pt-3 rounded max-w-[500px] bg-primary"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <FairnessModal setIsFairness={setIsFairness} />
+                      <SeedPairFairnessModal
+                        setIsFairness={setIsFairness}
+                        prefill={fairnessPrefill}
+                        gameKey="scratch"
+                        title="Provably Fair — Balloon Scratch"
+                        formula={SCRATCH_FAIRNESS_FORMULA}
+                        seedHint="Rotate to reveal the previous server seed, then verify the 9 diamond colors. Diamonds stay hidden until you pop each balloon."
+                        verifyLabel="Verify grid"
+                        formatResult={(verification, last) => {
+                          const diamonds =
+                            verification?.diamonds ||
+                            verification?.result ||
+                            last?.observed;
+                          if (!Array.isArray(diamonds) || !diamonds.length) {
+                            return "—";
+                          }
+                          return diamonds.join(" · ");
+                        }}
+                      />
                     </div>
                   </div>
                 </div>

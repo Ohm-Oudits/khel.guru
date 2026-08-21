@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import "../../../styles/Frame.css";
-import FairnessModal from "../../Frame/FairnessModal";
+import RouletteFairnessModal from "./RouletteFairnessModal";
 import FrameFooter from "../../Frame/FrameFooter";
 import HotKeysModal from "../../Frame/HotKeysModal";
 import GameInfoModal from "../../Frame/GameInfoModal";
@@ -23,6 +23,7 @@ import {
 import { useSelector } from "react-redux";
 import { toast } from "react-toastify";
 import { useActiveWalletType } from "../../../hooks/useGameBalance";
+import checkLoggedIn from "../../../utils/isloggedIn";
 
 const ROULETTE_HISTORY_KEY = "roulette_game_history";
 const ROULETTE_CHIP_KEY = "roulette_selected_chip";
@@ -84,6 +85,7 @@ const Frame = () => {
 
   const [totalBetAmount, setTotalBetAmount] = useState(0);
   const [currentHistory, setCurrentHistory] = useState([]);
+  const [fairnessPrefill, setFairnessPrefill] = useState(null);
   const [chipBet, setChipBet] = useState(() => {
     const saved = Number(localStorage.getItem(ROULETTE_CHIP_KEY));
     return Number.isFinite(saved) && saved > 0 ? saved : ROULETTE_DEFAULT_CHIP;
@@ -287,13 +289,18 @@ const Frame = () => {
   }, [token]);
 
   const handleBetstarted = () => {
-    if (!token) {
+    if (!checkLoggedIn()) {
       navigate(`?tab=${"login"}`, { replace: true });
       return;
     }
 
     if (Object.keys(currentBets).length === 0) {
       toast.error("Please place a bet on the table first");
+      return;
+    }
+
+    if (!isSocketReady || !isGameJoined) {
+      toast.error("Still connecting to the game. Try again in a moment.");
       return;
     }
 
@@ -328,7 +335,7 @@ const Frame = () => {
   }, []);
 
   const handleAutoBet = () => {
-    if (!token) {
+    if (!checkLoggedIn()) {
       navigate(`?tab=${"login"}`, { replace: true });
       return;
     }
@@ -345,6 +352,11 @@ const Frame = () => {
 
     if (Object.keys(currentBets).length === 0 || tableTotal <= 0) {
       toast.error("Please place a bet on the table first");
+      return;
+    }
+
+    if (!isSocketReady || !isGameJoined) {
+      toast.error("Still connecting to the game. Try again in a moment.");
       return;
     }
 
@@ -556,6 +568,7 @@ const Frame = () => {
                         onAnimationComplete={handleAnimationComplete}
                         walletType={walletType}
                         onRoundResult={addToHistory}
+                        setFairnessPrefill={setFairnessPrefill}
                         chipBet={chipBet}
                       />
                     </div>
@@ -587,6 +600,11 @@ const Frame = () => {
             setMaxBetEnable={setMaxBetEnable}
             theatreMode={theatreMode}
             setTheatreMode={setTheatreMode}
+            betMode={betMode}
+            onBetModeChange={setBetMode}
+            modeSwitchDisabled={
+              startAutoBet || isProcessing || !isBettingEnabled
+            }
           />
 
           {/* Other modals */}
@@ -600,7 +618,10 @@ const Frame = () => {
                   className="max-h-[90%] custom-scrollbar overflow-y-auto w-[95%] pt-3 rounded max-w-[500px] bg-primary"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <FairnessModal setIsFairness={setIsFairness} />
+                  <RouletteFairnessModal
+                    setIsFairness={setIsFairness}
+                    prefill={fairnessPrefill}
+                  />
                 </div>
               </div>
             </div>

@@ -1,7 +1,7 @@
 /* eslint-disable */
 import { useCallback, useEffect, useRef, useState } from "react";
 import "../../../styles/Frame.css";
-import FairnessModal from "../../Frame/FairnessModal";
+import CrashFairnessModal from "./CrashFairnessModal";
 import FrameFooter from "../../Frame/FrameFooter";
 import HotKeysModal from "../../Frame/HotKeysModal";
 import GameInfoModal from "../../Frame/GameInfoModal";
@@ -21,6 +21,7 @@ import checkLoggedIn from "../../../utils/isloggedIn";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { requestWalletRefresh } from "../../../utils/walletEvents";
+import { getActiveWalletType } from "../../../utils/activeWallet";
 
 const Frame = () => {
   const [isFav, setIsFav] = useState(false);
@@ -54,6 +55,7 @@ const Frame = () => {
   const [value, setValue] = useState(1.0);
   const [autoMultipyTarget, setAutoMultipyTarget] = useState("1.01");
   const [crashHistory, setCrashHistory] = useState([]);
+  const [crashFairness, setCrashFairness] = useState(null);
 
   const token = useSelector((state) => state.auth?.token);
 
@@ -81,13 +83,8 @@ const Frame = () => {
       requestWalletRefresh();
     });
 
-    crashSocket.on("cashout_success", ({ payout, multiplier }) => {
+    crashSocket.on("cashout_success", () => {
       activeBetRef.current = false;
-      toast.success(
-        `Cashed out at ${Number(multiplier).toFixed(2)}x for ${Number(
-          payout
-        ).toFixed(2)}`
-      );
       requestWalletRefresh();
     });
 
@@ -140,8 +137,8 @@ const Frame = () => {
         return;
       }
 
-      // Commit the stake for this round exactly once (demo wallet).
-      if (placeCrashBet(betAmount, "demo")) {
+      // Commit the stake for this round exactly once.
+      if (placeCrashBet(betAmount, getActiveWalletType())) {
         activeBetRef.current = true;
         setBettingStarted(true);
         setCheckout(false);
@@ -163,10 +160,10 @@ const Frame = () => {
     if (activeBetRef.current) return;
     const betAmount = parseFloat(bet);
     if (Number.isNaN(betAmount) || betAmount < 0) return;
-    if (placeCrashBet(betAmount, "demo")) {
+    if (placeCrashBet(betAmount, getActiveWalletType(), autoMultipyTarget)) {
       activeBetRef.current = true;
     }
-  }, [bet]);
+  }, [bet, autoMultipyTarget]);
 
   const handlePhase = useCallback(
     (phase) => {
@@ -191,6 +188,11 @@ const Frame = () => {
       activeBetRef.current = false;
       cashOutCrash(parseFloat(targetMultiplier));
     }
+  }, []);
+
+  const handleFairness = useCallback((fairness) => {
+    if (!fairness) return;
+    setCrashFairness(fairness);
   }, []);
 
   const addCrashHistory = useCallback((multiplier) => {
@@ -282,6 +284,7 @@ const Frame = () => {
                 handleAutoBet={handleAutoBet}
                 autoMultipyTarget={autoMultipyTarget}
                 setAutoMultipyTarget={setAutoMultipyTarget}
+                roundRtp={crashFairness?.rtp ?? 0.99}
               />
 
               {/* Right Section */}
@@ -302,6 +305,7 @@ const Frame = () => {
                     setDisableBet={setDisableBet}
                     onCrashHistory={addCrashHistory}
                     onHistoryHydrate={hydrateCrashHistory}
+                    onFairness={handleFairness}
                     onPhase={handlePhase}
                     autoCashoutEnabled={startAutoBet}
                     autoCashoutAt={autoMultipyTarget}
@@ -333,6 +337,9 @@ const Frame = () => {
               setMaxBetEnable={setMaxBetEnable}
               theatreMode={theatreMode}
               setTheatreMode={setTheatreMode}
+              betMode={betMode}
+              onBetModeChange={setBetMode}
+              modeSwitchDisabled={startAutoBet || bettingStarted}
             />
 
             {isGameSettings && (
@@ -354,7 +361,10 @@ const Frame = () => {
                       className="max-h-[90%] custom-scrollbar overflow-y-auto w-[95%] pt-3 rounded max-w-[500px] bg-primary"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <FairnessModal setIsFairness={setIsFairness} />
+                      <CrashFairnessModal
+                        setIsFairness={setIsFairness}
+                        prefill={crashFairness}
+                      />
                     </div>
                   </div>
                 </div>

@@ -1,5 +1,6 @@
 /* eslint-disable */
 import BetAmount from "./BetAmount";
+import NumberOfBets from "./NumberOfBets";
 
 const LeftSection = ({
   theatreMode,
@@ -239,7 +240,7 @@ const LeftSection = ({
 
               {/* Bet button */}
               <div
-                className={`order-2 max-md:mb-2 mt-6 md:order-20 transition-all duration-300 ease-in-out transform active:scale-90 flex items-center justify-center w-full mx-auto py-1.5 mt-3 max-lg:mt-4 rounded text-lg font-semibold ${
+                className={`order-2 max-md:mb-2 mt-6 md:order-last transition-all duration-300 ease-in-out transform active:scale-90 flex items-center justify-center w-full mx-auto py-1.5 mt-3 max-lg:mt-4 rounded text-lg font-semibold ${
                   !bettingStarted
                     ? "bg-inactive text-white"
                     : "bg-button-primary text-black cursor-pointer"
@@ -257,7 +258,7 @@ const LeftSection = ({
                   }
                 }}
               >
-                Bet
+                Place Bet
               </div>
             </>
           )}
@@ -347,18 +348,10 @@ const LeftSection = ({
                 </div>
               )}
 
-              {/* Number of bets */}
-              <div className="w-full mb-1 order-10 md:order-2">
-                <h1 className="font-semibold mt-1 text-label">
-                  Number of Bets
-                </h1>
-                <input
-                  type="number"
-                  value={nbets}
-                  onChange={(e) => setNBets(e.target.value)}
-                  className="w-full mt-2 h-full rounded bg-secondry outline-none text-white px-2 pr-6 py-2 border border-input hover:border-primary-4"
-                />
-              </div>
+              <NumberOfBets
+                nbets={nbets}
+                setNBets={setNBets}
+              />
 
               {/* On Win */}
               <div className="order-10 md:order-2 py-3 w-full">
@@ -529,7 +522,7 @@ const LeftSection = ({
               </div>
 
               {/* Bet button */}
-              <div className="order-2 my-4 mt-6 md:mt-5 md:order-20 transition-all duration-300 ease-in-out transform active:scale-90 text-black bg-button-primary flex items-center justify-center w-full py-3 max-lg:mt-1 rounded cursor-pointer text-lg font-semibold">
+              <div className="order-2 my-4 mt-6 md:mt-5 md:order-last transition-all duration-300 ease-in-out transform active:scale-90 text-black bg-button-primary flex items-center justify-center w-full py-3 max-lg:mt-1 rounded cursor-pointer text-lg font-semibold">
                 Start Autobet
               </div>
             </>

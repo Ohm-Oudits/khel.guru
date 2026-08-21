@@ -5,6 +5,7 @@ import skullImage from "../../../assets/twist/skull.png";
 import nullImage from "../../../assets/twist/null.png";
 import rubyImage from "../../../assets/twist/ruby.png";
 import mineImage from "../../../assets/twist/mine.png";
+import { TWIST_RING_MULTIPLIERS } from "./twistMultipliers";
 
 // eslint-disable-next-line react/prop-types
 const SegmentedCircle = ({
@@ -177,7 +178,12 @@ const SegmentedCircle = ({
         ctx.rotate((startAngle + endAngle) / 2 - Math.PI / 2);
       }
       ctx.fillStyle = "black";
-      ctx.font = "900 18px Arial";
+      ctx.font =
+        multipliers[i].length > 5
+          ? "800 14px Arial"
+          : multipliers[i].length > 4
+            ? "800 15px Arial"
+            : "900 18px Arial";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(multipliers[i], 0, 0);
@@ -201,13 +207,8 @@ const SegmentedCircle = ({
       ref={canvasRef}
       width={canvasSize}
       height={canvasSize}
-      style={{
-        position: "relative",
-        top: 0,
-        left: 0,
-        borderRadius: "50%",
-      }}
-    ></canvas>
+      className="twist-wheel-canvas"
+    />
   );
 };
 const ResponsiveSegmentedCircles = ({
@@ -217,36 +218,27 @@ const ResponsiveSegmentedCircles = ({
   orange,
   purple,
   betTrigger,
+  onSpinEnd,
 }) => {
   const imageUrls = [gemImage, skullImage, nullImage, rubyImage, mineImage];
   const [spinning, setSpinning] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(0); // Starting index
-  const [spinningDuration, setSpinningDuration] = useState(0);
+  const [activeIndex, setActiveIndex] = useState(0);
   const [orangeIn, setorangeIn] = useState(0);
   const [purpleIn, setpurpleIn] = useState(0);
   const [greenIn, setgreenIn] = useState(0);
+  const diamondRef = useRef(CurrentDiamond);
+  const onSpinEndRef = useRef(onSpinEnd);
+
+  diamondRef.current = CurrentDiamond;
+  onSpinEndRef.current = onSpinEnd;
 
   useEffect(() => {
-    setTimeout(() => {
-      if (orange !== orangeIn) {
-        setorangeIn(orange);
-      } else if (green !== greenIn) {
-        setgreenIn(green);
-      } else if (purple !== purpleIn) {
-        setpurpleIn(purple);
-      }
-    }, 3300);
+    setorangeIn(orange);
+    setgreenIn(green);
+    setpurpleIn(purple);
   }, [orange, purple, green]);
-  useEffect(() => {
-    if (spinning) {
-      const timer = setTimeout(() => {
-        setSpinning(false);
-      }, spinningDuration);
-      return () => clearTimeout(timer);
-    }
-  }, [spinning, spinningDuration]);
 
-  const rotateImages = async () => {
+  const rotateImages = () => {
     setSpinning(true);
     const diamonds = ["purple", "skull", "null", "orange", "green"];
     let index = 0;
@@ -254,7 +246,6 @@ const ResponsiveSegmentedCircles = ({
     const sequenceInterval = setInterval(() => {
       setActiveIndex(index);
       index++;
-
       if (index >= diamonds.length) {
         index = 0;
       }
@@ -262,9 +253,10 @@ const ResponsiveSegmentedCircles = ({
 
     setTimeout(() => {
       clearInterval(sequenceInterval);
-      const finalIndex = diamonds.findIndex((x) => x === CurrentDiamond);
-      setActiveIndex(finalIndex);
+      const finalIndex = diamonds.findIndex((x) => x === diamondRef.current);
+      setActiveIndex(finalIndex < 0 ? 0 : finalIndex);
       setSpinning(false);
+      onSpinEndRef.current?.();
     }, 3000);
   };
 
@@ -272,97 +264,97 @@ const ResponsiveSegmentedCircles = ({
     if (betTrigger) {
       rotateImages();
     }
-  }, [betTrigger, CurrentDiamond]);
-
-  const stopSpinning = () => {
-    // Set a specific index to stop the spinning
-    setSpinning(false);
-  };
+  }, [betTrigger]);
 
   const rings = [
-    ["100x", "4.0x", "2.5x", "1.3x", "21.x", "28.5x", "21.x", "Bonus+"],
-    ["205.0x", "21.0x", "1.5x", "1.6x", "21.x", "22.5x+"],
-    ["45.0x", "70.5x", "20.5x", "5.0x + "],
+    TWIST_RING_MULTIPLIERS.purple,
+    TWIST_RING_MULTIPLIERS.orange,
+    TWIST_RING_MULTIPLIERS.green,
   ];
 
   const outerRadius8 = 200;
   const outerRadius6 = 155;
   const outerRadius4 = 110;
   const thickness = 35;
+  const wheelCenter = 245;
+  const gemSlot = 36;
+
+  /** 12 o'clock midline of each ring band, in the 490px canvas. */
+  const ringMidY = (outerRadius) =>
+    wheelCenter - (outerRadius + thickness / 2);
+
+  const gemPillTop = ringMidY(outerRadius8) - gemSlot / 2 - 4;
+  const gemPillHeight =
+    ringMidY(outerRadius4) - ringMidY(outerRadius8) + gemSlot + 8;
+
+  const ringGemSlots = [
+    { src: gemImage, outerRadius: outerRadius8, label: "purple" },
+    { src: rubyImage, outerRadius: outerRadius6, label: "orange" },
+    { src: mineImage, outerRadius: outerRadius4, label: "green" },
+  ];
 
   return (
-    <div className="relative flex items-center justify-center bg-transparent scale-[.7] lg:scale-100 h-[400px] lg:h-[400px]">
-      {/* Outer Circle (8 Segments) */}
-      <div className="absolute w-[490px] h-[490px] rounded-full main"></div>
-      <div className="absolute">
-        <SegmentedCircle
-          totalSegments={8}
-          outerRadius={outerRadius8}
-          thickness={thickness}
-          color="purple"
-          multipliers={rings[0]}
-          CurrentDiamond={CurrentDiamond}
-          loading={loading}
-          index={purpleIn}
-        />
-      </div>
-
-      <div className="absolute">
-        <SegmentedCircle
-          totalSegments={6}
-          outerRadius={outerRadius6}
-          thickness={thickness}
-          color="orange"
-          multipliers={rings[1]}
-          CurrentDiamond={CurrentDiamond}
-          loading={loading}
-          index={orangeIn}
-        />
-      </div>
-
-      <div className="absolute">
-        <SegmentedCircle
-          totalSegments={4}
-          outerRadius={outerRadius4}
-          thickness={thickness}
-          color="green"
-          multipliers={rings[2]}
-          CurrentDiamond={CurrentDiamond}
-          loading={loading}
-          index={greenIn}
-        />
-      </div>
-
-      <div className="absolute top-[-45px] left-1/2 transform -translate-x-1/2">
-        <div className="w-[45px] h-[150px] main shadow-[0_4px_30px_rgba(0,0,0,0.6)] relative flex flex-col justify-between items-center mb-[100px]">
-          <div className="flex justify-center items-center">
-            <svg className="w-[50px] h-[50px]">
-              <g transform="translate(8.65, 9.76)">
-                <image x="0" y="0" width="32" height="32" href={gemImage} />
-              </g>
-            </svg>
+    <div className="twist-wheel-host flex w-full items-center justify-center py-1 max-lg:py-0">
+      <div className="twist-wheel-stage">
+        <div className="twist-wheel-inner">
+          <div className="absolute left-1/2 top-1/2 z-0 -translate-x-1/2 -translate-y-1/2">
+            <div className="twist-wheel-bg main h-[490px] w-[490px] rounded-full" />
           </div>
 
-          <div className="flex justify-center items-center">
-            <svg className="w-[50px] h-[50px]">
-              <g transform="translate(8.65, 6)">
-                <image x="0" y="0" width="32" height="32" href={rubyImage} />
-              </g>
-            </svg>
+          <div className="twist-wheel-rings">
+            <SegmentedCircle
+              totalSegments={8}
+              outerRadius={outerRadius8}
+              thickness={thickness}
+              color="purple"
+              multipliers={rings[0]}
+              CurrentDiamond={CurrentDiamond}
+              loading={loading}
+              index={purpleIn}
+            />
+            <SegmentedCircle
+              totalSegments={6}
+              outerRadius={outerRadius6}
+              thickness={thickness}
+              color="orange"
+              multipliers={rings[1]}
+              CurrentDiamond={CurrentDiamond}
+              loading={loading}
+              index={orangeIn}
+            />
+            <SegmentedCircle
+              totalSegments={4}
+              outerRadius={outerRadius4}
+              thickness={thickness}
+              color="green"
+              multipliers={rings[2]}
+              CurrentDiamond={CurrentDiamond}
+              loading={loading}
+              index={greenIn}
+            />
           </div>
 
-          <div className="flex justify-center items-center">
-            <svg className="w-[50px] h-[50px]">
-              <g transform="translate(8.65, 3)">
-                <image x="0" y="0" width="32" height="32" href={mineImage} />
-              </g>
-            </svg>
+          <div className="twist-wheel-gems">
+            <div
+              className="twist-wheel-gem-pill"
+              style={{ top: `${gemPillTop}px`, height: `${gemPillHeight}px` }}
+            >
+              {ringGemSlots.map(({ src, outerRadius, label }) => (
+                <div
+                  key={label}
+                  className="twist-wheel-gem-slot"
+                  style={{
+                    top: `${ringMidY(outerRadius) - gemPillTop}px`,
+                  }}
+                >
+                  <img src={src} alt={`${label} ring marker`} />
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
-      </div>
 
-      <div className="absolute w-[200px] h-[200px]">
-        <div className="w-[200px] h-[200px] relative overflow-hidden">
+          <div className="twist-wheel-center">
+        <div className="relative h-full w-full overflow-hidden">
           <div
             className="absolute w-full h-full transition-transform duration-200 ease-linear"
             style={{
@@ -384,6 +376,8 @@ const ResponsiveSegmentedCircles = ({
           </div>
         </div>
       </div>
+      </div>
+    </div>
     </div>
   );
 };

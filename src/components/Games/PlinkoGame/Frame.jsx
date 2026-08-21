@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import "../../../styles/Frame.css";
 import "../../../styles/Wheel.css";
-import FairnessModal from "../../Frame/FairnessModal";
+import PlinkoFairnessModal from "./PlinkoFairnessModal";
 import FrameFooter from "../../Frame/FrameFooter";
 import HotKeysModal from "../../Frame/HotKeysModal";
 import GameInfoModal from "../../Frame/GameInfoModal";
@@ -31,6 +31,7 @@ const Frame = () => {
   const [risk, setRisk] = useState("Medium");
   const [rows, setRows] = useState(12);
   const [isBallInMotion, setIsBallInMotion] = useState(false);
+  const [plinkoFairness, setPlinkoFairness] = useState(null);
 
   const [isFairness, setIsFairness] = useState(false);
   const [isGameSettings, setIsGamings] = useState(false);
@@ -94,9 +95,15 @@ const Frame = () => {
     };
 
     window.addEventListener("plinko:ball_state", handleBallState);
+    const handleFairness = (event) => {
+      const fairness = event.detail?.fairness;
+      if (fairness) setPlinkoFairness(fairness);
+    };
+    window.addEventListener("plinko:result", handleFairness);
 
     return () => {
       window.removeEventListener("plinko:ball_state", handleBallState);
+      window.removeEventListener("plinko:result", handleFairness);
     };
   }, []);
 
@@ -248,6 +255,9 @@ const Frame = () => {
               setMaxBetEnable={setMaxBetEnable}
               theatreMode={theatreMode}
               setTheatreMode={setTheatreMode}
+              betMode={betMode}
+              onBetModeChange={setBetMode}
+              modeSwitchDisabled={startAutoBet || isBallInMotion}
             />
 
             {isGameSettings && (
@@ -269,7 +279,10 @@ const Frame = () => {
                       className="max-h-[90%] custom-scrollbar overflow-y-auto w-[95%] pt-3 rounded max-w-[500px] bg-primary"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <FairnessModal setIsFairness={setIsFairness} />
+                      <PlinkoFairnessModal
+                        setIsFairness={setIsFairness}
+                        prefill={plinkoFairness}
+                      />
                     </div>
                   </div>
                 </div>

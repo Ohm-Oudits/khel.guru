@@ -5,7 +5,9 @@ import { motion } from "framer-motion";
 export const CardBack = ({ rand = 3, top = "50%", compact = false }) => (
   <div
     className={`${
-      compact ? "h-[6.75rem] w-[4.5rem] lg:h-36 lg:w-24" : "h-36 w-24 max-lg:h-[6.75rem] max-lg:w-[4.5rem]"
+      compact
+        ? "h-[5.3rem] w-[3.4rem] lg:h-32 lg:w-20"
+        : "h-32 w-20 max-lg:h-[5.3rem] max-lg:w-[3.4rem]"
     } card card${rand} relative flex items-center justify-center rounded-md border-2 border-white bg-blue-600 shadow-lg`}
   >
     <div className="absolute top-0 left-0 w-full h-full bg-black/30 z-10"></div>
@@ -32,7 +34,7 @@ export const FlippableCard = ({ card, position, isFlipped = true }) => {
 
   return (
     <motion.div
-      initial={{ scale: 0.5, top: "-4.5rem", left: "calc(100% - 6rem)" }}
+      initial={{ scale: 0.5, top: "-1.25rem", left: "calc(100% - 2.1rem)" }}
       animate={{
         scale: 1,
         top: `${position.top}%`,

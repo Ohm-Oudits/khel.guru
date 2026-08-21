@@ -146,6 +146,29 @@ a {
   animation: surface-rise 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+@keyframes bet-amount-quick-action-bounce {
+  0% {
+    transform: translateY(0) scale(1);
+  }
+
+  38% {
+    transform: translateY(-3px) scale(1.08);
+  }
+
+  68% {
+    transform: translateY(1px) scale(0.96);
+  }
+
+  100% {
+    transform: translateY(0) scale(1);
+  }
+}
+
+.bet-amount-quick-action-bounce {
+  animation: bet-amount-quick-action-bounce 280ms
+    cubic-bezier(0.22, 1.2, 0.36, 1);
+}
+
 /* Error Message */
 .error-message {
   color: var(--error-color);

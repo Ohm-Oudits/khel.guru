@@ -1,41 +1,43 @@
 /* eslint-disable react/prop-types */
-import "../../../styles/Keno.css";// eslint-disable-next-line
-const Chances = ({ arrayLength, winlength, things }) => {
-  const winnedgif = winlength !== -1 ? winlength : 0;
+import "../../../styles/Keno.css";
 
+const Chances = ({ arrayLength, winlength, things }) => {
   return (
-    <div className="text-base max-lg:text-xs max-xl:text-sm max-sm:text-[0.6rem] font-semibold absolute bottom-2 w-[90%] max-md:w-[98%]">
-      <div className="w-full relative items-center justify-around gap-3">
-        {/* Grid of Chances */}
-        <div className="group justify-center w-full">
-          <div
-            className="grid w-full grid-cols-[repeat(auto-fit,_minmax(0,_1fr))] gap-[1%]"
-          >
-            {Array.from({ length: arrayLength + 1 }, (_, index) => (
-              <button
-                key={index}
-                
-                className={`justify-center py-2 group rounded-lg w-full border-zinc-400 bg-inactive ${winnedgif === index + 1 ? "bg-green-600" : ""
-                  }`}
-              >
-                {/* eslint-disable-next-line react/prop-types */}
-                <div
-                  style={{ fontSize: 'clamp(9px, 2vw, 0.8vw)' }}
-                >
-                  {things[arrayLength - 1]?.values[0]?.[index] || 0}x
-                </div>
-              </button>
-            ))}
-          </div>
+    <div className="w-full text-base font-semibold max-lg:text-xs max-xl:text-sm max-sm:text-[0.6rem]">
+      <div className="w-full">
+        <div className="grid w-full grid-cols-[repeat(auto-fit,_minmax(0,_1fr))] gap-[1%]">
+          {Array.from({ length: arrayLength + 1 }, (_, index) => (
+            <button
+              key={index}
+              type="button"
+              className={`w-full justify-center rounded-lg py-2 ${
+                winlength === index ? "bg-green-600" : "bg-inactive"
+              }`}
+            >
+              <div style={{ fontSize: "clamp(9px, 2vw, 0.8vw)" }}>
+                {things[arrayLength - 1]?.values[0]?.[index] || 0}x
+              </div>
+            </button>
+          ))}
         </div>
 
-        {/* Additional Row (Dice or Instruction) */}
         {arrayLength > 0 ? (
-          <div className="flex h-[40px] bg-inactive rounded-md mt-2 mb-1">
+          <div className="mt-2 mb-0 flex h-[40px] rounded-md bg-inactive">
             {Array.from({ length: arrayLength + 1 }, (_, index) => (
-              <div key={index} className="py-2 group text-center w-full flex items-center justify-center">
-                <span className="ml-2 text-sm font-medium" style={{ fontSize: 'clamp(9px, 2vw, 0.8vw)' }}>{index}x</span>
-                <span className="ml-[0.1rem] flex items-center justify-center" style={{ "--gem-size": "clamp(12px, 2.5vw, 16px)" }}>
+              <div
+                key={index}
+                className="flex w-full items-center justify-center py-2 text-center"
+              >
+                <span
+                  className="ml-2 text-sm font-medium"
+                  style={{ fontSize: "clamp(9px, 2vw, 0.8vw)" }}
+                >
+                  {index}x
+                </span>
+                <span
+                  className="ml-[0.1rem] flex items-center justify-center"
+                  style={{ "--gem-size": "clamp(12px, 2.5vw, 16px)" }}
+                >
                   <div className="container">
                     <div className="sapphire">
                       <div className="shape">
@@ -58,8 +60,8 @@ const Chances = ({ arrayLength, winlength, things }) => {
             ))}
           </div>
         ) : (
-          <div className="h-[40px] bg-inactive rounded-md mt-2 mb-1 flex items-center justify-center w-full">
-            <p className="text-center text-zinc-300 text-sm">
+          <div className="mt-2 mb-0 flex h-[40px] w-full items-center justify-center rounded-md bg-inactive">
+            <p className="text-center text-sm text-zinc-300">
               Select 1 - 10 numbers to play
             </p>
           </div>

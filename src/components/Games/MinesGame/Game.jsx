@@ -7,11 +7,37 @@ import {
   addMinesGame,
 } from "../../../socket/games/mines";
 import { toast } from "react-toastify";
-import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
-import checkLoggedIn from "../../../utils/isloggedIn";
 import { requestWalletRefresh } from "../../../utils/walletEvents";
 import { getActiveWalletType } from "../../../utils/activeWallet";
+import { formatMinesMultiplier } from "../../../utils/minesFairness";
+
+const emptyGrid = () =>
+  Array(25)
+    .fill()
+    .map(() => ({ type: "diamond", revealed: false }));
+
+const payoutMultiplier = (profit, stake) => {
+  const p = Number(profit);
+  const s = Number(stake);
+  if (!Number.isFinite(s) || s <= 0 || !Number.isFinite(p)) return "1.00";
+  return (1 + p / s).toFixed(2);
+};
+
+const overlayMultiplier = (gameState, fallbackMultiplier, stake) => {
+  const server = Number(gameState?.multiplier);
+  const live = Number(fallbackMultiplier);
+  const chosen = Math.max(
+    Number.isFinite(server) ? server : 0,
+    Number.isFinite(live) ? live : 0
+  );
+  if (chosen > 0) {
+    return formatMinesMultiplier(chosen);
+  }
+  return payoutMultiplier(gameState?.profit, gameState?.betAmount || stake);
+};
+
+const RESULT_HOLD_MS = 3000;
 
 const Game = ({
   mines,
@@ -36,20 +62,29 @@ const Game = ({
   grid,
   setGrid,
   setHistory,
+  setFairnessPrefill,
+  setMines,
+  liveMultiplier = 1,
 }) => {
   const [gameOver, setGameOver] = useState(false);
   const [gameWon, setGameWon] = useState(false);
   const [gameProfit, setGameProfit] = useState(0);
   const [gameLoss, setGameLoss] = useState(0);
-  const [hasActiveGame, setHasActiveGame] = useState(false);
-  const [showGameOptions, setShowGameOptions] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
-  const navigate = useNavigate();
-  const isLoggedIn = checkLoggedIn();
+  const [resultMultiplier, setResultMultiplier] = useState(null);
   const token = useSelector((state) => state.auth?.token);
+  const isLoggedIn = Boolean(token);
   const socketRef = useRef(null);
   const skipAddGameRef = useRef(false);
+  const liveMultiplierRef = useRef(1);
+  const betRef = useRef(bet);
+  betRef.current = bet;
+  const betStartedRef = useRef(betStarted);
+  betStartedRef.current = betStarted;
+  if (!gameCheckout && Number(liveMultiplier) > 0) {
+    liveMultiplierRef.current = Number(liveMultiplier);
+  }
 
   const autoGrid = Array.from({ length: 25 });
 
@@ -69,21 +104,34 @@ const Game = ({
         if (gameState.checkedOut) {
           // Cashout settled server-side: reflect the credit.
           requestWalletRefresh();
+          if (gameState.fairness && setFairnessPrefill) {
+            setFairnessPrefill(gameState.fairness);
+          }
+          setGameProfit(gameState.profit || 0);
+          setResultMultiplier(
+            overlayMultiplier(
+              gameState,
+              liveMultiplierRef.current,
+              betRef.current
+            )
+          );
           setGameCheckout(true);
           setBetStarted(false);
           setSidebarDisabled(false);
-          setShowGameOptions(false);
-          setGrid(
-            Array(25)
-              .fill()
-              .map(() => ({ type: "diamond", revealed: false }))
-          );
           return;
         }
 
         if (gameState.message === "New game created") {
           // Bet placed: the stake was just debited.
           requestWalletRefresh();
+        }
+
+        if (gameState.multiplier != null && Number(gameState.multiplier) > 0) {
+          liveMultiplierRef.current = Number(gameState.multiplier);
+        }
+
+        if (gameState.fairness && setFairnessPrefill) {
+          setFairnessPrefill(gameState.fairness);
         }
 
         if (gameState.grid) {
@@ -94,33 +142,45 @@ const Game = ({
           setBet(gameState.betAmount);
         }
 
+        if (gameState.mines != null && setMines) {
+          setMines(Number(gameState.mines));
+        }
+
         setGems(gameState.gems);
         setGameOver(gameState.gameOver);
         setGameWon(gameState.gameWon);
         setGameProfit(gameState.profit || 0);
         setGameLoss(gameState.loss || 0);
 
-        const isResumePrompt =
-          gameState.hasActiveGame &&
-          gameState.message !== "Continuing existing game";
+        const shouldResume =
+          !gameState.gameOver &&
+          !gameState.gameWon &&
+          (gameState.hasActiveGame ||
+            gameState.message === "Existing game found" ||
+            gameState.message === "Continuing existing game");
 
-        if (isResumePrompt) {
-          setHasActiveGame(true);
-          setShowGameOptions(true);
-          setSidebarDisabled(true);
-        } else {
-          setHasActiveGame(false);
-          setShowGameOptions(false);
+        if (shouldResume) {
+          if (!betStartedRef.current) {
+            skipAddGameRef.current = true;
+            setBetStarted(true);
+          }
           setSidebarDisabled(false);
-        }
-
-        if (gameState.message === "Continuing existing game") {
-          setBetStarted(true);
+        } else {
+          setSidebarDisabled(false);
         }
 
         if (gameState.gameOver || gameState.gameWon) {
           setBetStarted(false);
           setSidebarDisabled(false);
+          if (gameState.gameWon) {
+            setResultMultiplier(
+              overlayMultiplier(
+                gameState,
+                liveMultiplierRef.current,
+                betRef.current
+              )
+            );
+          }
         }
       }
     });
@@ -167,7 +227,7 @@ const Game = ({
       minesSocket.off("error");
       minesSocket.off("connect", askForActiveGame);
     };
-  }, [isLoggedIn, token, setHistory]);
+  }, [isLoggedIn, token, setHistory, setFairnessPrefill, setMines]);
 
   useEffect(() => {
     // socket.io buffers emits until the connection is ready, so we only need
@@ -178,15 +238,13 @@ const Game = ({
         skipAddGameRef.current = false;
         return;
       }
-      setGrid(
-        Array(25)
-          .fill()
-          .map(() => ({ type: "diamond", revealed: false }))
-      );
+      setGrid(emptyGrid());
       setGameOver(false);
       setGameWon(false);
       setGameProfit(0);
       setGameLoss(0);
+      setResultMultiplier(null);
+      liveMultiplierRef.current = 1;
       addMinesGame(bet, mines, getActiveWalletType());
     }
   }, [betStarted]);
@@ -279,44 +337,16 @@ const Game = ({
 
     setTimeout(() => {
       autoBet(count - 1);
-      setGrid(
-        Array(25)
-          .fill()
-          .map(() => ({ type: "diamond", revealed: false }))
-      );
-    }, 2000);
+      setGrid(emptyGrid());
+    }, RESULT_HOLD_MS);
   };
 
   useEffect(() => {
     if (gameCheckout && !gameOver && !gameWon && socketRef.current) {
+      setResultMultiplier(formatMinesMultiplier(liveMultiplierRef.current));
       socketRef.current.emit("checkout");
     }
   }, [gameCheckout, gameOver, gameWon]);
-
-  const handleContinueGame = () => {
-    if (socketRef.current) {
-      skipAddGameRef.current = true;
-      socketRef.current.emit("continue_game");
-      setBetStarted(true);
-      setShowGameOptions(false);
-      setSidebarDisabled(false);
-    }
-  };
-
-  const handleCheckoutGame = async () => {
-    if (socketRef.current) {
-      socketRef.current.emit("checkout");
-      setShowGameOptions(false);
-      setSidebarDisabled(false);
-      setBetStarted(false);
-      setGameCheckout(true);
-      setGrid(
-        Array(25)
-          .fill()
-          .map(() => ({ type: "diamond", revealed: false }))
-      );
-    }
-  };
 
   useEffect(() => {
     if (gameOver || gameWon) {
@@ -325,153 +355,37 @@ const Game = ({
         setShowModal(false);
         setGameOver(false);
         setGameWon(false);
-      }, 2000);
+        setResultMultiplier(null);
+        setGrid(emptyGrid());
+      }, RESULT_HOLD_MS);
       return () => clearTimeout(timer);
     }
   }, [gameOver, gameWon]);
 
   useEffect(() => {
-    if (gameCheckout) {
-      setShowCheckoutModal(true);
-      const timer = setTimeout(() => {
-        setShowCheckoutModal(false);
-        setGameCheckout(false);
-        setGrid(
-          Array(25)
-            .fill()
-            .map(() => ({ type: "diamond", revealed: false }))
-        );
-      }, 2000);
-      return () => clearTimeout(timer);
-    }
-  }, [gameCheckout]);
+    if (!gameCheckout || resultMultiplier == null) return undefined;
+    setShowCheckoutModal(true);
+    const timer = setTimeout(() => {
+      setShowCheckoutModal(false);
+      setGameCheckout(false);
+      setResultMultiplier(null);
+      setGrid(emptyGrid());
+    }, RESULT_HOLD_MS);
+    return () => clearTimeout(timer);
+  }, [gameCheckout, resultMultiplier]);
 
-  const Modal = ({ title, image, game }) => (
-    <div className="absolute top-0 left-0 w-full h-full bg-black bg-opacity-75 flex items-center justify-center">
+  const ResultOverlay = ({ children }) => (
+    <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/70">
       <motion.div
-        className="p-6 w-full max-w-md flex items-center flex-col rounded-lg"
-        initial={{ opacity: 0, scale: 0.8 }}
+        className="flex flex-col items-center"
+        initial={{ opacity: 0, scale: 0.7 }}
         animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.3 }}
+        transition={{ duration: 0.28 }}
       >
-        <img src={image} alt={title} className="w-32 sm:w-40 md:w-48 mb-4" />
-        <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">
-          {title}
-        </h2>
-        {game && (
-          <div className="text-center">
-            <p
-              className={`text-xl font-semibold mb-2 ${
-                game.gameOver ? "text-red-500" : "text-green-500"
-              }`}
-            >
-              {game.gameOver
-                ? `Loss: ${game.loss || gameLoss}`
-                : game.gameWon
-                ? `Profit: ${game.profit || gameProfit}`
-                : ""}
-            </p>
-            <p className="text-base text-gray-300">
-              {game.gameOver
-                ? "Better luck next time!"
-                : game.gameWon
-                ? "Congratulations!"
-                : ""}
-            </p>
-          </div>
-        )}
+        {children}
       </motion.div>
     </div>
   );
-
-  const CheckoutModal = ({ profit }) => (
-    <div className="absolute top-0 left-0 w-full h-full bg-black bg-opacity-75 flex items-center justify-center">
-      <motion.div
-        className="p-6 w-full max-w-md flex items-center flex-col rounded-lg"
-        initial={{ opacity: 0, scale: 0.8 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.3 }}
-      >
-        <img
-          src={diamond}
-          alt="Checkout"
-          className="w-32 sm:w-40 md:w-48 mb-4"
-        />
-        <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">
-          Checkout
-        </h2>
-        <div className="text-center">
-          <p className="text-xl font-semibold mb-2 text-green-500">
-            Profit: {profit}
-          </p>
-          <p className="text-base text-gray-300">Great job!</p>
-        </div>
-      </motion.div>
-    </div>
-  );
-
-  // Login Button Component
-  const LoginButton = () => (
-    <motion.button
-      className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-semibold text-base"
-      whileHover={{ scale: 1.05 }}
-      whileTap={{ scale: 0.95 }}
-      onClick={() => navigate("?tab=login", { replace: true })}
-    >
-      Login to Play
-    </motion.button>
-  );
-
-  // Game Options Modal Component
-  const GameOptionsModal = () => (
-    <div className="absolute top-0 left-0 w-full h-full bg-black bg-opacity-75 flex items-center justify-center z-50">
-      <motion.div
-        className="p-6 bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4"
-        initial={{ opacity: 0, scale: 0.8 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.3 }}
-      >
-        <h2 className="text-2xl font-bold text-white mb-4">
-          Active Game Found
-        </h2>
-        <p className="text-gray-300 text-lg mb-6">
-          You have an active game in progress. Would you like to continue or
-          checkout?
-        </p>
-        <div className="flex gap-4 justify-center">
-          <motion.button
-            className="px-6 py-3 text-lg bg-green-600 hover:bg-green-700 text-white rounded-md font-semibold"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={handleContinueGame}
-          >
-            Continue Game
-          </motion.button>
-          <motion.button
-            className="px-6 py-3 text-lg bg-red-600 hover:bg-red-700 text-white rounded-md font-semibold"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={handleCheckoutGame}
-          >
-            Checkout
-          </motion.button>
-        </div>
-      </motion.div>
-    </div>
-  );
-
-  // Not Logged In View
-  if (!isLoggedIn) {
-    return (
-      <div className="flex flex-col items-center justify-center gap-6 py-10 w-full relative">
-        <h1 className="text-xl font-semibold text-white">User Not Logged In</h1>
-        <p className="text-gray-400 text-lg text-center max-w-md">
-          Please login to play the Mines game and start winning!
-        </p>
-        <LoginButton />
-      </div>
-    );
-  }
 
   const tileClass = (extra) =>
     `flex h-full min-h-0 min-w-0 w-full items-center justify-center rounded-lg ${extra}`;
@@ -539,27 +453,27 @@ const Game = ({
           ))}
       </div>
 
-      {showModal && (
-        <>
-          {gameOver && (
-            <Modal
-              title="Game Over"
-              image={bomb}
-              game={{ gameOver: true, loss: gameLoss }}
-            />
-          )}
-          {gameWon && (
-            <Modal
-              title="You Won!"
-              image={diamond}
-              game={{ gameWon: true, profit: gameProfit }}
-            />
-          )}
-        </>
+      {showModal && gameOver && (
+        <ResultOverlay>
+          <img src={bomb} alt="" className="h-28 w-28 object-contain sm:h-36 sm:w-36" />
+        </ResultOverlay>
       )}
 
-      {showCheckoutModal && <CheckoutModal profit={gameProfit} />}
-      {showGameOptions && <GameOptionsModal />}
+      {showModal && gameWon && (
+        <ResultOverlay>
+          <div className="rounded-xl bg-emerald-500 px-6 py-2 text-4xl font-black text-black shadow-lg lg:text-5xl">
+            {resultMultiplier || formatMinesMultiplier(1 + Number(gameProfit) / Number(bet || 1))}x
+          </div>
+        </ResultOverlay>
+      )}
+
+      {showCheckoutModal && (
+        <ResultOverlay>
+          <div className="rounded-xl bg-emerald-500 px-6 py-2 text-4xl font-black text-black shadow-lg lg:text-5xl">
+            {resultMultiplier || formatMinesMultiplier(1 + Number(gameProfit) / Number(bet || 1))}x
+          </div>
+        </ResultOverlay>
+      )}
     </div>
   );
 };

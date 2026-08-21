@@ -27,6 +27,7 @@ const Game = ({
   setAutoStart,
   bet,
   onHistory,
+  onFairness,
 }) => {
   const token = useSelector((state) => state.auth.token);
   const user = useSelector((state) => state.auth.user);
@@ -53,6 +54,21 @@ const Game = ({
   const currentRiskSegment = useRef(null);
   const currentSelectedSegmentData = useRef(null);
   const currentSegmentColors = useRef([]);
+  const onFairnessRef = useRef(onFairness);
+  const riskRef = useRef(risk);
+  const segmentRef = useRef(segment);
+
+  useEffect(() => {
+    onFairnessRef.current = onFairness;
+  }, [onFairness]);
+
+  useEffect(() => {
+    riskRef.current = risk;
+  }, [risk]);
+
+  useEffect(() => {
+    segmentRef.current = segment;
+  }, [segment]);
 
   const BET_COOLDOWN = 3000;
   const MIN_SPIN_TIME = 5000;
@@ -214,6 +230,19 @@ const Game = ({
         }
 
         spinWheel(targetIndex);
+        if (result.serverSeedHash) {
+          onFairnessRef.current?.({
+            clientSeed: result.clientSeed,
+            serverSeedHash: result.serverSeedHash,
+            nonce: result.nonce,
+            observed: targetIndex,
+            multiplier,
+            length: Number(segmentRef.current),
+            risk: riskRef.current,
+            observedLabel: "Last index",
+            observedDisplay: `${targetIndex} · ${Number(multiplier).toFixed(2)}x`,
+          });
+        }
       } catch (error) {
         console.error("Game component: Error processing game result:", error);
         setIsWaitingForResult(false);

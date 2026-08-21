@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import "../../../styles/Frame.css";
-import FairnessModal from "../../Frame/FairnessModal";
+import TowerFairnessModal from "./TowerFairnessModal";
 import FrameFooter from "../../Frame/FrameFooter";
 import HotKeysModal from "../../Frame/HotKeysModal";
 import GameInfoModal from "../../Frame/GameInfoModal";
@@ -12,10 +12,14 @@ import { useNavigate } from "react-router-dom";
 import {
   getTowerSocket,
   initializeTowerSocket,
+  startTowerGame,
+  checkoutTower,
 } from "../../../socket/games/tower";
 import checkLoggedIn from "../../../utils/isloggedIn";
-import { requestWalletRefresh } from "../../../utils/walletEvents";
+import { getActiveWalletType } from "../../../utils/activeWallet";
 import { toast } from "react-toastify";
+
+const TOWER_RESET_DELAY_MS = 3000;
 
 const Frame = () => {
   const [isFav, setIsFav] = useState(false);
@@ -29,6 +33,15 @@ const Frame = () => {
   const [sidebarDisabled, setSidebarDisabled] = useState(true);
 
   const [isFairness, setIsFairness] = useState(false);
+  const [fairnessPrefill, setFairnessPrefill] = useState(null);
+
+  const handleFairnessUpdate = useCallback((payload) => {
+    if (!payload) return;
+    setFairnessPrefill(payload);
+    if (payload.open) {
+      setIsFairness(true);
+    }
+  }, []);
   const [isGameSettings, setIsGamings] = useState(false);
   const [maxBetEnable, setMaxBetEnable] = useState(false);
   const [theatreMode, setTheatreMode] = useState(false);
@@ -43,19 +56,28 @@ const Frame = () => {
   const [gameCheckout, setGameCheckout] = useState(false);
 
   const [startAutoBet, setStartAutoBet] = useState(false);
-  const [selectBoxes, setSelectBoxes] = useState(false);
   const [selectedBoxes, setSelectedBoxes] = useState([]);
   const [rows, setRows] = useState(9);
   const [cols, setCols] = useState(4);
   const [autoArray, setAutoArray] = useState(
     Array.from({ length: rows }, () => Array(cols).fill(0))
   );
-
-  const [showCheckoutModal, setShowCheckoutModal] = useState(false);
-  const [profit, setProfit] = useState(0);
+  const [roundLocked, setRoundLocked] = useState(false);
+  const [canCheckout, setCanCheckout] = useState(false);
+  const [boardResetKey, setBoardResetKey] = useState(0);
+  const resetTimerRef = useRef(null);
 
   const navigate = useNavigate();
   const token = useSelector((state) => state.auth?.token);
+
+  const clearResetTimer = useCallback(() => {
+    if (resetTimerRef.current) {
+      clearTimeout(resetTimerRef.current);
+      resetTimerRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => () => clearResetTimer(), [clearResetTimer]);
 
   const initSocket = () => {
     setLoading(true);
@@ -66,7 +88,26 @@ const Frame = () => {
     setLoading(false);
   };
 
+  const handleRoundSettle = useCallback(() => {
+    clearResetTimer();
+    setRoundLocked(true);
+    setBettingStarted(false);
+    resetTimerRef.current = setTimeout(() => {
+      setRoundLocked(false);
+      setBettingStarted(false);
+      setBoardResetKey((key) => key + 1);
+      resetTimerRef.current = null;
+    }, TOWER_RESET_DELAY_MS);
+  }, [clearResetTimer]);
+
+  const handleRoundStart = useCallback(() => {
+    clearResetTimer();
+    setRoundLocked(false);
+  }, [clearResetTimer]);
+
   const handleBetstarted = () => {
+    if (roundLocked) return;
+
     if (!checkLoggedIn()) {
       navigate(`?tab=${"login"}`, { replace: true });
       return;
@@ -82,20 +123,16 @@ const Frame = () => {
 
     initSocket();
 
+    startTowerGame(betAmount, Difficulty, getActiveWalletType());
+
     if (!betStarted) {
       setBettingStarted(true);
     }
   };
 
   const handleCheckout = () => {
-    const towerSocket = getTowerSocket();
-    if (towerSocket?.connected) {
-      console.log("Emitting checkout event...");
-      towerSocket.emit("checkout");
-      setBettingStarted(false);
-      setShowGameOptions(false);
-      setShowExistingGameModal(false);
-    }
+    if (roundLocked || !betStarted || !canCheckout) return;
+    checkoutTower();
   };
 
   const handleAutoBet = () => {
@@ -113,87 +150,75 @@ const Frame = () => {
     }
 
     initSocket();
+    const allRowsSelected =
+      selectedBoxes.length === rows &&
+      new Set(selectedBoxes.map((box) => box.row)).size === rows;
+    if (!allRowsSelected) {
+      toast.error("Select a box on every row first");
+      return;
+    }
     if (!startAutoBet && nbets != 0) {
       setStartAutoBet(true);
     }
   };
 
-  const setback = () => {
-    if (!startAutoBet) {
-      setStartAutoBet(false);
-      setSelectBoxes(false);
-    }
+  const handleRandomBoxes = () => {
+    if (startAutoBet || loading || roundLocked) return;
+
+    const picks = [];
+    const nextArray = Array.from({ length: rows }, (_, rowIndex) => {
+      const col = Math.floor(Math.random() * cols);
+      picks.push({ row: rowIndex, col });
+      return Array.from({ length: cols }, (_, colIndex) =>
+        colIndex === col ? 1 : 0
+      );
+    });
+    setSelectedBoxes(picks);
+    setAutoArray(nextArray);
   };
 
-  const handleSelectBoxes = () => {
-    if (!selectBoxes && selectedBoxes.length > 0) {
-      setSelectBoxes(true);
+  const handleFooterModeSwitch = (mode) => {
+    if (loading) return;
+    if (mode === "manual") {
+      if (startAutoBet) return;
+      setSelectedBoxes([]);
+      setAutoArray(Array.from({ length: rows }, () => Array(cols).fill(0)));
+    } else if (betStarted) {
+      return;
     }
+    setBetMode(mode);
   };
 
-  const clearAutoSelectBoxes = () => {
-    setSelectedBoxes([]);
-    setAutoArray(Array.from({ length: rows }, () => Array(cols).fill(0)));
-  };
+  useEffect(() => {
+    if (token) {
+      initializeTowerSocket(token);
+    }
+  }, [token]);
 
   useEffect(() => {
     setAutoArray(Array.from({ length: rows }, () => Array(cols).fill(0)));
   }, [rows, cols]);
 
-  useEffect(() => {
-    const towerSocket = getTowerSocket();
-    if (towerSocket) {
-      towerSocket.on("game_state", (gameState) => {
-        if (gameState) {
-          if (gameState.checkedOut) {
-            // The cashout just settled: refresh the balance readout.
-            requestWalletRefresh();
-            setProfit(gameState.profit);
-            setShowCheckoutModal(true);
-            setBettingStarted(false);
-            setShowGameOptions(false);
-            setShowExistingGameModal(false);
-          }
-        }
-      });
-
-      towerSocket.on("error", ({ message }) => {
-        console.error("Game error:", message);
-        // A rejected action left the wallet untouched; resync the readout.
-        requestWalletRefresh();
-        toast.error(`Error: ${message}`);
-      });
-    }
-
-    return () => {
-      if (towerSocket) {
-        towerSocket.off("game_state");
-        towerSocket.off("error");
-      }
-    };
-  }, []);
-
   return (
     <>
       <div
-        className="w-full bg-secondry pt-[1px] pb-[12px] max-lg:pb-[36px]"
+        className="w-full bg-secondry pt-[1px] pb-[12px] max-lg:pb-[28px]"
         style={{
           minHeight: "calc(100vh - 70px)",
         }}
       >
         <div
-          className={`my-12 rounded mx-auto bg-primary w-[96%] max-w-[1400px] max-md:max-w-[450px] ${
-            theatreMode ? "max-w-[100%] max-h-screen" : "max-lg:max-w-[450px]"
+          className={`mx-auto my-3 w-[98%] rounded bg-primary max-w-[1400px] max-lg:my-2 max-lg:max-w-[450px] lg:my-8 ${
+            theatreMode ? "max-h-screen max-w-[100%]" : "max-lg:max-w-[450px]"
           }`}
         >
-          <div className="flex flex-col gap-[0.15rem] relative">
-            <div className="grid grid-cols-12 lg:min-h-[600px]">
+          <div className="relative flex flex-col gap-[0.15rem]">
+            <div className="grid grid-cols-12 max-lg:min-h-0 lg:min-h-0">
               {/* Left Section */}
               <SideBar
                 theatreMode={theatreMode}
                 setTheatreMode={setTheatreMode}
                 setBet={setBet}
-                setBetMode={setBetMode}
                 nbets={nbets}
                 setNBets={setNBets}
                 betMode={betMode}
@@ -205,34 +230,34 @@ const Frame = () => {
                 handleBetstarted={handleBetstarted}
                 totalprofit={totalProfit}
                 handleCheckout={handleCheckout}
+                canCheckout={canCheckout}
+                roundLocked={roundLocked}
                 startAutoBet={startAutoBet}
                 handleAutoBet={handleAutoBet}
-                selectBoxes={selectBoxes}
-                handleSelectBoxes={handleSelectBoxes}
-                setback={setback}
-                clearAutoSelectBoxes={clearAutoSelectBoxes}
+                handleRandomBoxes={handleRandomBoxes}
                 selectedBoxes={selectedBoxes}
-                setSelectedBoxes={setSelectedBoxes}
-                setSelectBoxes={setSelectBoxes}
+                rows={rows}
                 disabled={loading}
               />
 
               {/* Right Section */}
               <div
-                className={`col-span-12 rounded-tr ${
+                className={`order-1 col-span-12 rounded-tr bg-gray-900 ${
                   theatreMode
-                    ? "md:col-span-8 md:order-2"
-                    : "lg:col-span-8 lg:order-2"
-                } xl:col-span-9 bg-gray-900 order-1`}
+                    ? "md:order-2 md:col-span-8"
+                    : "lg:order-2 lg:col-span-8"
+                } xl:col-span-9`}
               >
-                <div className="w-full relative text-white h-full flex items-center justify-center text-3xl">
+                <div className="relative flex h-full min-h-0 items-end justify-center overflow-visible pb-1 pt-8 text-white max-lg:min-h-0 max-lg:pt-7 max-lg:pb-1 lg:min-h-0 lg:pt-10 lg:pb-1.5">
                   {loading ? (
-                    <div className="flex flex-col items-center gap-4">
-                      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white"></div>
-                      <h1 className="text-xl font-semibold">Connecting...</h1>
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="h-10 w-10 animate-spin rounded-full border-b-2 border-t-2 border-white lg:h-12 lg:w-12" />
+                      <h1 className="text-base font-semibold lg:text-xl">
+                        Connecting...
+                      </h1>
                     </div>
                   ) : (
-                    <center className="w-full h-full">
+                    <div className="flex h-full w-full items-end justify-center">
                       <Game
                         bettingStarted={betStarted}
                         Difficulty={Difficulty}
@@ -252,8 +277,14 @@ const Frame = () => {
                         setSidebarDisabled={setSidebarDisabled}
                         bet={bet}
                         setBet={setBet}
+                        onRoundSettle={handleRoundSettle}
+                        onRoundStart={handleRoundStart}
+                        onCheckoutAvailableChange={setCanCheckout}
+                        onFairnessUpdate={handleFairnessUpdate}
+                        boardResetKey={boardResetKey}
+                        roundLocked={roundLocked}
                       />
-                    </center>
+                    </div>
                   )}
                 </div>
               </div>
@@ -281,6 +312,9 @@ const Frame = () => {
               setMaxBetEnable={setMaxBetEnable}
               theatreMode={theatreMode}
               setTheatreMode={setTheatreMode}
+              betMode={betMode}
+              onBetModeChange={handleFooterModeSwitch}
+              modeSwitchDisabled={loading || startAutoBet || betStarted || roundLocked}
             />
 
             {isGameSettings && (
@@ -302,7 +336,10 @@ const Frame = () => {
                       className="max-h-[90%] custom-scrollbar overflow-y-auto w-[95%] pt-3 rounded max-w-[500px] bg-primary"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <FairnessModal setIsFairness={setIsFairness} />
+                      <TowerFairnessModal
+                        setIsFairness={setIsFairness}
+                        prefill={fairnessPrefill}
+                      />
                     </div>
                   </div>
                 </div>
@@ -366,37 +403,6 @@ const Frame = () => {
               </div>
             )}
 
-            {/* Add Checkout Modal */}
-            {showCheckoutModal && (
-              <div className="absolute top-0 left-0 w-full h-full bg-black bg-opacity-75 flex items-center justify-center z-50">
-                <div className="p-6 bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4">
-                  <h2 className="text-2xl font-bold text-white mb-4">
-                    Checkout Complete
-                  </h2>
-                  <div className="text-gray-300 text-lg mb-6">
-                    <p className="mb-2">Your result:</p>
-                    <p
-                      className={`text-2xl font-bold ${
-                        profit > 0 ? "text-green-500" : "text-red-500"
-                      }`}
-                    >
-                      {profit.toFixed(8)} BTC
-                    </p>
-                  </div>
-                  <div className="flex gap-4 justify-center">
-                    <button
-                      className="px-6 py-3 text-lg bg-green-600 hover:bg-green-700 text-white rounded-md font-semibold"
-                      onClick={() => {
-                        setShowCheckoutModal(false);
-                        setBettingStarted(false);
-                      }}
-                    >
-                      Play Again
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </div>

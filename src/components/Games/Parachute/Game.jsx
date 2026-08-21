@@ -30,6 +30,7 @@ const Game = ({
   onRoundCrash,
   onRoundSettle,
   onRoundReady,
+  onFairness,
   roundLocked,
 }) => {
   const [isCrashed, setIsCrashed] = useState(false);
@@ -46,6 +47,7 @@ const Game = ({
   const onRoundCrashRef = useRef(onRoundCrash);
   const onRoundSettleRef = useRef(onRoundSettle);
   const onRoundReadyRef = useRef(onRoundReady);
+  const onFairnessRef = useRef(onFairness);
 
   useEffect(() => {
     startAutoBetRef.current = startAutoBet;
@@ -70,6 +72,29 @@ const Game = ({
   useEffect(() => {
     onRoundReadyRef.current = onRoundReady;
   }, [onRoundReady]);
+
+  useEffect(() => {
+    onFairnessRef.current = onFairness;
+  }, [onFairness]);
+
+  const applyFairness = (payload = {}, observed) => {
+    const fairness = payload.fairness || payload;
+    if (!fairness?.serverSeedHash) return;
+    const crashPoint =
+      observed ??
+      payload.crashPoint ??
+      (fairness.observed != null ? fairness.observed : null);
+    onFairnessRef.current?.({
+      clientSeed: fairness.clientSeed,
+      serverSeedHash: fairness.serverSeedHash,
+      nonce: fairness.nonce,
+      difficulty: fairness.difficulty || payload.difficulty,
+      observed: crashPoint,
+      observedLabel: crashPoint != null ? "Crash point" : undefined,
+      observedDisplay:
+        crashPoint != null ? `${Number(crashPoint).toFixed(2)}x` : undefined,
+    });
+  };
 
   const handleRoundCrash = (multiplier) => {
     if (crashHandledRef.current) return;
@@ -109,7 +134,7 @@ const Game = ({
     const parachuteSocket = getParachuteSocket();
     if (!parachuteSocket || parachuteSocket.__roundHandlersBound) return;
 
-    const onGameStarted = () => {
+    const onGameStarted = (data) => {
       autoCashoutFired.current = false;
       crashHandledRef.current = false;
       lastStateAtRef.current = Date.now();
@@ -118,6 +143,7 @@ const Game = ({
       setIsCrashed(false);
       setPause(false);
       requestWalletRefresh();
+      applyFairness(data);
     };
 
     const onGameState = ({ multiplier, isCrashed: crashed, hasCheckedOut }) => {
@@ -153,13 +179,15 @@ const Game = ({
       }
     };
 
-    const onCheckoutSuccess = ({ winAmount, multiplier }) => {
+    const onCheckoutSuccess = (payload) => {
+      const { winAmount, multiplier } = payload;
       crashHandledRef.current = true;
       setRoundActive(false);
       setValue(Number(multiplier));
       setPause(true);
       setCheckout(true);
       stopGame();
+      applyFairness(payload, payload.crashPoint);
 
       toast.success(
         `Cashed out at ${Number(multiplier).toFixed(2)}x for ${Number(
@@ -169,8 +197,9 @@ const Game = ({
       requestWalletRefresh();
     };
 
-    const onGameCrashed = ({ multiplier }) => {
-      handleRoundCrash(multiplier);
+    const onGameCrashed = (payload) => {
+      applyFairness(payload, payload.crashPoint ?? payload.multiplier);
+      handleRoundCrash(payload.multiplier);
     };
 
     const onError = ({ message }) => {

@@ -2,7 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import apiService from "../../config/api";
 import {
   BACCARAT_EVENT_COUNT,
+  CARD_FAIRNESS_FORMULA,
   HILO_BLACKJACK_EVENT_COUNT,
+  dealtMatchesShoe,
   hashServerSeed,
   verifyCardShoe,
 } from "../../utils/cardFairness";
@@ -31,7 +33,9 @@ const CardFairnessModal = ({
   const [currentSeed, setCurrentSeed] = useState(null);
   const [revealedSeed, setRevealedSeed] = useState(null);
   const [nextClientSeed, setNextClientSeed] = useState("");
-  const [clientSeed, setClientSeed] = useState(prefill?.clientSeed || "");
+  const [clientSeed, setClientSeed] = useState(
+    prefill?.clientSeed || (gameKey === "baccarat" ? "baccarat-public" : "")
+  );
   const [serverSeed, setServerSeed] = useState(prefill?.serverSeed || "");
   const [serverSeedHash, setServerSeedHash] = useState(
     prefill?.serverSeedHash || ""
@@ -43,6 +47,19 @@ const CardFairnessModal = ({
   const [verifyError, setVerifyError] = useState("");
 
   const loadSeed = useCallback(async () => {
+    if (gameKey === "baccarat") {
+      setCurrentSeed(
+        prefill
+          ? {
+              clientSeed: prefill.clientSeed || "baccarat-public",
+              serverSeedHash: prefill.serverSeedHash || "",
+              nonce: prefill.nonce ?? 0,
+            }
+          : null
+      );
+      setLoadingSeed(false);
+      return;
+    }
     setLoadingSeed(true);
     try {
       const response = await apiService.games.getFairnessCurrentSeed(gameKey);
@@ -52,7 +69,7 @@ const CardFairnessModal = ({
     } finally {
       setLoadingSeed(false);
     }
-  }, [gameKey]);
+  }, [gameKey, prefill]);
 
   useEffect(() => {
     loadSeed();
@@ -60,12 +77,14 @@ const CardFairnessModal = ({
 
   useEffect(() => {
     if (!prefill) return;
-    setClientSeed(prefill.clientSeed || "");
+    setClientSeed(
+      prefill.clientSeed || (gameKey === "baccarat" ? "baccarat-public" : "")
+    );
     setServerSeedHash(prefill.serverSeedHash || "");
     setServerSeed(prefill.serverSeed || "");
     setNonce(prefill.nonce != null ? String(prefill.nonce) : "0");
     setTab("verify");
-  }, [prefill]);
+  }, [prefill, gameKey]);
 
   const handleRotate = async () => {
     setRotating(true);
@@ -115,6 +134,7 @@ const CardFairnessModal = ({
       setVerification({
         ...response.data.verification,
         hashMatch: expectedHash ? computedHash === expectedHash : null,
+        dealtMatch: dealtMatchesShoe(local.labels, prefill?.dealt),
         local,
       });
     } catch (error) {
@@ -146,10 +166,11 @@ const CardFairnessModal = ({
         </button>
       </div>
 
-      <p className="mt-2 text-xs text-label">
-        Unlimited decks: each card is CARDS[floor(float × 52)] from HMAC_SHA256
-        (serverSeed, clientSeed:nonce:round). {title} generates {eventCount}{" "}
-        game events per round.
+      <p className="mt-2 text-xs text-label">{CARD_FAIRNESS_FORMULA}</p>
+      <p className="mt-1 text-xs text-label">
+        {title} generates {eventCount} HMAC card events per round. Undealt
+        cards stay hidden until you rotate the seed pair
+        {gameKey === "baccarat" ? " — Baccarat reveals the round seed after the deal." : "."}
       </p>
 
       <div className="mt-4 grid grid-cols-2 gap-2 rounded-full bg-primary-1 p-1">
@@ -191,7 +212,14 @@ const CardFairnessModal = ({
             </>
           )}
 
-          {gameKey !== "baccarat" && (
+          {gameKey === "baccarat" ? (
+            <p className="text-xs text-label">
+              Baccarat uses a per-round house seed with client seed{" "}
+              <span className="font-mono">baccarat-public</span>. The hash is
+              public while betting; the raw server seed is revealed after the
+              cards are dealt.
+            </p>
+          ) : (
             <div className="rounded-lg bg-primary-1 p-3">
               <p className="text-sm font-semibold">Rotate seed pair</p>
               <p className="mt-1 text-xs text-label">
@@ -217,6 +245,14 @@ const CardFairnessModal = ({
             </div>
           )}
 
+          {gameKey === "baccarat" && prefill?.serverSeed ? (
+            <FairnessField
+              label="Round server seed (revealed)"
+              value={prefill.serverSeed}
+              onCopy={copyText}
+            />
+          ) : null}
+
           {revealedSeed?.serverSeed && (
             <div className="rounded-lg border border-green-500/40 bg-green-500/10 p-3 text-sm">
               <p className="font-semibold text-green-300">
@@ -232,6 +268,16 @@ const CardFairnessModal = ({
 
       {tab === "verify" && (
         <div className="mt-4 space-y-3">
+          {Array.isArray(prefill?.dealt) && prefill.dealt.length > 0 ? (
+            <p className="text-xs text-label">
+              Dealt this round:{" "}
+              <span className="font-mono text-white">
+                {prefill.dealt
+                  .map((item) => item.label || item)
+                  .join(" ")}
+              </span>
+            </p>
+          ) : null}
           <FairnessInput
             label="Client seed"
             value={clientSeed}
@@ -284,14 +330,43 @@ const CardFairnessModal = ({
                       : "not checked"}
                 </span>
               </p>
-              <p className="text-label">{verification.formula}</p>
+              <p>
+                Dealt match:{" "}
+                <span
+                  className={
+                    verification.dealtMatch === true
+                      ? "text-green-300"
+                      : verification.dealtMatch === false
+                        ? "text-red-300"
+                        : "text-label"
+                  }
+                >
+                  {verification.dealtMatch === true
+                    ? "confirmed"
+                    : verification.dealtMatch === false
+                      ? "mismatch"
+                      : "not checked"}
+                </span>
+              </p>
+              <p className="text-label">
+                {verification.formula || CARD_FAIRNESS_FORMULA}
+              </p>
               <div className="max-h-48 overflow-auto rounded bg-primary p-2 font-mono text-[11px]">
                 {(verification.result || verification.local?.labels || []).map(
-                  (label, index) => (
-                    <div key={`${label}-${index}`}>
-                      {index}: {label}
-                    </div>
-                  )
+                  (label, index) => {
+                    const dealt = (prefill?.dealt || []).some(
+                      (item) => Number(item.index) === index
+                    );
+                    return (
+                      <div
+                        key={`${label}-${index}`}
+                        className={dealt ? "text-green-300" : ""}
+                      >
+                        {index}: {label}
+                        {dealt ? " · dealt" : ""}
+                      </div>
+                    );
+                  }
                 )}
               </div>
             </div>

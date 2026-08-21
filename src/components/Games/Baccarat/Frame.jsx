@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import "../../../styles/Frame.css";
 import CardFairnessModal from "../../Frame/CardFairnessModal";
 import FrameFooter from "../../Frame/FrameFooter";
@@ -10,6 +10,7 @@ import Game from "./Game";
 
 import { useSelector } from "react-redux";
 import {
+  disconnectBaccaratSocket,
   getBaccaratSocket,
   initializeBaccaratSocket,
   joinBaccaratGame,
@@ -24,9 +25,8 @@ import { toast } from "react-toastify";
 const Frame = () => {
   const [isFav, setIsFav] = useState(false);
   const [betMode, setBetMode] = useState("manual");
-  const [bet, setBet] = useState("0.000000");
   const [betStarted, setBettingStarted] = useState(false);
-  const [chipBet, setChipBet] = useState(0.0);
+  const [chipBet, setChipBet] = useState(20);
 
   const [isFairness, setIsFairness] = useState(false);
   const [isGameSettings, setIsGamings] = useState(false);
@@ -40,6 +40,9 @@ const Frame = () => {
   const [gameInfo, setGameInfo] = useState(false);
   const [fairnessPrefill, setFairnessPrefill] = useState(null);
   const [hotkeys, setHotkeys] = useState(false);
+  const [hotkeysEnabled, setHotkeysEnabled] = useState(false);
+  const [dealtRound, setDealtRound] = useState(null);
+  const [betLocked, setBetLocked] = useState(false);
 
   const [playerBet, setPlayerBet] = useState(0);
   const [tieBet, setTieBet] = useState(0);
@@ -53,51 +56,80 @@ const Frame = () => {
     banker: false,
   });
 
-  const totalBet = playerBet + tieBet + bankerBet;
-
   const navigate = useNavigate();
   const token = useSelector((state) => state.auth?.token);
   const betInFlightRef = useRef(false);
+  const resetTimerRef = useRef(null);
 
-  const initSocket = () => {
-    const baccaratSocket = getBaccaratSocket();
-    if (!baccaratSocket) {
-      initializeBaccaratSocket(token);
+  const handleDealComplete = useCallback(() => {
+    setBettingStarted(false);
+    setBetLocked(true);
+    if (resetTimerRef.current) {
+      clearTimeout(resetTimerRef.current);
     }
-  };
+    resetTimerRef.current = setTimeout(() => {
+      setDealtRound(null);
+      setPlayerBet(0);
+      setTieBet(0);
+      setBankerBet(0);
+      setSelectedSpots({ player: false, tie: false, banker: false });
+      setBettingStarted(false);
+      setBetLocked(false);
+      betInFlightRef.current = false;
+      resetTimerRef.current = null;
+    }, 3000);
+  }, []);
 
   useEffect(() => {
-    const baccaratSocket = getBaccaratSocket();
-
-    if (baccaratSocket) {
-      baccaratSocket.on("error", ({ message }) => {
-        console.error("Join game error:", message);
-        toast.error(`Error joining game: ${message}`);
-        requestWalletRefresh();
-      });
-      baccaratSocket.on("game_state_update", (update) => {
-        if (update?.fairness) {
-          setFairnessPrefill(update.fairness);
-        }
-      });
+    if (!token) {
+      disconnectBaccaratSocket();
+      return undefined;
     }
 
-    return () => {
-      // Only detach our listener; don't tear down the shared socket on every
-      // effect re-run, which disconnected it mid-handshake and dropped bets.
-      const baccaratSocket = getBaccaratSocket();
-      if (baccaratSocket) {
-        baccaratSocket.off("error");
-        baccaratSocket.off("game_state_update");
+    const socket = initializeBaccaratSocket(token);
+    if (!socket) return undefined;
+
+    const onError = ({ message }) => {
+      toast.error(message || "Baccarat error");
+      requestWalletRefresh();
+      setBettingStarted(false);
+      setBetLocked(false);
+      betInFlightRef.current = false;
+    };
+
+    const onUpdate = (update) => {
+      if (update?.fairness) setFairnessPrefill(update.fairness);
+      if (update?.type === "cards_dealt") {
+        setDealtRound(update);
+        setBettingStarted(true);
       }
     };
-  }, []);
+
+    const onSettled = () => {
+      requestWalletRefresh();
+    };
+
+    socket.on("error", onError);
+    socket.on("game_state_update", onUpdate);
+    socket.on("game_settled", onSettled);
+
+    return () => {
+      socket.off("error", onError);
+      socket.off("game_state_update", onUpdate);
+      socket.off("game_settled", onSettled);
+      if (resetTimerRef.current) {
+        clearTimeout(resetTimerRef.current);
+        resetTimerRef.current = null;
+      }
+    };
+  }, [token]);
 
   // Emit an event and resolve with the first ackEvent payload (rejecting on
   // the first error), so bets land on the table strictly in order.
-  const emitAndWait = (socket, emitFn, ackEvent) =>
+  const emitAndWait = (socket, emitFn, ackEvent, timeoutMs = 8000) =>
     new Promise((resolve, reject) => {
       const cleanup = () => {
+        clearTimeout(timer);
         socket.off(ackEvent, onAck);
         socket.off("error", onError);
       };
@@ -109,6 +141,10 @@ const Frame = () => {
         cleanup();
         reject(new Error(err?.message || "Connection error"));
       };
+      const timer = setTimeout(() => {
+        cleanup();
+        reject(new Error("Timed out waiting for the table"));
+      }, timeoutMs);
       socket.once(ackEvent, onAck);
       socket.once("error", onError);
       emitFn();
@@ -126,24 +162,38 @@ const Frame = () => {
       return;
     }
 
-    initSocket();
+    const baccaratSocket =
+      initializeBaccaratSocket(token) || getBaccaratSocket();
 
     // One bet flow at a time: the join/stake/deal sequence awaits server
     // acks, so guard against a double click double-debiting the stakes.
-    if (betStarted || betInFlightRef.current) return;
+    if (betStarted || betLocked || betInFlightRef.current) return;
     betInFlightRef.current = true;
 
-    const baccaratSocket = getBaccaratSocket();
     if (!baccaratSocket) {
       betInFlightRef.current = false;
-      console.error("Baccarat socket not initialized");
       toast.error("Failed to join game: Check Your Internet Connection");
       return;
     }
 
     try {
-      // Join the table, stake each selected bet from the demo wallet, then
-      // ask the server to deal and settle the round.
+      if (!baccaratSocket.connected) {
+        await new Promise((resolve, reject) => {
+          if (baccaratSocket.connected) {
+            resolve();
+            return;
+          }
+          const timer = setTimeout(
+            () => reject(new Error("Not connected to Baccarat")),
+            5000
+          );
+          baccaratSocket.once("connect", () => {
+            clearTimeout(timer);
+            resolve();
+          });
+          baccaratSocket.connect();
+        });
+      }
       const joined = await emitAndWait(
         baccaratSocket,
         () => joinBaccaratGame(),
@@ -172,13 +222,6 @@ const Frame = () => {
         requestWalletRefresh();
       }
 
-      // Refresh again once the deal settles (winnings credited).
-      const onSettled = () => {
-        requestWalletRefresh();
-        baccaratSocket.off("game_settled", onSettled);
-      };
-      baccaratSocket.on("game_settled", onSettled);
-
       startBaccaratDealing("demo");
       setBettingStarted(true);
     } catch (error) {
@@ -190,55 +233,33 @@ const Frame = () => {
     }
   };
 
-  const handleCheckout = () => {
-    setBettingStarted(false);
-  };
-
   return (
     <>
-      <div
-        className="w-full bg-secondry pt-[1px] pb-[12px] max-lg:pb-[36px]"
-        style={{
-          minHeight: "calc(100vh - 70px)",
-        }}
-      >
+      <div className="w-full bg-secondry pt-[1px] pb-3">
         <div
-          className={`my-12 rounded mx-auto bg-primary w-[96%] max-w-[1400px] max-md:max-w-[450px] ${
-            theatreMode ? "max-w-[100%] max-h-screen" : "max-lg:max-w-[450px]"
+          className={`mx-auto my-3 flex w-[98%] flex-col overflow-hidden rounded bg-primary max-w-[1400px] max-md:my-0 max-md:w-full max-md:rounded-none ${
+            theatreMode ? "max-w-full" : ""
           }`}
         >
-          <div className="flex flex-col gap-[0.15rem] relative">
-            <div className="grid grid-cols-12 lg:h-[600px]">
+          <div className="relative flex min-h-0 flex-1 flex-col">
+            <div className="grid min-h-0 flex-1 grid-cols-12 md:min-h-[520px]">
               {/* Left Section */}
               <SideBar
-                theatreMode={theatreMode}
                 setBetMode={setBetMode}
                 betMode={betMode}
-                bet={bet}
-                setBet={setBet}
-                maxBetEnable={maxBetEnable}
                 handleBet={handleBet}
                 bettingStarted={betStarted}
-                handleCheckout={handleCheckout}
+                betLocked={betLocked}
                 chipBet={chipBet}
                 setChipBet={setChipBet}
-                totalBet={totalBet}
               />
 
               {/* Right Section */}
-              <div
-                className={`col-span-12 rounded-tr ${
-                  theatreMode
-                    ? "md:col-span-8 md:order-2"
-                    : "lg:col-span-8 lg:order-2"
-                } xl:col-span-9 bg-gray-900 order-1`}
-              >
-                <div className="w-full  text-white rounded-tr h-full justify-center text-3xl">
+              <div className="relative order-1 col-span-12 bg-[#0f212e] md:order-2 md:col-span-8 md:min-h-[520px] xl:col-span-9">
+                <div className="relative flex h-full w-full items-stretch text-white">
                   <Game
                     betStarted={betStarted}
-                    bet={bet}
                     chipBet={chipBet}
-                    setBettingStarted={setBettingStarted}
                     playerBet={playerBet}
                     setPlayerBet={setPlayerBet}
                     bankerBet={bankerBet}
@@ -247,11 +268,14 @@ const Frame = () => {
                     setTieBet={setTieBet}
                     selectedSpots={selectedSpots}
                     setSelectedSpots={setSelectedSpots}
+                    dealtRound={dealtRound}
+                    onDealComplete={handleDealComplete}
                   />
                 </div>
               </div>
             </div>
 
+            <div className="border-t border-[#1a2c38] [&>div]:max-md:!py-3">
             <FrameFooter
               isFav={isFav}
               isGameSettings={isGameSettings}
@@ -275,6 +299,7 @@ const Frame = () => {
               theatreMode={theatreMode}
               setTheatreMode={setTheatreMode}
             />
+            </div>
 
             {isGameSettings && (
               <div

@@ -5,6 +5,8 @@ let limboSocket = null;
 
 // Socket initialization and management
 export const initializeLimboSocket = (token) => {
+  if (limboSocket) return limboSocket;
+
   const API_URL = SOCKET_URL;
   limboSocket = io(`${API_URL}/limbo`, {
     auth: { token },
@@ -60,6 +62,7 @@ export const placeBet = (
 // Event listeners
 export const onBetResult = (callback) => {
   if (limboSocket) {
+    limboSocket.off("bet_result");
     limboSocket.on("bet_result", callback);
   }
 };

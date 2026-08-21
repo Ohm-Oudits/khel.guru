@@ -291,7 +291,8 @@ const Frame = () => {
     if (betStarted) {
       setIsWaitingForCard(true);
       checkout((gameState) => {
-        if (gameState.checkedOut) {
+        if (gameState?.fairness) setFairnessPrefill(gameState.fairness);
+        if (gameState?.checkedOut) {
           requestWalletRefresh();
           settleRound(gameState.multiplier, gameState);
         }

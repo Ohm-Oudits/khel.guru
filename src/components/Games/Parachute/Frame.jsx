@@ -1,7 +1,8 @@
 /* eslint-disable */
 import { useCallback, useEffect, useState } from "react";
 import "../../../styles/Frame.css";
-import FairnessModal from "../../Frame/FairnessModal";
+import SeedPairFairnessModal from "../../Frame/SeedPairFairnessModal";
+import { riskMultiplierFairnessFormula } from "../../../utils/originalsFairness";
 import FrameFooter from "../../Frame/FrameFooter";
 import HotKeysModal from "../../Frame/HotKeysModal";
 import GameInfoModal from "../../Frame/GameInfoModal";
@@ -29,6 +30,7 @@ const Frame = () => {
   const [loss, setLoss] = useState("0.000000");
   const [profit, setProfit] = useState("0.000000");
   const [isFairness, setIsFairness] = useState(false);
+  const [fairnessPrefill, setFairnessPrefill] = useState(null);
   const [isGameSettings, setIsGamings] = useState(false);
   const [maxBetEnable, setMaxBetEnable] = useState(false);
   const [theatreMode, setTheatreMode] = useState(false);
@@ -281,6 +283,7 @@ const Frame = () => {
                     onRoundCrash={addCrashHistory}
                     onRoundSettle={handleRoundSettle}
                     onRoundReady={handleRoundReady}
+                    onFairness={setFairnessPrefill}
                     roundLocked={roundLocked}
                   />
                 </div>
@@ -309,6 +312,9 @@ const Frame = () => {
               setMaxBetEnable={setMaxBetEnable}
               theatreMode={theatreMode}
               setTheatreMode={setTheatreMode}
+              betMode={betMode}
+              onBetModeChange={setBetMode}
+              modeSwitchDisabled={startAutoBet || bettingStarted || roundLocked}
             />
 
             {isGameSettings && (
@@ -330,7 +336,24 @@ const Frame = () => {
                       className="max-h-[90%] custom-scrollbar overflow-y-auto w-[95%] pt-3 rounded max-w-[500px] bg-primary"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <FairnessModal setIsFairness={setIsFairness} />
+                      <SeedPairFairnessModal
+                        setIsFairness={setIsFairness}
+                        prefill={fairnessPrefill}
+                        gameKey="parachute"
+                        title="Provably Fair — Parachute"
+                        formula={riskMultiplierFairnessFormula(
+                          fairnessPrefill?.difficulty || difficulty
+                        )}
+                        seedHint="Rotate to reveal the previous server seed, then verify past rounds. The crash point is only shown after you cash out or the balloon pops."
+                        verifyLabel="Verify crash point"
+                        formatResult={(verification, last) => {
+                          const value =
+                            verification?.result ?? last?.observed;
+                          return value != null
+                            ? `${Number(value).toFixed(2)}x`
+                            : "—";
+                        }}
+                      />
                     </div>
                   </div>
                 </div>

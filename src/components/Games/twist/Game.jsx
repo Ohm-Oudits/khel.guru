@@ -1,151 +1,121 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import ResponsiveSegmentedCircles from "./Rod";
 
-import {
-  getTwistSocket,
-  placeBet,
-} from "../../../socket/games/twist";
+import { getTwistSocket, placeBet } from "../../../socket/games/twist";
 import { requestWalletRefresh } from "../../../utils/walletEvents";
 import { toast } from "react-toastify";
+import { saveTwistRoundRecord } from "../../../utils/twistRoundHistory";
+import { getActiveWalletType } from "../../../utils/activeWallet";
 
 const BonusWheel = ({
   bet,
   betTrigger,
-  betInfo,
   setbetInfo,
-  handleCheckout,
-  green,
+  onSpinComplete,
+  onSpinFailed,
+  onFairness,
   setgreen,
-  orange,
   setorange,
-  purple,
   setpurple,
   loading,
+  green,
+  orange,
+  purple,
 }) => {
-  const diamonds = ["orange", "green", "purple", "skull", "null"];
+  const [spinOutcome, setSpinOutcome] = useState(null);
+  const pendingResultRef = useRef(null);
+  const waitingForResultRef = useRef(false);
 
-  const [CurrentDiamond, setCurrentDiamond] = useState("purple");
+  const applyServerResult = (result) => {
+    const next = result.progress;
+    setorange(next.orange);
+    setgreen(next.green);
+    setpurple(next.purple);
+    setbetInfo((prev) => [
+      ...prev,
+      {
+        item: result.outcome,
+        index:
+          result.outcome === "skull" || result.outcome === "null"
+            ? result.outcome
+            : "hit",
+      },
+    ]);
+    saveTwistRoundRecord({
+      nonce: result.nonce,
+      clientSeed: result.clientSeed,
+      serverSeedHash: result.serverSeedHash,
+      outcome: result.outcome,
+      float: result.float,
+      betAmount: result.betAmount,
+      progress: next,
+    });
+    onFairness?.({
+      nonce: result.nonce,
+      clientSeed: result.clientSeed,
+      serverSeedHash: result.serverSeedHash,
+      outcome: result.outcome,
+    });
+    onSpinComplete?.(next);
+  };
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token) {
-      const twistSocket = getTwistSocket();
+    if (!betTrigger) return undefined;
 
-      if (twistSocket) {
-        twistSocket.on("error", ({ message }) => {
-          console.error("Join game error:", message);
-          toast.error(`Error joining game: ${message}`);
-          // A rejected bet (e.g. insufficient balance) left the wallet
-          // untouched; resync the readout in case it drifted.
-          requestWalletRefresh();
-        });
-
-        twistSocket.on("bet_result", () => {
-          // Reflect the stake debit in the in-game balance readout.
-          requestWalletRefresh();
-        });
-      }
+    const twistSocket = getTwistSocket();
+    if (!twistSocket) {
+      toast.error("Twist socket not initialized");
+      onSpinFailed?.();
+      return undefined;
     }
+
+    waitingForResultRef.current = true;
+
+    const onError = () => {
+      requestWalletRefresh();
+      if (!waitingForResultRef.current) return;
+      waitingForResultRef.current = false;
+      pendingResultRef.current = null;
+      setSpinOutcome(null);
+      onSpinFailed?.();
+    };
+
+    const onBetResult = (result) => {
+      waitingForResultRef.current = false;
+      requestWalletRefresh();
+      pendingResultRef.current = result;
+      setSpinOutcome(result);
+    };
+
+    twistSocket.on("error", onError);
+    twistSocket.on("bet_result", onBetResult);
+    twistSocket.emit("add_game", {});
+    placeBet(parseFloat(bet), getActiveWalletType());
 
     return () => {
-      // Only detach our listeners; don't tear down the shared socket on every
-      // effect re-run, which disconnected it mid-handshake and dropped bets.
-      const twistSocket = getTwistSocket();
-      if (twistSocket) {
-        twistSocket.off("error");
-        twistSocket.off("bet_result");
-      }
+      twistSocket.off("error", onError);
+      twistSocket.off("bet_result", onBetResult);
     };
-  }, []);
-
-  useEffect(() => {
-    if (betTrigger) {
-      const twistSocket = getTwistSocket();
-      if (twistSocket) {
-        twistSocket.emit("add_game", {});
-        console.log("Emitted add_game event");
-        // Debit the spin's stake from the demo wallet.
-        placeBet(parseFloat(bet), "demo");
-      } else {
-        console.error("Twist socket not initialized");
-        alert("Failed to join game: Socket not connected");
-      }
-    }
-  }, [betTrigger]);
-
-  useEffect(() => {
-    if (betTrigger) {
-      const timeout = setTimeout(() => {
-        const randomDiamond =
-          diamonds[Math.floor(Math.random() * diamonds.length)];
-        if (randomDiamond === "orange") {
-          setorange((prev) => prev + 1);
-          setbetInfo((prev) => [
-            ...prev,
-            {
-              item: randomDiamond,
-              index: orange + 1, // Use the updated value of `orange` after increment
-            },
-          ]);
-        } else if (randomDiamond === "green") {
-          setgreen((prev) => prev + 1);
-          setbetInfo((prev) => [
-            ...prev,
-            {
-              item: randomDiamond,
-              index: green + 1, // Use updated `green`
-            },
-          ]);
-        } else if (randomDiamond === "purple") {
-          setpurple((prev) => prev + 1);
-          setbetInfo((prev) => [
-            ...prev,
-            {
-              item: randomDiamond,
-              index: purple + 1,
-            },
-          ]);
-        } else if (randomDiamond === "skull") {
-          setorange((prev) => (prev > 0 ? prev - 1 : prev));
-          setpurple((prev) => (prev > 0 ? prev - 1 : prev));
-          setgreen((prev) => (prev > 0 ? prev - 1 : prev));
-
-          setbetInfo((prev) => [
-            ...prev,
-            {
-              item: randomDiamond,
-              index: "skull",
-            },
-          ]);
-        } else {
-          console.log(randomDiamond);
-          setbetInfo((prev) => [
-            ...prev,
-            {
-              item: randomDiamond,
-              index: "null",
-            },
-          ]);
-        }
-
-        setCurrentDiamond(randomDiamond);
-      }, 1500);
-
-      return () => clearTimeout(timeout);
-    }
-  }, [betTrigger, orange, green, purple]);
+  }, [betTrigger, bet, onSpinFailed]);
 
   return (
     <ResponsiveSegmentedCircles
       green={green}
       orange={orange}
       purple={purple}
-      targetIndex={1}
-      handleCheckout={handleCheckout}
-      setCurrentDiamond={setCurrentDiamond}
       loading={loading}
-      CurrentDiamond={CurrentDiamond}
-      betTrigger={betTrigger}
+      CurrentDiamond={spinOutcome?.outcome || "purple"}
+      betTrigger={Boolean(spinOutcome)}
+      onSpinEnd={() => {
+        const result = pendingResultRef.current;
+        pendingResultRef.current = null;
+        setSpinOutcome(null);
+        if (result) {
+          applyServerResult(result);
+        } else {
+          onSpinFailed?.();
+        }
+      }}
     />
   );
 };

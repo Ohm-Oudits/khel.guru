@@ -23,6 +23,7 @@ const DETAILED_ROW_PX = 56;
 const TABLE_COLUMNS =
   "minmax(7.5rem,1.5fr) minmax(5rem,1fr) minmax(4.5rem,0.8fr) minmax(6rem,1fr) minmax(5rem,0.85fr) minmax(6rem,1fr)";
 const WIDE_BREAKPOINT = 1280;
+const TABLE_BREAKPOINT = 1024;
 
 const pick = (list) => list[Math.floor(Math.random() * list.length)];
 
@@ -66,7 +67,12 @@ const LiveWinFeed = ({
   const counter = useRef(0);
   const rootRef = useRef(null);
   const headerRef = useRef(null);
-  const rowPx = detailed ? DETAILED_ROW_PX : ROW_PX;
+  const [showTable, setShowTable] = useState(
+    () =>
+      Boolean(detailed) &&
+      (typeof window === "undefined" || window.innerWidth >= TABLE_BREAKPOINT)
+  );
+  const rowPx = showTable ? DETAILED_ROW_PX : ROW_PX;
   const [count, setCount] = useState(rows);
   const [entries, setEntries] = useState(() =>
     Array.from({ length: rows }, (_, i) =>
@@ -76,8 +82,10 @@ const LiveWinFeed = ({
 
   useLayoutEffect(() => {
     const apply = () => {
-      const wide = window.innerWidth >= WIDE_BREAKPOINT;
-      if (!fill || !wide) {
+      const width = window.innerWidth;
+      const table = Boolean(detailed) && width >= TABLE_BREAKPOINT;
+      setShowTable(table);
+      if (!fill || width < WIDE_BREAKPOINT) {
         setCount(rows);
         return;
       }
@@ -85,12 +93,13 @@ const LiveWinFeed = ({
       const header = headerRef.current;
       if (!root) return;
       const available = root.clientHeight - (header?.offsetHeight || 0);
-      setCount(Math.max(4, Math.floor(available / rowPx)));
+      const px = table ? DETAILED_ROW_PX : ROW_PX;
+      setCount(Math.max(4, Math.floor(available / px)));
     };
     apply();
     window.addEventListener("resize", apply);
     return () => window.removeEventListener("resize", apply);
-  }, [fill, rows, rowPx]);
+  }, [fill, rows, detailed]);
 
   useEffect(() => {
     setEntries((prev) => {
@@ -118,7 +127,7 @@ const LiveWinFeed = ({
   return (
     <div ref={rootRef} className="flex h-full flex-col">
       <div ref={headerRef}>
-        {detailed ? (
+        {showTable ? (
           <div className="mb-5 flex items-center gap-3 border-b border-white/10 pb-4">
             <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-rose-400 shadow-[0_0_8px_rgba(251,113,133,0.7)]" />
             <h2 className="text-xl font-black tracking-tight text-white">
@@ -129,15 +138,15 @@ const LiveWinFeed = ({
           <div className="mb-2">
             <div className="mb-3 flex items-center gap-2.5">
               <span className="h-1.5 w-1.5 rounded-full bg-rose-400 shadow-[0_0_8px_rgba(251,113,133,0.7)]" />
-              <h2 className="text-sm font-black uppercase tracking-[0.18em] text-white">
+              <h2 className="text-sm font-black tracking-tight text-white">
                 {title}
               </h2>
             </div>
           </div>
         )}
       </div>
-      <div className={detailed ? "min-w-0 overflow-x-auto" : ""}>
-        {detailed ? (
+      <div className={showTable ? "min-w-0 overflow-x-auto" : ""}>
+        {showTable ? (
           <div
             className="mb-1 grid min-w-[42rem] gap-x-6 px-3 pb-3 text-xs font-semibold uppercase tracking-[0.16em] text-text-tertiary"
             style={{ gridTemplateColumns: TABLE_COLUMNS }}
@@ -151,10 +160,10 @@ const LiveWinFeed = ({
           </div>
         ) : null}
         <div
-          className={detailed ? "overflow-hidden" : "space-y-0.5 overflow-hidden"}
+          className={showTable ? "overflow-hidden" : "space-y-0.5 overflow-hidden"}
           style={{
             height: count * rowPx,
-            minWidth: detailed ? "42rem" : undefined,
+            minWidth: showTable ? "42rem" : undefined,
           }}
         >
           <AnimatePresence initial={false}>
@@ -167,13 +176,13 @@ const LiveWinFeed = ({
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.25 }}
                 className={
-                  detailed
+                  showTable
                     ? "border-t border-white/[0.06] px-3 text-[15px] leading-none"
                     : "rounded-lg bg-black/20 px-3 py-1 text-xs"
                 }
-                style={detailed ? { height: DETAILED_ROW_PX } : undefined}
+                style={showTable ? { height: DETAILED_ROW_PX } : undefined}
               >
-                {detailed ? (
+                {showTable ? (
                   <div
                     className="grid h-full items-center gap-x-6"
                     style={{ gridTemplateColumns: TABLE_COLUMNS }}
@@ -192,7 +201,7 @@ const LiveWinFeed = ({
                     </span>
                     <span
                       className={`truncate text-right tabular-nums ${
-                        entry.won ? "text-emerald-400" : "text-rose-400"
+                        entry.won ? "text-text-tertiary" : "text-rose-400"
                       }`}
                     >
                       {entry.multiplier}x
@@ -215,10 +224,22 @@ const LiveWinFeed = ({
                         {entry.label}
                       </span>
                     </div>
-                    <div className="flex shrink-0 items-center gap-3 text-text-tertiary">
-                      <span>{entry.multiplier}x</span>
-                      <span className="font-bold text-brand-primary">
-                        {entry.payout}
+                    <div className="flex shrink-0 items-center gap-3">
+                      <span
+                        className={
+                          entry.won ? "text-text-tertiary" : "text-rose-400"
+                        }
+                      >
+                        {entry.multiplier}x
+                      </span>
+                      <span
+                        className={`font-bold ${
+                          entry.won
+                            ? "text-brand-primary"
+                            : "text-text-tertiary"
+                        }`}
+                      >
+                        {entry.won ? entry.payout : "₹0"}
                       </span>
                     </div>
                   </div>

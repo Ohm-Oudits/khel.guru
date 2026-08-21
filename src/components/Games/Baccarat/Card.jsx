@@ -46,7 +46,7 @@ const Card = ({
         small
           ? "h-[8.4rem] w-[5.6rem] rounded"
           : medium
-          ? "w-24 h-36 rounded"
+          ? "h-[6.25rem] w-[4.25rem] rounded md:h-36 md:w-24"
           : "w-32 h-48 rounded-xl"
       } shadow-lg ${isRed ? "text-red-600" : "text-black"} ${
         shrink
@@ -54,17 +54,17 @@ const Card = ({
           : "bg-white"
       }`}
     >
-      <div className="p-3 flex flex-col h-full justify-between">
+      <div className="flex h-full flex-col justify-between p-1.5 md:p-3">
         <div
           className={`${
-            small ? "text-base" : medium ? "text-lg max-lg:text-sm" : "text-xl"
+            small ? "text-base" : medium ? "text-[0.7rem] md:text-lg" : "text-xl"
           } font-bold`}
         >
           {value}
           <span className="ml-1">{suit}</span>
         </div>
-        <div className="text-center text-6xl max-lg:text-4xl">{suit}</div>
-        <div className={`text-xl max-lg:text-sm font-bold self-end rotate-180`}>
+        <div className="text-center text-3xl md:text-5xl">{suit}</div>
+        <div className="rotate-180 self-end text-[0.7rem] font-bold md:text-xl">
           {value}
           <span className="ml-1">{suit}</span>
         </div>

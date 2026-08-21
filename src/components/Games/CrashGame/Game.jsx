@@ -50,6 +50,7 @@ const Game = ({
   onCrashHistory,
   onHistoryHydrate,
   onPhase,
+  onFairness,
   onAutoCashout,
   autoCashoutAt,
   autoCashoutEnabled,
@@ -57,6 +58,8 @@ const Game = ({
   const [phase, setPhase] = useState("waiting");
   const [hasSynced, setHasSynced] = useState(false);
   const [countdown, setCountdown] = useState(0);
+  const [cashoutPrompt, setCashoutPrompt] = useState(null);
+  const [showCashoutPop, setShowCashoutPop] = useState(false);
   const [tip, setTip] = useState({ x: null, y: null, angle: -25 });
   const chartRef = useRef(null);
   const [data, setData] = useState([{ time: 0, multiplier: 1.0 }]);
@@ -76,6 +79,7 @@ const Game = ({
   const yMaxRef = useRef(2);
 
   const onPhaseRef = useRef(onPhase);
+  const onFairnessRef = useRef(onFairness);
   const onCrashHistoryRef = useRef(onCrashHistory);
   const onHistoryHydrateRef = useRef(onHistoryHydrate);
   const onAutoCashoutRef = useRef(onAutoCashout);
@@ -85,6 +89,7 @@ const Game = ({
   const setDisableBetRef = useRef(setDisableBet);
 
   onPhaseRef.current = onPhase;
+  onFairnessRef.current = onFairness;
   onCrashHistoryRef.current = onCrashHistory;
   onHistoryHydrateRef.current = onHistoryHydrate;
   onAutoCashoutRef.current = onAutoCashout;
@@ -92,6 +97,19 @@ const Game = ({
   autoCashoutEnabledRef.current = autoCashoutEnabled;
   setMultiplierRef.current = setMultiplier;
   setDisableBetRef.current = setDisableBet;
+
+  useEffect(() => {
+    if (!cashoutPrompt) {
+      setShowCashoutPop(false);
+      return undefined;
+    }
+    const showTimer = setTimeout(() => setShowCashoutPop(true), 50);
+    const hideTimer = setTimeout(() => setCashoutPrompt(null), 2600);
+    return () => {
+      clearTimeout(showTimer);
+      clearTimeout(hideTimer);
+    };
+  }, [cashoutPrompt]);
 
   const applyPoints = (points) => {
     dataRef.current = points;
@@ -134,8 +152,13 @@ const Game = ({
         if (onPhaseRef.current) onPhaseRef.current(nextPhase);
         if (nextPhase === "waiting") {
           autoCashoutFired.current = false;
+          setCashoutPrompt(null);
           resetGraph();
         }
+      }
+
+      if (onFairnessRef.current && state.fairness) {
+        onFairnessRef.current(state.fairness);
       }
 
       if (nextPhase === "waiting" && Number.isFinite(Number(state.remainingMs))) {
@@ -200,9 +223,16 @@ const Game = ({
       }
     };
 
+    const onCashoutSuccess = ({ multiplier }) => {
+      setCashoutPrompt({
+        multiplier: Number(multiplier),
+      });
+    };
+
     const bind = (crashSocket) => {
       boundSocket = crashSocket;
       crashSocket.on("round_state", onState);
+      crashSocket.on("cashout_success", onCashoutSuccess);
       if (crashSocket.connected) {
         crashSocket.emit("get_state", {});
       } else {
@@ -231,6 +261,7 @@ const Game = ({
       cancelled = true;
       if (timer) clearInterval(timer);
       boundSocket?.off("round_state", onState);
+      boundSocket?.off("cashout_success", onCashoutSuccess);
     };
   }, []);
 
@@ -375,6 +406,15 @@ const Game = ({
           hasSynced && phase === "waiting" && countdown > 0 ? "blink" : ""
         } ${phase === "crashed" ? "zoom-in" : ""}`}
       >
+        {cashoutPrompt && (
+          <div
+            className={`pointer-events-none mb-2 rounded-lg px-3 py-0.5 text-2xl font-black tabular-nums shadow-lg transition-all duration-300 ease-out max-md:text-lg lg:text-3xl ${
+              showCashoutPop ? "scale-100 opacity-100" : "scale-50 opacity-0"
+            } bg-emerald-500 text-black`}
+          >
+            {Number(cashoutPrompt.multiplier).toFixed(2)}x
+          </div>
+        )}
         {!hasSynced ? (
           <>
             <span className="text-white/70">—</span>

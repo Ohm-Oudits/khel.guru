@@ -1,21 +1,19 @@
 import { io } from "socket.io-client";
 import { SOCKET_URL as API_URL } from "../../config/backendUrls";
+import { getActiveWalletType } from "../../utils/activeWallet";
 
 let towerSocket = null;
 
 export const initializeTowerSocket = (token) => {
-  // Reuse a live socket instead of churning a new connection on every mount —
-  // recreating it mid-handshake dropped in-flight bets ("closed before
-  // established").
   if (towerSocket) return towerSocket;
 
   towerSocket = io(`${API_URL}/tower`, {
     auth: {
-      token: token,
+      token,
     },
     transports: ["websocket"],
     reconnection: true,
-    reconnectionAttempts: 3,
+    reconnectionAttempts: 5,
   });
 
   towerSocket.on("connect", () => {
@@ -36,11 +34,11 @@ export const initializeTowerSocket = (token) => {
   towerSocket.on("disconnect", () => {
     console.log("Tower namespace disconnected");
   });
-};
 
-export const getTowerSocket = () => {
   return towerSocket;
 };
+
+export const getTowerSocket = () => towerSocket;
 
 export const disconnectTowerSocket = () => {
   if (towerSocket) {
@@ -49,10 +47,36 @@ export const disconnectTowerSocket = () => {
   }
 };
 
-// Start a new tower round, staking betAmount from the given wallet
-// (demo default).
-export const startTowerGame = (betAmount, difficulty, walletType = "demo") => {
+export const requestTowerGameState = () => {
+  if (!towerSocket) return false;
+  towerSocket.emit("get_game_state");
+  return true;
+};
+
+export const startTowerGame = (
+  betAmount,
+  difficulty,
+  walletType = getActiveWalletType()
+) => {
   if (!towerSocket) return false;
   towerSocket.emit("add_game", { betAmount, difficulty, walletType });
+  return true;
+};
+
+export const revealTowerBox = (index) => {
+  if (!towerSocket) return false;
+  towerSocket.emit("reveal", { index });
+  return true;
+};
+
+export const checkoutTower = () => {
+  if (!towerSocket) return false;
+  towerSocket.emit("checkout");
+  return true;
+};
+
+export const continueTowerGame = () => {
+  if (!towerSocket) return false;
+  towerSocket.emit("continue_game");
   return true;
 };

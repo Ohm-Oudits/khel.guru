@@ -193,6 +193,7 @@ const Game = ({
   nbets,
   betAmount,
   onRoundComplete,
+  onFairness,
 }) => {
   const [grid, setGrid] = useState([]);
   const [activeGame, setActiveGame] = useState(null);
@@ -206,6 +207,25 @@ const Game = ({
   const [remainingAutoBets, setRemainingAutoBets] = useState(0);
   const poppedRef = useRef(new Set());
   const completionTimerRef = useRef(null);
+  const onFairnessRef = useRef(onFairness);
+
+  useEffect(() => {
+    onFairnessRef.current = onFairness;
+  }, [onFairness]);
+
+  const applyFairness = (payload = {}, diamonds) => {
+    const fairness = payload.fairness || payload;
+    if (!fairness?.serverSeedHash) return;
+    const observed = diamonds || fairness.diamonds;
+    onFairnessRef.current?.({
+      clientSeed: fairness.clientSeed,
+      serverSeedHash: fairness.serverSeedHash,
+      nonce: fairness.nonce,
+      observed,
+      observedLabel: observed ? "Diamonds" : undefined,
+      observedDisplay: Array.isArray(observed) ? observed.join(" · ") : undefined,
+    });
+  };
 
   useEffect(() => {
     console.log("🎮 Game State Update:", {
@@ -263,6 +283,7 @@ const Game = ({
               setDiamondCounts(normalizeDiamondCounts(game.diamondCounts));
               setBettingStarted(true);
               setGameState("playing");
+              applyFairness(game);
             }
           });
         });
@@ -307,6 +328,7 @@ const Game = ({
           setBettingStarted(true);
           setGameState("playing");
           setLoading(false);
+          applyFairness(game);
         });
 
         onBoxRevealed(({ game }) => {
@@ -489,7 +511,7 @@ const Game = ({
     }
 
     const clickedBox = grid[index];
-    if (clickedBox.revealed || clickedBox.diamondColor === null) {
+    if (clickedBox.revealed) {
       console.log("⚠️ Box already revealed or invalid:", {
         index,
         revealed: clickedBox.revealed,
@@ -703,6 +725,11 @@ const Game = ({
     });
 
     requestWalletRefresh();
+    applyFairness(
+      completedGame,
+      completedGame.fairness?.diamonds ||
+        completedGame.grid?.map((box) => box.diamondColor)
+    );
 
     if (completedGame.winAmount > 0) {
       toast.success(`You won ${completedGame.winAmount}!`);

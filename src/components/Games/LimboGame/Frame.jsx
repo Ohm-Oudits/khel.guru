@@ -2,7 +2,8 @@
 import { useEffect, useState, useRef } from "react";
 import "../../../styles/Frame.css";
 import "../../../styles/Wheel.css";
-import FairnessModal from "../../Frame/FairnessModal";
+import SeedPairFairnessModal from "../../Frame/SeedPairFairnessModal";
+import { LIMBO_FAIRNESS_FORMULA } from "../../../utils/originalsFairness";
 import FrameFooter from "../../Frame/FrameFooter";
 import HotKeysModal from "../../Frame/HotKeysModal";
 import GameInfoModal from "../../Frame/GameInfoModal";
@@ -48,6 +49,7 @@ const Frame = () => {
   const [EstProfit, setEstProfit] = useState("0.000000");
 
   const [isFairness, setIsFairness] = useState(false);
+  const [fairnessPrefill, setFairnessPrefill] = useState(null);
   const [isGameSettings, setIsGamings] = useState(false);
   const [maxBetEnable, setMaxBetEnable] = useState(false);
   const [theatreMode, setTheatreMode] = useState(false);
@@ -76,7 +78,7 @@ const Frame = () => {
 
   const [number, setNumber] = useState(null);
   const [finalNumber, setFinalNumber] = useState(null);
-  const [targetMultiplier, setTargetMultiplier] = useState(50);
+  const [targetMultiplier, setTargetMultiplier] = useState(2);
   const [isAutoBetting, setIsAutoBetting] = useState(false);
 
   const [isDisconnected, setIsDisconnected] = useState(false);
@@ -154,6 +156,8 @@ const Frame = () => {
     setIsAnimating(false);
   };
 
+  const lastHistoryNonceRef = useRef(null);
+
   const revealBetResult = (result) => {
     stopNumberAnimation();
     const value = Number(result.number);
@@ -170,7 +174,26 @@ const Frame = () => {
     }
 
     setBetCompleted(true);
-    setCurrentHistory(addToGameHistory("limbo_game_history", result));
+
+    const duplicateNonce =
+      result?.nonce != null && lastHistoryNonceRef.current === result.nonce;
+    if (result?.nonce != null) lastHistoryNonceRef.current = result.nonce;
+    if (!duplicateNonce && !result?.error) {
+      setCurrentHistory(addToGameHistory("limbo_game_history", result));
+    }
+    if (result?.serverSeedHash) {
+      const shownValue = Number(result.number);
+      setFairnessPrefill({
+        clientSeed: result.clientSeed,
+        serverSeedHash: result.serverSeedHash,
+        nonce: result.nonce,
+        observed: shownValue,
+        observedLabel: "Last multiplier",
+        observedDisplay: Number.isFinite(shownValue)
+          ? `${shownValue.toFixed(2)}x`
+          : String(result.number),
+      });
+    }
   };
 
   const handleBetResult = (result) => {
@@ -604,6 +627,9 @@ const Frame = () => {
               setMaxBetEnable={setMaxBetEnable}
               theatreMode={theatreMode}
               setTheatreMode={setTheatreMode}
+              betMode={betMode}
+              onBetModeChange={setBetMode}
+              modeSwitchDisabled={startAutoBet || bettingStarted}
             />
 
             {isGameSettings && (
@@ -625,7 +651,21 @@ const Frame = () => {
                       className="max-h-[90%] custom-scrollbar overflow-y-auto w-[95%] pt-3 rounded max-w-[500px] bg-primary"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <FairnessModal setIsFairness={setIsFairness} />
+                      <SeedPairFairnessModal
+                        setIsFairness={setIsFairness}
+                        prefill={fairnessPrefill}
+                        gameKey="limbo"
+                        title="Provably Fair — Limbo"
+                        formula={LIMBO_FAIRNESS_FORMULA}
+                        verifyLabel="Verify multiplier"
+                        formatResult={(verification, last) => {
+                          const value =
+                            verification?.result ?? last?.observed;
+                          return value != null
+                            ? `${Number(value).toFixed(2)}x`
+                            : "—";
+                        }}
+                      />
                     </div>
                   </div>
                 </div>

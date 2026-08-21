@@ -2,7 +2,8 @@
 import { useEffect, useRef, useState } from "react";
 import "../../../styles/Frame.css";
 import "../../../styles/Wheel.css";
-import FairnessModal from "../../Frame/FairnessModal";
+import SeedPairFairnessModal from "../../Frame/SeedPairFairnessModal";
+import { SLIDE_FAIRNESS_FORMULA } from "../../../utils/originalsFairness";
 import FrameFooter from "../../Frame/FrameFooter";
 import HotKeysModal from "../../Frame/HotKeysModal";
 import GameInfoModal from "../../Frame/GameInfoModal";
@@ -36,6 +37,7 @@ import {
 } from "../../../socket/games/slide";
 import { useSelector } from "react-redux";
 import { requestWalletRefresh } from "../../../utils/walletEvents";
+import { getActiveWalletType } from "../../../utils/activeWallet";
 
 const DiceFrame = () => {
   const [isFav, setIsFav] = useState(false);
@@ -48,6 +50,8 @@ const DiceFrame = () => {
   const [bets, setBets] = useState(0);
 
   const [isFairness, setIsFairness] = useState(false);
+  const [fairnessPrefill, setFairnessPrefill] = useState(null);
+  const [fairnessCommitment, setFairnessCommitment] = useState(null);
   const [isGameSettings, setIsGameSettings] = useState(false);
   const [maxBetEnable, setMaxBetEnable] = useState(false);
   const [theatreMode, setTheatreMode] = useState(false);
@@ -72,13 +76,13 @@ const DiceFrame = () => {
   const [dicePosition, setDicePosition] = useState(fixedPosition);
 
   const [TargetNumber, setTargetNumber] = useState(0);
-  const [enteredMultipler, setenteredMultipler] = useState(0);
   const [gamestarted, setgamestarted] = useState(false);
 
   const [currentHistory, setCurrentHistory] = useState([]);
   const [winChance, setWinChance] = useState("50");
   const [startAutoBet, setStartAutoBet] = useState(false);
 
+  const [playerTarget, setPlayerTarget] = useState(2);
   const [targetMultiplier, setTargetMultiplier] = useState(null);
   const [phase, setPhase] = useState("waiting");
   const [elapsedMs, setElapsedMs] = useState(0);
@@ -127,6 +131,23 @@ const DiceFrame = () => {
       setgamestarted(false);
       setTargetMultiplier(null);
     }
+
+    const fairness = data.fairness;
+    if (!fairness) return;
+
+    if (fairness.serverSeed) {
+      const resultValue = fairness.resultMultiplier ?? data.multiplier;
+      setFairnessPrefill({
+        ...fairness,
+        observed: resultValue,
+        observedLabel: "Result",
+        observedDisplay: Number.isFinite(Number(resultValue))
+          ? `${Number(resultValue).toFixed(2)}x`
+          : String(resultValue),
+      });
+    } else {
+      setFairnessCommitment(fairness);
+    }
   };
 
   useEffect(() => {
@@ -166,9 +187,7 @@ const DiceFrame = () => {
 
     onBetPlaced((data) => {
       console.log("Bet placed:", data);
-      toast.success(
-        `Bet placed: ${data.betAmount} at ${data.targetMultiplier}x`
-      );
+      toast.success(`Bet placed: ${data.betAmount}`);
       // Stake debited server-side; refresh the balance readout.
       requestWalletRefresh();
     });
@@ -178,12 +197,12 @@ const DiceFrame = () => {
     onBetResult((data) => {
       if (data.isWin) {
         toast.success(
-          `You won! Payout ${Number(data.winAmount).toFixed(2)} at ${
-            data.multiplier
-          }x`
+          `Won ${Number(data.targetMultiplier).toFixed(2)}x · payout ${Number(data.winAmount).toFixed(2)}`
         );
       } else {
-        toast.info(`Round landed on ${data.multiplier}x — bet lost`);
+        toast.error(
+          `Lost · result ${Number(data.multiplier).toFixed(2)}x (target ${Number(data.targetMultiplier).toFixed(2)}x)`
+        );
       }
       requestWalletRefresh();
     });
@@ -232,15 +251,11 @@ const DiceFrame = () => {
       return;
     }
 
-    if (enteredMultipler > 1 && enteredMultipler < 51) {
-      placeBet({
-        betAmount: parseFloat(bet),
-        targetMultiplier: parseFloat(enteredMultipler),
-        walletType: "demo",
-      });
-    } else {
-      toast.error("Enter a valid multiplier between 1 and 51");
-    }
+    placeBet({
+      betAmount: parseFloat(bet),
+      targetMultiplier: parseFloat(playerTarget) || 2,
+      walletType: getActiveWalletType(),
+    });
   };
 
   const handleAutoBet = () => {
@@ -252,9 +267,9 @@ const DiceFrame = () => {
     if (!startAutoBet && nbets > 0 && nbets <= 100) {
       placeAutoBet({
         betAmount: parseFloat(bet),
-        targetMultiplier: parseFloat(enteredMultipler),
         numberOfBets: parseInt(nbets),
-        walletType: "demo",
+        targetMultiplier: parseFloat(playerTarget) || 2,
+        walletType: getActiveWalletType(),
       });
     } else {
       toast.error("Enter a valid number of bets (1-100)");
@@ -303,8 +318,6 @@ const DiceFrame = () => {
                 handleBetClick,
                 startAutoBet,
                 handleAutoBet,
-                enteredMultipler,
-                setenteredMultipler,
                 gamestarted,
               }}
             />
@@ -316,7 +329,7 @@ const DiceFrame = () => {
                   : "lg:col-span-8 lg:order-2"
               } xl:col-span-9 bg-gray-900 order-1 max-lg:min-h-[280px]`}
             >
-              <div className="relative flex h-full min-h-[280px] w-full flex-col items-center justify-center px-3 text-white max-lg:min-h-[260px] lg:min-h-0 lg:px-5">
+              <div className="relative flex h-full min-h-[280px] w-full flex-col items-center justify-center px-3 pb-3 text-white max-lg:min-h-[260px] lg:min-h-0 lg:px-5">
                 <div className="absolute inset-x-0 top-2 z-10">
                   <History list={currentHistory} />
                 </div>
@@ -331,6 +344,13 @@ const DiceFrame = () => {
                     round,
                   }}
                 />
+                <div className="mt-4 w-full max-w-3xl pb-1">
+                  <BetCalculator
+                    playerTarget={playerTarget}
+                    setPlayerTarget={setPlayerTarget}
+                    disabled={gamestarted || startAutoBet}
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -359,6 +379,9 @@ const DiceFrame = () => {
               theatreMode,
               setTheatreMode,
             }}
+            betMode={betMode}
+            onBetModeChange={setBetMode}
+            modeSwitchDisabled={startAutoBet || gamestarted}
           />
 
           {isGameSettings && (
@@ -378,7 +401,24 @@ const DiceFrame = () => {
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="max-h-[90%] custom-scrollbar overflow-y-auto w-[95%] pt-3 rounded max-w-[500px] bg-primary">
-                  <FairnessModal setIsFairness={setIsFairness} />
+                    <SeedPairFairnessModal
+                      setIsFairness={setIsFairness}
+                      prefill={fairnessPrefill}
+                      commitment={fairnessCommitment}
+                      gameKey="slide"
+                      title="Provably Fair — Slide"
+                      formula={SLIDE_FAIRNESS_FORMULA}
+                      rotateMode={false}
+                      seedHint="The hash is public while betting. The server seed is revealed after the round settles. A new seed is committed for the next round."
+                      verifyLabel="Verify result"
+                      formatResult={(verification, last) => {
+                        const value =
+                          verification?.result ?? last?.observed;
+                        return value != null
+                          ? `${Number(value).toFixed(2)}x`
+                          : "—";
+                      }}
+                    />
                 </div>
               </div>
             </div>

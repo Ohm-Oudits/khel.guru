@@ -1,0 +1,36 @@
+.baccarat-flip {
+  perspective: 900px;
+}
+
+.baccarat-flip-card {
+  position: relative;
+  width: 4.25rem;
+  height: 6.25rem;
+  transform-style: preserve-3d;
+  transition: transform 0.55s ease;
+}
+
+.baccarat-flip-card.is-flipped {
+  transform: rotateY(180deg);
+}
+
+.baccarat-flip-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+}
+
+.baccarat-flip-front {
+  transform: rotateY(180deg);
+}
+
+.baccarat-glow {
+  filter: drop-shadow(0 0 10px rgba(34, 197, 94, 0.55));
+}
+
+@media (min-width: 768px) {
+  .baccarat-flip-card {
+    width: 6rem;
+    height: 9rem;
+  }
+}

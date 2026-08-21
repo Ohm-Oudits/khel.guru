@@ -3,7 +3,6 @@ import "../../../styles/Frame.css";
 import FrameFooter from "../../Frame/FrameFooter";
 import SideBar from "./SideBar";
 import Game from "./Game";
-import History from "../../Frame/History";
 import { useSelector } from "react-redux";
 import {
   getBlackjackSocket,
@@ -14,7 +13,7 @@ import { requestWalletRefresh } from "../../../utils/walletEvents";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import CardFairnessModal from "../../Frame/CardFairnessModal";
-import { addToGameHistory, getGameHistory } from "../../../utils/gameHistory";
+import { addToGameHistory } from "../../../utils/gameHistory";
 
 const HISTORY_KEY = "blackjack_game_history";
 
@@ -47,15 +46,26 @@ const Frame = () => {
   const [splitBets, setSplitBets] = useState(["0.000000", "0.000000"]);
   const [gameState, setGameState] = useState(null);
   const [fairnessPrefill, setFairnessPrefill] = useState(null);
-  const [history, setHistory] = useState([]);
+  const [roundResetCountdown, setRoundResetCountdown] = useState(null);
+  const [roundResetPending, setRoundResetPending] = useState(false);
   const lastSettledNonce = useRef(null);
+  const roundResetTimeoutRef = useRef(null);
+  const roundResetIntervalRef = useRef(null);
 
   const navigate = useNavigate();
   const token = useSelector((state) => state.auth?.token);
 
-  useEffect(() => {
-    setHistory(getGameHistory(HISTORY_KEY));
-  }, []);
+  const clearRoundResetTimers = () => {
+    if (roundResetTimeoutRef.current) {
+      clearTimeout(roundResetTimeoutRef.current);
+      roundResetTimeoutRef.current = null;
+    }
+
+    if (roundResetIntervalRef.current) {
+      clearInterval(roundResetIntervalRef.current);
+      roundResetIntervalRef.current = null;
+    }
+  };
 
   useEffect(() => {
     if (!token) return undefined;
@@ -71,6 +81,8 @@ const Frame = () => {
       socket.off("connect", onConnect);
     };
   }, [token]);
+
+  useEffect(() => () => clearRoundResetTimers(), []);
 
   useEffect(() => {
     const blackjackSocket = getBlackjackSocket();
@@ -92,12 +104,10 @@ const Frame = () => {
         if (nonce != null && lastSettledNonce.current !== nonce) {
           lastSettledNonce.current = nonce;
           const multiplier = Number(nextState.settlement.multiplier) || 0;
-          setHistory(
-            addToGameHistory(HISTORY_KEY, {
-              number: multiplier,
-              isWin: multiplier > 1,
-            })
-          );
+          addToGameHistory(HISTORY_KEY, {
+            number: multiplier,
+            isWin: multiplier > 1,
+          });
         }
       }
 
@@ -166,12 +176,79 @@ const Frame = () => {
 
   const playing = gameState?.gameState === "playing";
   const insuranceOpen = gameState?.gameState === "insurance";
+  const betLocked = roundResetCountdown !== null || roundResetPending;
+
+  useEffect(() => {
+    if (gameState?.gameState !== "complete") {
+      clearRoundResetTimers();
+      setRoundResetCountdown(null);
+      return undefined;
+    }
+
+    clearRoundResetTimers();
+    setRoundResetCountdown(3);
+
+    roundResetIntervalRef.current = setInterval(() => {
+      setRoundResetCountdown((prev) =>
+        prev != null && prev > 1 ? prev - 1 : 1
+      );
+    }, 1000);
+
+    roundResetTimeoutRef.current = setTimeout(async () => {
+      const blackjackSocket = getBlackjackSocket();
+
+      clearRoundResetTimers();
+      setRoundResetCountdown(null);
+
+      if (!blackjackSocket) {
+        toast.error("Failed to reset game: Check Your Internet Connection");
+        return;
+      }
+
+      setRoundResetPending(true);
+
+      try {
+        await new Promise((resolve, reject) => {
+          const handleResetState = ({ success, gameState: nextState }) => {
+            cleanup();
+            if (success && nextState) {
+              resolve(nextState);
+              return;
+            }
+            reject(new Error("Failed to reset round"));
+          };
+
+          const handleResetError = (error) => {
+            cleanup();
+            reject(error);
+          };
+
+          const cleanup = () => {
+            blackjackSocket.off("game_state", handleResetState);
+            blackjackSocket.off("error", handleResetError);
+          };
+
+          blackjackSocket.on("game_state", handleResetState);
+          blackjackSocket.on("error", handleResetError);
+          blackjackSocket.emit("add_game");
+        });
+      } catch (error) {
+        toast.error(error.message || "Failed to reset round");
+      } finally {
+        setRoundResetPending(false);
+      }
+    }, 3000);
+
+    return () => clearRoundResetTimers();
+  }, [gameState?.gameState, gameState?.nonce]);
 
   const handlePlaceBet = async () => {
     if (!checkLoggedIn()) {
       navigate(`?tab=${"login"}`, { replace: true });
       return;
     }
+
+    if (betLocked) return;
 
     const blackjackSocket = getBlackjackSocket();
     if (!blackjackSocket) {
@@ -280,6 +357,14 @@ const Frame = () => {
                 maxBetEnable={maxBetEnable}
                 handleMineBet={handlePlaceBet}
                 bettingStarted={betStarted}
+                betLocked={betLocked}
+                betButtonLabel={
+                  roundResetCountdown !== null
+                    ? `Next round in ${roundResetCountdown}s`
+                    : roundResetPending
+                      ? "Resetting..."
+                      : "Place Bet"
+                }
                 playing={playing}
                 insuranceOpen={insuranceOpen}
                 split={split}
@@ -305,14 +390,6 @@ const Frame = () => {
                 } xl:col-span-9 bg-gray-900 order-1 max-lg:h-auto`}
               >
                 <div className="relative flex h-full w-full flex-col text-white max-lg:min-h-0 lg:min-h-[520px]">
-                  <div className="pointer-events-none absolute inset-x-0 top-1 z-10">
-                    <History list={history} />
-                  </div>
-                  <div className="pointer-events-none absolute inset-x-0 top-10 z-10 flex justify-center lg:hidden">
-                    <p className="rounded-full bg-black/25 px-3 py-1 text-[0.58rem] font-semibold uppercase tracking-[0.18em] text-zinc-400">
-                      BJ 3:2 · Insurance 2:1
-                    </p>
-                  </div>
                   <Game
                     userCards={split ? splitHands[activeHand] : userCards}
                     dealerCards={dealerCards}

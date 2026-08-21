@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import "../../../styles/Frame.css";
 import "../../../styles/Wheel.css";
-import FairnessModal from "../../Frame/FairnessModal";
+import SeedPairFairnessModal from "../../Frame/SeedPairFairnessModal";
+import { WHEEL_FAIRNESS_FORMULA } from "../../../utils/originalsFairness";
 import FrameFooter from "../../Frame/FrameFooter";
 import HotKeysModal from "../../Frame/HotKeysModal";
 import GameInfoModal from "../../Frame/GameInfoModal";
@@ -38,6 +39,7 @@ const Frame = () => {
   const [segment, setSegment] = useState(30);
 
   const [isFairness, setIsFairness] = useState(false);
+  const [fairnessPrefill, setFairnessPrefill] = useState(null);
   const [isGameSettings, setIsGamings] = useState(false);
   const [maxBetEnable, setMaxBetEnable] = useState(false);
   const [theatreMode, setTheatreMode] = useState(false);
@@ -191,6 +193,7 @@ const Frame = () => {
                     setAutoStart={setAutoStart}
                     bet={bet}
                     onHistory={addToHistory}
+                    onFairness={setFairnessPrefill}
                   />
                 </div>
 
@@ -222,6 +225,9 @@ const Frame = () => {
               setMaxBetEnable={setMaxBetEnable}
               theatreMode={theatreMode}
               setTheatreMode={setTheatreMode}
+              betMode={betMode}
+              onBetModeChange={handleModeSwitch}
+              modeSwitchDisabled={autoStart || betStarted}
             />
 
             {isGameSettings && (
@@ -243,7 +249,23 @@ const Frame = () => {
                       className="max-h-[90%] custom-scrollbar overflow-y-auto w-[95%] pt-3 rounded max-w-[500px] bg-primary"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <FairnessModal setIsFairness={setIsFairness} />
+                      <SeedPairFairnessModal
+                        setIsFairness={setIsFairness}
+                        prefill={fairnessPrefill}
+                        gameKey="wheel"
+                        title="Provably Fair — Wheel"
+                        formula={WHEEL_FAIRNESS_FORMULA}
+                        verifyLabel="Verify index"
+                        formatResult={(verification, last) => {
+                          const index =
+                            verification?.result ?? last?.observed;
+                          const multiplier = last?.multiplier;
+                          if (index == null) return "—";
+                          return multiplier != null
+                            ? `Index ${index} · ${Number(multiplier).toFixed(2)}x`
+                            : `Index ${index}`;
+                        }}
+                      />
                     </div>
                   </div>
                 </div>

@@ -179,7 +179,7 @@ const HomePage = () => {
         </PlatformPanel>
 
         <PlatformPanel>
-          <LiveWinFeed variant="both" fill title="Win Stream" />
+          <LiveWinFeed variant="both" fill rows={20} title="Bet Rolls" />
         </PlatformPanel>
       </section>
 

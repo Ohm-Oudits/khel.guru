@@ -248,3 +248,35 @@
   text-align: right;
   color: rgb(110 231 183);
 }
+
+.game-difficulty-select {
+  min-width: 0;
+  flex: 1 1 auto;
+  height: 2.5rem;
+  border-radius: 0.65rem;
+  border: 1px solid rgb(47 69 83 / 0.9);
+  background: rgb(15 33 46 / 0.95);
+  padding: 0 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: rgb(226 232 240);
+  outline: none;
+  cursor: pointer;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.game-difficulty-select:hover:not(:disabled) {
+  border-color: rgb(71 85 105);
+}
+
+.game-difficulty-select:focus-visible {
+  border-color: #00d4aa;
+  box-shadow: 0 0 0 1px rgb(0 212 170 / 0.2);
+}
+
+.game-difficulty-select:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}

@@ -4,18 +4,23 @@ import { SOCKET_URL as API_URL } from "../../config/backendUrls";
 let kenoSocket = null;
 
 export const initializeKenoSocket = (token) => {
-  if (kenoSocket && kenoSocket.connected) {
-    console.log("Keno socket already initialized and connected");
+  if (kenoSocket) {
+    if (token) {
+      kenoSocket.auth = { token };
+    }
+    if (!kenoSocket.connected) {
+      kenoSocket.connect();
+    }
     return kenoSocket;
   }
 
   kenoSocket = io(`${API_URL}/keno`, {
     auth: {
-      token: token,
+      token,
     },
     transports: ["websocket"],
     reconnection: true,
-    reconnectionAttempts: 3,
+    reconnectionAttempts: 5,
   });
 
   kenoSocket.on("connect", () => {
@@ -43,14 +48,11 @@ export const initializeKenoSocket = (token) => {
   return kenoSocket;
 };
 
-export const getKenoSocket = () => {
-  return kenoSocket;
-};
+export const getKenoSocket = () => kenoSocket;
 
 export const disconnectKenoSocket = () => {
   if (kenoSocket) {
     kenoSocket.disconnect();
     kenoSocket = null;
-    console.log("Keno socket disconnected and reset");
   }
 };

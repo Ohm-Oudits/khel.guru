@@ -2,7 +2,8 @@
 import { useEffect, useState, useRef } from "react";
 import "../../../styles/Frame.css";
 import "../../../styles/Wheel.css";
-import FairnessModal from "../../Frame/FairnessModal";
+import SeedPairFairnessModal from "../../Frame/SeedPairFairnessModal";
+import { DICE_FAIRNESS_FORMULA } from "../../../utils/originalsFairness";
 import FrameFooter from "../../Frame/FrameFooter";
 import HotKeysModal from "../../Frame/HotKeysModal";
 import GameInfoModal from "../../Frame/GameInfoModal";
@@ -65,6 +66,8 @@ const DiceFrame = () => {
 
   const [fixedPosition, setFixedPosition] = useState(roll);
   const [gameResult, setGameResult] = useState("");
+  const [roundOutcome, setRoundOutcome] = useState(null);
+  const [fairnessPrefill, setFairnessPrefill] = useState(null);
   const [targetPosition, setTargetPosition] = useState(fixedPosition);
   const [dicePosition, setDicePosition] = useState(fixedPosition);
 
@@ -156,6 +159,21 @@ const DiceFrame = () => {
 
         setGameResult(isWin ? "Winner! 🎉" : "You Lost! 😔");
         setDicePosition(diceRoll);
+        setRoundOutcome({
+          isWin: Boolean(isWin),
+          roll: Number(diceRoll),
+          multiplier: Number(multiplier) || parseFloat(calculateMultiplier(winChance)),
+        });
+        if (result.serverSeedHash) {
+          setFairnessPrefill({
+            clientSeed: result.clientSeed,
+            serverSeedHash: result.serverSeedHash,
+            nonce: result.nonce,
+            observed: Number(diceRoll),
+            observedLabel: "Last roll",
+            observedDisplay: Number(diceRoll).toFixed(2),
+          });
+        }
         addToHistory(result);
         // Reflect the debit/credit in the in-game balance readout.
         requestWalletRefresh();
@@ -168,7 +186,7 @@ const DiceFrame = () => {
 
         setTimeout(() => {
           resetGame();
-        }, 2000);
+        }, 2600);
       } catch (error) {
         console.error("Error processing dice result:", error);
         toast.error("Error processing game result");
@@ -331,6 +349,7 @@ const DiceFrame = () => {
       setBettingStarted(false);
       setStart(false);
       setGameResult("");
+      setRoundOutcome(null);
       setDicePosition(fixedPosition);
       setTargetPosition(null);
       setStartAutoBet(false);
@@ -518,6 +537,8 @@ const DiceFrame = () => {
   const resetGame = () => {
     setStart(false);
     setBettingStarted(false);
+    setRoundOutcome(null);
+    setGameResult("");
   };
 
   useEffect(() => {
@@ -629,7 +650,7 @@ const DiceFrame = () => {
                 <div className="pointer-events-none absolute inset-x-0 top-2 z-10">
                   <History list={currentHistory} />
                 </div>
-                <div className="flex min-h-[160px] flex-1 items-center justify-center">
+                <div className="flex min-h-[160px] w-full flex-1 items-center justify-center">
                   <GameComponent
                     {...{
                       setRollover: setRoll,
@@ -646,6 +667,7 @@ const DiceFrame = () => {
                       calculateMultiplier,
                       winChance,
                       targetPosition,
+                      roundOutcome,
                     }}
                   />
                 </div>
@@ -690,6 +712,9 @@ const DiceFrame = () => {
               theatreMode,
               setTheatreMode,
             }}
+            betMode={betMode}
+            onBetModeChange={setBetMode}
+            modeSwitchDisabled={startAutoBet || bettingStarted || start}
           />
 
           {isGameSettings && (
@@ -709,7 +734,21 @@ const DiceFrame = () => {
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="max-h-[90%] custom-scrollbar overflow-y-auto w-[95%] pt-3 rounded max-w-[500px] bg-primary">
-                  <FairnessModal setIsFairness={setIsFairness} />
+                    <SeedPairFairnessModal
+                      setIsFairness={setIsFairness}
+                      prefill={fairnessPrefill}
+                      gameKey="dice"
+                      title="Provably Fair — Dice"
+                      formula={DICE_FAIRNESS_FORMULA}
+                      verifyLabel="Verify roll"
+                      formatResult={(verification, last) => {
+                        const roll =
+                          verification?.result ?? last?.observed;
+                        return roll != null
+                          ? `Roll ${Number(roll).toFixed(2)}`
+                          : "—";
+                      }}
+                    />
                 </div>
               </div>
             </div>

@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import "../../../styles/Frame.css";
-import FairnessModal from "../../Frame/FairnessModal";
+import MinesFairnessModal from "./MinesFairnessModal";
 import FrameFooter from "../../Frame/FrameFooter";
 import HotKeysModal from "../../Frame/HotKeysModal";
 import GameInfoModal from "../../Frame/GameInfoModal";
@@ -17,13 +17,16 @@ import {
 import checkLoggedIn from "../../../utils/isloggedIn";
 import { toast } from "react-toastify";
 import { useGameBalance, useActiveWalletType } from "../../../hooks/useGameBalance";
+import {
+  countRevealedDiamonds,
+  settleMinesCashout,
+} from "../../../utils/minesFairness";
 
 const Frame = () => {
   const token = useSelector((state) => state.auth?.token);
   const walletType = useActiveWalletType();
   const { balance, loading: balanceLoading } = useGameBalance(walletType);
   const navigate = useNavigate();
-  const [connectionStatus, setConnectionStatus] = useState("Connecting");
   const [history, setHistory] = useState([]);
   // const user = useSelector((state) => state.auth.user.user);
   const [isFav, setIsFav] = useState(false);
@@ -35,8 +38,7 @@ const Frame = () => {
   const [mines, setMines] = useState(3);
   const [gems, setGems] = useState(25 - mines);
   const [betStarted, setBettingStarted] = useState(false);
-  // eslint-disable-next-line
-  const [totalProfit, setTotalProfit] = useState("0.000000");
+  const [fairnessPrefill, setFairnessPrefill] = useState(null);
   const [grid, setGrid] = useState(
     Array(25)
       .fill()
@@ -61,6 +63,29 @@ const Frame = () => {
   const [selectBoxes, setSelectBoxes] = useState(false);
   const [selectedBoxes, setSelectedBoxes] = useState([]);
   const [sidebarDisabled, setSidebarDisabled] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState(
+    token ? "Connecting" : "Not Logged In"
+  );
+  const socketReady = !token || connectionStatus === "Connected";
+  const controlsLocked = sidebarDisabled || (Boolean(token) && !socketReady);
+  const liveCashout = useMemo(() => {
+    const fromGrid = countRevealedDiamonds(grid);
+    const remainingGems = Number(gems);
+    const fromGems = Number.isFinite(remainingGems)
+      ? 25 - Number(mines) - remainingGems
+      : 0;
+    const gemsRevealed = Math.max(fromGrid, fromGems, 0);
+    return settleMinesCashout({
+      betAmount: bet,
+      mineCount: mines,
+      gemsRevealed,
+    });
+  }, [bet, mines, grid, gems]);
+  const totalProfit = betStarted
+    ? liveCashout.payout.toFixed(6)
+    : Number(bet) > 0
+      ? Number(bet).toFixed(6)
+      : "0.000000";
 
   useEffect(() => {
     if (!token) {
@@ -88,6 +113,10 @@ const Frame = () => {
   }, [token]);
 
   const getStakeBlockReason = () => {
+    if (!token) {
+      return null;
+    }
+
     const stake = Number(bet);
     if (!Number.isFinite(stake) || stake < 0) {
       return "Enter a valid bet amount";
@@ -132,8 +161,10 @@ const Frame = () => {
   };
 
   useEffect(() => {
-    setGems(25 - mines);
-  }, [mines]);
+    if (!betStarted && !gameCheckout) {
+      setGems(25 - mines);
+    }
+  }, [mines, betStarted, gameCheckout]);
 
   const handleAutoBet = () => {
     if (!checkLoggedIn()) {
@@ -152,7 +183,11 @@ const Frame = () => {
       return;
     }
 
-    if (!startAutoBet && nbets != 0) {
+    if (!startAutoBet && selectedBoxes.length > 0) {
+      if (Number(nbets) <= 0) {
+        setNBets(1);
+      }
+      setSelectBoxes(true);
       setStartAutoBet(true);
     }
   };
@@ -168,6 +203,20 @@ const Frame = () => {
     if (!selectBoxes && selectedBoxes.length > 0) {
       setSelectBoxes(true);
     }
+  };
+
+  const handleFooterModeSwitch = (mode) => {
+    if (startAutoBet || controlsLocked) {
+      return;
+    }
+
+    setSelectBoxes(false);
+    setBetMode(mode);
+    setGrid(
+      Array(25)
+        .fill()
+        .map(() => ({ type: "diamond", revealed: false }))
+    );
   };
 
   return (
@@ -209,10 +258,11 @@ const Frame = () => {
                 handleAutoBet={handleAutoBet}
                 gameCheckout={gameCheckout}
                 selectBoxes={selectBoxes}
+                selectedBoxes={selectedBoxes}
                 setSelectBoxes={setSelectBoxes}
                 handleSelectBoxes={handleSelectBoxes}
                 setback={setback}
-                disabled={sidebarDisabled || connectionStatus !== "Connected"}
+                disabled={controlsLocked}
                 connectionStatus={connectionStatus}
                 setGrid={setGrid}
                 stakeBlockReason={getStakeBlockReason()}
@@ -253,6 +303,9 @@ const Frame = () => {
                     grid={grid}
                     setGrid={setGrid}
                     setHistory={setHistory}
+                    setFairnessPrefill={setFairnessPrefill}
+                    setMines={setMines}
+                    liveMultiplier={liveCashout.multiplier}
                   />
                 </div>
               </div>
@@ -280,6 +333,11 @@ const Frame = () => {
               setMaxBetEnable={setMaxBetEnable}
               theatreMode={theatreMode}
               setTheatreMode={setTheatreMode}
+              betMode={betMode}
+              onBetModeChange={handleFooterModeSwitch}
+              modeSwitchDisabled={
+                startAutoBet || betStarted || controlsLocked
+              }
             />
 
             {isGameSettings && (
@@ -301,7 +359,10 @@ const Frame = () => {
                       className="max-h-[90%] custom-scrollbar overflow-y-auto w-[95%] pt-3 rounded max-w-[500px] bg-primary"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <FairnessModal setIsFairness={setIsFairness} />
+                      <MinesFairnessModal
+                        setIsFairness={setIsFairness}
+                        prefill={fairnessPrefill}
+                      />
                     </div>
                   </div>
                 </div>

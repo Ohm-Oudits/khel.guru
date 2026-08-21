@@ -1,12 +1,10 @@
 import { io } from "socket.io-client";
 import { SOCKET_URL as API_URL } from "../../config/backendUrls";
+import { getActiveWalletType } from "../../utils/activeWallet";
 
 let twistSocket = null;
 
 export const initializeTwistSocket = (token) => {
-  // Reuse a live socket instead of churning a new connection on every mount —
-  // recreating it mid-handshake dropped in-flight bets ("closed before
-  // established").
   if (twistSocket) return twistSocket;
 
   twistSocket = io(`${API_URL}/twist`, {
@@ -20,6 +18,7 @@ export const initializeTwistSocket = (token) => {
 
   twistSocket.on("connect", () => {
     console.log("Twist namespace connected successfully");
+    twistSocket.emit("get_state");
   });
 
   twistSocket.on("connect_error", (error) => {
@@ -28,7 +27,6 @@ export const initializeTwistSocket = (token) => {
       error.message === "Authentication required" ||
       error.message === "Invalid token"
     ) {
-      console.log("Authentication failed, disconnecting Twist socket");
       disconnectTwistSocket();
     }
   });
@@ -36,16 +34,35 @@ export const initializeTwistSocket = (token) => {
   twistSocket.on("disconnect", () => {
     console.log("Twist namespace disconnected");
   });
+
+  return twistSocket;
 };
 
 export const getTwistSocket = () => {
   return twistSocket;
 };
 
-// Debit the spin's stake from the wallet.
-export const placeBet = (betAmount, walletType = "demo") => {
+export const placeBet = (betAmount, walletType = getActiveWalletType()) => {
   if (!twistSocket) return false;
   twistSocket.emit("place_bet", { betAmount, walletType });
+  return true;
+};
+
+export const cashoutTwist = () => {
+  if (!twistSocket) return false;
+  twistSocket.emit("cashout");
+  return true;
+};
+
+export const partialCashoutTwist = () => {
+  if (!twistSocket) return false;
+  twistSocket.emit("partial_cashout");
+  return true;
+};
+
+export const requestTwistState = () => {
+  if (!twistSocket) return false;
+  twistSocket.emit("get_state");
   return true;
 };
 

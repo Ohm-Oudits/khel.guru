@@ -13,6 +13,7 @@ import {
 import { requestWalletRefresh } from "../../../utils/walletEvents";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { ROULETTE_RED_NUMBERS } from "./roulette.constants";
+import { fairnessFromBetResult } from "../../../utils/rouletteFairness";
 
 function Game({
   betStarted,
@@ -34,6 +35,7 @@ function Game({
   setIsSpinComplete,
   walletType = "demo",
   onRoundResult,
+  setFairnessPrefill,
   chipBet,
 }) {
   const [isAutoBetting, setIsAutoBetting] = useState(false);
@@ -64,6 +66,10 @@ function Game({
       requestWalletRefresh();
       if (result.success) {
         const pocket = parseInt(result.result, 10);
+        const fairness = fairnessFromBetResult(result);
+        if (fairness) {
+          setFairnessPrefill?.(fairness);
+        }
         if (!Number.isNaN(pocket)) {
           spinGenerationRef.current += 1;
           setSpinKey(spinGenerationRef.current);
@@ -154,6 +160,7 @@ function Game({
     setAutoBettingState,
     setIsBettingEnabled,
     setIsSpinComplete,
+    setFairnessPrefill,
   ]);
 
   useEffect(() => {
@@ -246,14 +253,6 @@ function Game({
 
   const handlePlaceBet = useCallback(
     (number) => {
-      if (!isSocketReady || !isGameJoined) {
-        console.error(
-          "[Roulette Game] Cannot place bet: Socket not ready or game not joined"
-        );
-        toast.error("Not connected to game. Please refresh the page.");
-        return;
-      }
-
       if (!isBettingEnabled) {
         console.warn("[Roulette Game] Betting is disabled during spin");
         return;

@@ -1,13 +1,31 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useLayoutEffect, useState, useRef } from "react";
 import {
+  checkoutTower,
+  continueTowerGame,
   getTowerSocket,
   initializeTowerSocket,
-  startTowerGame,
+  revealTowerBox,
+  requestTowerGameState,
 } from "../../../socket/games/tower";
 import { toast } from "react-toastify";
 import { requestWalletRefresh } from "../../../utils/walletEvents";
 import { useNavigate } from "react-router-dom";
-import checkLoggedIn from "../../../utils/isloggedIn";
+import { useSelector } from "react-redux";
+import {
+  computeTowerEndMultiplier,
+  formatTowerMultiplier,
+  getTowerProgress,
+  getTowerRowMultiplier,
+} from "./towerMultiplier";
+import { saveTowerRoundRecord } from "../../../utils/towerRoundHistory";
+import "./tower.css";
+
+const normalizeSelectedBoxes = (boxes = []) =>
+  boxes.map((box) => ({
+    row: box.row,
+    col: box.col,
+    correct: box.correct ?? box.isCorrect ?? false,
+  }));
 
 export default function Game({
   bettingStarted,
@@ -29,10 +47,16 @@ export default function Game({
   setSidebarDisabled,
   bet,
   setBet,
+  onRoundSettle,
+  onRoundStart,
+  boardResetKey,
+  roundLocked,
+  onCheckoutAvailableChange,
+  onFairnessUpdate,
 }) {
   const [right, setRight] = useState(3);
   const [currentRow, setCurrentRow] = useState(null);
-  const [rightIndices, setRightIndices] = useState([]);
+  const [serverGrid, setServerGrid] = useState([]);
   const [selectedBoxes, setSelectedBoxes] = useState([]);
   const [gameOver, setGameOver] = useState(false);
   const [gameWon, setGameWon] = useState(false);
@@ -43,11 +67,11 @@ export default function Game({
   const [hasActiveGame, setHasActiveGame] = useState(false);
   const [showGameOptions, setShowGameOptions] = useState(false);
   const [showModal, setShowModal] = useState(false);
-  const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [isDisconnected, setIsDisconnected] = useState(false);
   const [showDisconnectModal, setShowDisconnectModal] = useState(false);
   const navigate = useNavigate();
-  const isLoggedIn = checkLoggedIn();
+  const token = useSelector((state) => state.auth?.token);
+  const isLoggedIn = Boolean(token);
   const socketRef = useRef(null);
   const [profit, setProfit] = useState(0);
   const [loss, setLoss] = useState(0);
@@ -56,207 +80,425 @@ export default function Game({
   const [isAnimating, setIsAnimating] = useState(false);
   const [lastSelectedBox, setLastSelectedBox] = useState(null);
   const [isCheckoutInProgress, setIsCheckoutInProgress] = useState(false);
-  const [showGameOverModal, setShowGameOverModal] = useState(false);
   const [showExistingGameModal, setShowExistingGameModal] = useState(false);
+  const [roundFairness, setRoundFairness] = useState(null);
+  const [endMultiplier, setEndMultiplier] = useState(null);
+  const colsRef = useRef(cols);
+  const revealTimeoutRef = useRef(null);
+  const settleHandledRef = useRef(false);
+  const applyRoundStateRef = useRef(null);
+  const onRoundSettleRef = useRef(onRoundSettle);
+  const onRoundStartRef = useRef(onRoundStart);
+  const difficultyRef = useRef(Difficulty);
+  const rowsRef = useRef(rows);
+  const selectedBoxesRef = useRef(selectedBoxes);
+  const serverGridRef = useRef(serverGrid);
+  const currentRowRef = useRef(currentRow);
+  const roundFairnessRef = useRef(roundFairness);
+  const profitRef = useRef(profit);
+  const lossRef = useRef(loss);
 
-  const getRowColFromIndex = (index) => {
-    const row = Math.floor(index / cols);
-    const col = index % cols;
-    return { row, col };
+  rowsRef.current = rows;
+  selectedBoxesRef.current = selectedBoxes;
+  serverGridRef.current = serverGrid;
+  currentRowRef.current = currentRow;
+  roundFairnessRef.current = roundFairness;
+  profitRef.current = profit;
+  lossRef.current = loss;
+
+  const persistRoundSnapshot = (outcome, extra = {}) => {
+    const fairness = roundFairnessRef.current;
+    if (!fairness?.nonce && fairness?.nonce !== 0) {
+      return;
+    }
+
+    saveTowerRoundRecord({
+      nonce: fairness.nonce,
+      clientSeed: fairness.clientSeed,
+      serverSeedHash: fairness.serverSeedHash,
+      difficulty: difficultyRef.current,
+      betAmount: betRef.current,
+      profit: extra.profit ?? profitRef.current,
+      loss: extra.loss ?? lossRef.current,
+      outcome,
+      selectedBoxes: selectedBoxesRef.current,
+      grid: serverGridRef.current,
+      currentRow: currentRowRef.current,
+      stepsCompleted: fairness.step ?? 0,
+      progress: fairness.progress ?? null,
+      checkoutMultiplier: fairness.checkoutMultiplier ?? null,
+      ...extra,
+    });
+  };
+  const betRef = useRef(bet);
+  const settleRoundRef = useRef(null);
+
+  colsRef.current = cols;
+  difficultyRef.current = Difficulty;
+  rowsRef.current = rows;
+  betRef.current = bet;
+  onRoundSettleRef.current = onRoundSettle;
+  onRoundStartRef.current = onRoundStart;
+
+  applyRoundStateRef.current = (gameState) => {
+    if (!gameState) return;
+
+    if (gameState.cols) setCols(gameState.cols);
+    if (gameState.rows) setRows(gameState.rows);
+    if (Array.isArray(gameState.grid)) setServerGrid(gameState.grid);
+    if (gameState.currentRow != null) setCurrentRow(gameState.currentRow);
+    if (gameState.selectedBoxes) {
+      setSelectedBoxes(normalizeSelectedBoxes(gameState.selectedBoxes));
+    }
+    if (gameState.betAmount != null) setBet(String(gameState.betAmount));
+    if (gameState.fairness) setRoundFairness(gameState.fairness);
+    setGameOver(Boolean(gameState.gameOver));
+    setGameWon(Boolean(gameState.gameWon));
+  };
+
+  const clearRevealTimeout = () => {
+    if (revealTimeoutRef.current) {
+      clearTimeout(revealTimeoutRef.current);
+      revealTimeoutRef.current = null;
+    }
+  };
+
+  const resetRoundLocal = () => {
+    clearRevealTimeout();
+    settleHandledRef.current = false;
+    setSelectedBoxes([]);
+    setServerGrid([]);
+    setCurrentRow(null);
+    setGameOver(false);
+    setGameWon(false);
+    setShowResult(false);
+    setEndMultiplier(null);
+    setProfit(0);
+    setLoss(0);
+    setCheckedOut(false);
+    setIsAnimating(false);
+    setHasActiveGame(false);
+    setRoundFairness(null);
+  };
+
+  settleRoundRef.current = (multiplier) => {
+    if (settleHandledRef.current) return;
+    settleHandledRef.current = true;
+
+    clearRevealTimeout();
+    setIsAnimating(false);
+    setEndMultiplier(Number.isFinite(multiplier) ? multiplier : 0);
+    setBettingStarted(false);
+    onRoundSettleRef.current?.();
   };
 
   useEffect(() => {
-    if (isLoggedIn) {
-      if (!socketRef.current) {
-        const token = localStorage.getItem("token");
-        initializeTowerSocket(token);
-        socketRef.current = getTowerSocket();
-      }
+    if (!boardResetKey) return;
+    resetRoundLocal();
+  }, [boardResetKey]);
 
-      const towerSocket = socketRef.current;
+  const canCheckout =
+    selectedBoxes.some((box) => box.correct) ||
+    getTowerProgress({ currentRow, rows, selectedBoxes }) > 0;
 
-      if (towerSocket) {
-        towerSocket.on("connect", () => {
-          setIsConnected(true);
-          setIsDisconnected(false);
-          setShowDisconnectModal(false);
-          towerSocket.emit("get_game_state");
-        });
+  useLayoutEffect(() => {
+    onFairnessUpdate?.(roundFairness);
+  }, [roundFairness, onFairnessUpdate]);
 
-        towerSocket.on("disconnect", () => {
-          setIsConnected(false);
-          setIsDisconnected(true);
-          setShowDisconnectModal(true);
-        });
-
-        towerSocket.on("game_state", (gameState) => {
-          if (gameState) {
-            if (gameState.existingGame) {
-              setShowExistingGameModal(true);
-              if (gameState.currentGame) {
-                setRightIndices(gameState.currentGame.grid);
-                setCurrentRow(gameState.currentGame.currentRow);
-                setSelectedBoxes(gameState.currentGame.selectedBoxes || []);
-              }
-              return;
-            }
-
-            if (gameState.checkedOut) {
-              // The cashout just settled: refresh the balance readout.
-              requestWalletRefresh();
-              setBettingStarted(false);
-              setShowGameOptions(false);
-              setShowCheckoutModal(true);
-              setProfit(gameState.profit);
-              setLoss(gameState.loss);
-              if (gameState.grid) {
-                setRightIndices(gameState.grid);
-              }
-              return;
-            }
-
-            if (gameState.grid) {
-              setRightIndices(gameState.grid);
-            }
-
-            if (gameState.betAmount) {
-              setBet(gameState.betAmount);
-            }
-
-            setGameOver(gameState.gameOver);
-            setGameWon(gameState.gameWon);
-            setCurrentRow(gameState.currentRow);
-            setSelectedBoxes(gameState.selectedBoxes || []);
-
-            // A new round debited the stake, a win credited the payout,
-            // a loss kept the stake: refresh the balance readout.
-            if (
-              gameState.gameWon ||
-              gameState.gameOver ||
-              (gameState.hasActiveGame && !gameState.existingGame)
-            ) {
-              requestWalletRefresh();
-            }
-
-            if (gameState.hasActiveGame) {
-              setHasActiveGame(true);
-              setShowGameOptions(true);
-            } else {
-              setHasActiveGame(false);
-              setShowGameOptions(false);
-            }
-          }
-        });
-
-        towerSocket.on("reveal", (result) => {
-          console.log("Reveal result:", result);
-          setIsAnimating(false);
-
-          // A finished climb settles the round (win credited / loss kept).
-          if (result.gameWon || !result.isCorrect) {
-            requestWalletRefresh();
-          }
-
-          if (result.isCorrect) {
-            setSelectedBoxes((prev) => [
-              ...prev,
-              { row: result.row, col: result.col, correct: true },
-            ]);
-
-            if (result.gameWon) {
-              setGameWon(true);
-              setProfit(result.profit);
-              setShowCheckoutModal(true);
-              setBettingStarted(false);
-            } else {
-              setCurrentRow(result.currentRow);
-            }
-          } else {
-            setSelectedBoxes((prev) => [
-              ...prev,
-              { row: result.row, col: result.col, correct: false },
-            ]);
-            setGameOver(true);
-            setLoss(result.loss);
-            setShowGameOverModal(true);
-            setBettingStarted(false);
-          }
-
-          if (result.grid) {
-            setRightIndices(result.grid);
-          }
-        });
-
-        towerSocket.on("checkout_result", (result) => {
-          // The cashout just settled: refresh the balance readout.
-          requestWalletRefresh();
-          setProfit(result.profit);
-          setShowCheckoutModal(true);
-          setBettingStarted(false);
-          setGameOver(false);
-          setGameWon(false);
-          setSelectedBoxes([]);
-          setRightIndices([]);
-        });
-
-        towerSocket.on("error", ({ message }) => {
-          console.error("Game error:", message);
-          // A rejected action left the wallet untouched; resync the readout.
-          requestWalletRefresh();
-          toast.error(`Error: ${message}`);
-        });
-
-        if (towerSocket.connected) {
-          setIsConnected(true);
-          setSidebarDisabled(false);
-        }
-
-        towerSocket.off("reveal");
-      }
+  useLayoutEffect(() => {
+    if (mode !== "manual" || !bettingStarted || roundLocked) {
+      onCheckoutAvailableChange?.(false);
+      return;
     }
 
-    return () => {
-      // Only detach our listeners; don't tear down the shared socket on every
-      // effect re-run, which disconnected it mid-handshake and dropped bets.
-      const towerSocket = socketRef.current;
-      if (towerSocket) {
-        towerSocket.off("connect");
-        towerSocket.off("disconnect");
-        towerSocket.off("game_state");
-        towerSocket.off("reveal");
-        towerSocket.off("checkout_result");
-        towerSocket.off("error");
-      }
+    onCheckoutAvailableChange?.(canCheckout);
+  }, [
+    canCheckout,
+    mode,
+    bettingStarted,
+    roundLocked,
+    selectedBoxes,
+    currentRow,
+    onCheckoutAvailableChange,
+  ]);
+
+  const getRowColFromIndex = (index) => {
+    const columnCount = colsRef.current || 4;
+    return {
+      row: Math.floor(index / columnCount),
+      col: index % columnCount,
     };
-  }, [isLoggedIn]);
+  };
 
   useEffect(() => {
-    // socket.io buffers emits until the connection is ready, so we only need
-    // the socket to exist — gating on `.connected` here dropped bets placed
-    // before the handshake finished.
-    if (bettingStarted && socketRef.current) {
+    if (!isLoggedIn) return undefined;
+
+    if (!socketRef.current) {
+      const token = localStorage.getItem("token");
+      initializeTowerSocket(token);
+      socketRef.current = getTowerSocket();
+    }
+
+    const towerSocket = socketRef.current;
+    if (!towerSocket) return undefined;
+
+    const applyRoundState = (gameState) => {
+      applyRoundStateRef.current?.(gameState);
+    };
+
+    const onConnect = () => {
+      setIsConnected(true);
+      setIsDisconnected(false);
+      setShowDisconnectModal(false);
+      setSidebarDisabled(false);
+      requestTowerGameState();
+    };
+
+    const onDisconnect = () => {
+      setIsConnected(false);
+      setIsDisconnected(true);
+      setShowDisconnectModal(true);
+      clearRevealTimeout();
+      setIsAnimating(false);
+    };
+
+    const settleRound = (multiplier) => {
+      settleRoundRef.current?.(multiplier);
+    };
+
+    const onRoundStarted = (payload) => {
+      settleHandledRef.current = false;
+      onRoundStartRef.current?.();
+      setEndMultiplier(null);
+      applyRoundState(payload);
+      setHasActiveGame(true);
+      setShowGameOptions(true);
       setGameOver(false);
       setGameWon(false);
-      setSelectedBoxes([]);
-      setRightIndices([]);
+      setShowResult(false);
+      setIsAnimating(false);
+      setBettingStarted(true);
+      clearRevealTimeout();
+      requestWalletRefresh();
+    };
 
-      // Validate bet amount
-      const betAmount = parseFloat(bet);
-      // Allow a 0 bet (testing); reject only a NaN or negative amount.
-      if (isNaN(betAmount) || betAmount < 0) {
-        toast.error("Please enter a valid bet amount");
-        setBettingStarted(false);
+    const onGameState = (gameState) => {
+      if (!gameState) return;
+
+      setIsAnimating(false);
+      clearRevealTimeout();
+
+      if (gameState.existingGame) {
+        if (gameState.currentGame) {
+          applyRoundState(gameState.currentGame);
+        }
+        setBettingStarted(true);
+        setHasActiveGame(true);
+        setShowGameOptions(true);
+        setShowExistingGameModal(false);
+        continueTowerGame();
         return;
       }
 
-      startTowerGame(betAmount, Difficulty, "demo");
+      if (gameState.checkedOut) {
+        requestWalletRefresh();
+        applyRoundState(gameState);
+        setShowResult(true);
+        setHasActiveGame(false);
+        if (!settleHandledRef.current) {
+          settleRound(
+            computeTowerEndMultiplier({
+              difficulty: difficultyRef.current,
+              rows: rowsRef.current,
+              checkedOut: true,
+              currentRow: gameState.currentRow,
+              profit: gameState.profit ?? 0,
+              betAmount: gameState.betAmount ?? betRef.current,
+              selectedBoxes: normalizeSelectedBoxes(
+                gameState.selectedBoxes || []
+              ),
+            })
+          );
+        }
+        return;
+      }
+
+      if (gameState.gameOver || gameState.gameWon) {
+        applyRoundState(gameState);
+        requestWalletRefresh();
+        setHasActiveGame(false);
+        setShowGameOptions(false);
+        settleRound(
+          computeTowerEndMultiplier({
+            difficulty: difficultyRef.current,
+            rows: rowsRef.current,
+            gameWon: Boolean(gameState.gameWon),
+            gameOver: Boolean(gameState.gameOver),
+            profit: gameState.profit ?? 0,
+            betAmount: gameState.betAmount ?? betRef.current,
+            selectedBoxes: normalizeSelectedBoxes(
+              gameState.selectedBoxes || []
+            ),
+          })
+        );
+        return;
+      }
+
+      applyRoundState(gameState);
+
+      if (
+        gameState.gameWon ||
+        gameState.gameOver ||
+        (gameState.hasActiveGame && !gameState.existingGame)
+      ) {
+        requestWalletRefresh();
+      }
+
+      const activeRound =
+        Boolean(gameState.hasActiveGame) &&
+        !gameState.gameOver &&
+        !gameState.gameWon &&
+        !gameState.checkedOut;
+
+      setHasActiveGame(activeRound);
+      setShowGameOptions(activeRound);
+
+      if (activeRound) {
+        setBettingStarted(true);
+      }
+    };
+
+    const onReveal = (result) => {
+      setIsAnimating(false);
+      clearRevealTimeout();
+
+      if (result.gameWon || !result.isCorrect) {
+        requestWalletRefresh();
+      }
+
+      if (result.selectedBoxes) {
+        setSelectedBoxes(normalizeSelectedBoxes(result.selectedBoxes));
+      } else if (result.isCorrect) {
+        setSelectedBoxes((prev) => [
+          ...prev,
+          { row: result.row, col: result.col, correct: true },
+        ]);
+      } else {
+        setSelectedBoxes((prev) => [
+          ...prev,
+          { row: result.row, col: result.col, correct: false },
+        ]);
+      }
+
+      if (result.isCorrect) {
+        if (result.gameWon) {
+          setGameWon(true);
+          setProfit(result.profit ?? 0);
+          setShowResult(true);
+          if (result.grid) setServerGrid(result.grid);
+          if (result.fairness) setRoundFairness(result.fairness);
+          persistRoundSnapshot("win", {
+            profit: result.profit ?? 0,
+            grid: result.grid || serverGridRef.current,
+          });
+          settleRound(
+            computeTowerEndMultiplier({
+              difficulty: difficultyRef.current,
+              rows: rowsRef.current,
+              gameWon: true,
+              selectedBoxes: normalizeSelectedBoxes(
+                result.selectedBoxes || []
+              ),
+            })
+          );
+        } else if (result.currentRow != null) {
+          setCurrentRow(result.currentRow);
+        }
+      } else {
+        setGameOver(true);
+        setLoss(result.loss ?? 0);
+        setShowResult(true);
+        if (result.grid) setServerGrid(result.grid);
+        if (result.fairness) setRoundFairness(result.fairness);
+        persistRoundSnapshot("loss", {
+          loss: result.loss ?? 0,
+          grid: result.grid || serverGridRef.current,
+        });
+        settleRound(0);
+      }
+
+      if (result.grid) setServerGrid(result.grid);
+      if (result.fairness) setRoundFairness(result.fairness);
+    };
+
+    const onCheckoutResult = (result) => {
+      clearRevealTimeout();
+      setIsAnimating(false);
+      requestWalletRefresh();
+      setProfit(result.profit ?? 0);
+      setLoss(result.loss ?? 0);
+      setShowResult(true);
+      setGameOver(false);
+      setGameWon(false);
+      setServerGrid(result.grid || []);
+      setHasActiveGame(false);
+      if (result.fairness) setRoundFairness(result.fairness);
+      persistRoundSnapshot("checkout", {
+        profit: result.profit ?? 0,
+        grid: result.grid || [],
+        currentRow: result.currentRow,
+      });
+      settleRound(
+        computeTowerEndMultiplier({
+          difficulty: difficultyRef.current,
+          rows: rowsRef.current,
+          checkedOut: true,
+          currentRow: result.currentRow,
+          profit: result.profit ?? 0,
+          betAmount: result.betAmount ?? betRef.current,
+          selectedBoxes: normalizeSelectedBoxes(result.selectedBoxes || []),
+        })
+      );
+      setSelectedBoxes([]);
+    };
+
+    const onError = ({ message }) => {
+      console.error("Game error:", message);
+      clearRevealTimeout();
+      setIsAnimating(false);
+      requestWalletRefresh();
+      toast.error(`Error: ${message}`);
+    };
+
+    towerSocket.on("connect", onConnect);
+    towerSocket.on("disconnect", onDisconnect);
+    towerSocket.on("round_started", onRoundStarted);
+    towerSocket.on("game_state", onGameState);
+    towerSocket.on("reveal", onReveal);
+    towerSocket.on("checkout_result", onCheckoutResult);
+    towerSocket.on("error", onError);
+
+    if (towerSocket.connected) {
+      onConnect();
     }
-  }, [bettingStarted]);
+
+    return () => {
+      towerSocket.off("connect", onConnect);
+      towerSocket.off("disconnect", onDisconnect);
+      towerSocket.off("round_started", onRoundStarted);
+      towerSocket.off("game_state", onGameState);
+      towerSocket.off("reveal", onReveal);
+      towerSocket.off("checkout_result", onCheckoutResult);
+      towerSocket.off("error", onError);
+      clearRevealTimeout();
+    };
+  }, [isLoggedIn, setBettingStarted, setSidebarDisabled]);
 
   const handleBoxClick = (index) => {
     if (
       !bettingStarted ||
-      !socketRef.current?.connected ||
+      roundLocked ||
+      !socketRef.current ||
       isAnimating ||
       isCheckoutInProgress ||
       checkedOut ||
@@ -268,6 +510,10 @@ export default function Game({
 
     const { row, col } = getRowColFromIndex(index);
     console.log("Clicked box:", { row, col, currentRow });
+
+    if (currentRow == null) {
+      return;
+    }
 
     if (row !== currentRow) {
       return;
@@ -288,51 +534,35 @@ export default function Game({
     setSelectedBox(index);
     setIsAnimating(true);
     setLastSelectedBox(index);
-
-    if (socketRef.current?.connected) {
-      console.log("Emitting reveal event for index:", index);
-      socketRef.current.emit("reveal", { index });
-    }
+    revealTowerBox(index);
+    clearRevealTimeout();
+    revealTimeoutRef.current = setTimeout(() => {
+      setIsAnimating(false);
+    }, 8000);
   };
 
   const handleContinueGame = () => {
-    if (socketRef.current?.connected) {
-      console.log("Continuing game...");
-      socketRef.current.emit("continue_game");
-      setBettingStarted(true);
-      setShowGameOptions(false);
-      setShowExistingGameModal(false);
-      setGameOver(false);
-      setGameWon(false);
-      setIsAnimating(false);
-      setIsCheckoutInProgress(false);
-      setCheckedOut(false);
-    }
+    continueTowerGame();
+    setBettingStarted(true);
+    setShowGameOptions(false);
+    setShowExistingGameModal(false);
+    setGameOver(false);
+    setGameWon(false);
+    setIsAnimating(false);
+    setIsCheckoutInProgress(false);
+    setCheckedOut(false);
   };
 
   const handleCheckout = () => {
-    if (socketRef.current?.connected) {
-      socketRef.current.emit("checkout");
-      setShowExistingGameModal(false);
-    }
+    if (!canCheckout) return;
+    checkoutTower();
+    setShowExistingGameModal(false);
   };
 
   useEffect(() => {
     setAutoArray(Array.from({ length: rows }, () => Array(cols).fill(0)));
     setAutoSelectedBoxes([]);
   }, [rows, cols]);
-
-  const generateRightIndices = (rows, cols, right) => {
-    const indices = [];
-    for (let i = 0; i < rows; i++) {
-      const rowIndices = new Set();
-      while (rowIndices.size < right) {
-        rowIndices.add(Math.floor(Math.random() * cols));
-      }
-      indices.push([...rowIndices]);
-    }
-    return indices;
-  };
 
   const getBoxes = () => {
     if (Difficulty === "Easy") {
@@ -343,7 +573,7 @@ export default function Game({
       setBwEmoji(" ");
     } else if (Difficulty === "Medium") {
       setRows(9);
-      setCols(4);
+      setCols(3);
       setRight(2);
       setEmoji("/egg/medium.svg");
       setBwEmoji("");
@@ -370,7 +600,7 @@ export default function Game({
 
   useEffect(() => {
     setSelectedBoxes([]);
-    setRightIndices([]);
+    setServerGrid([]);
     getBoxes();
   }, [Difficulty]);
 
@@ -381,18 +611,64 @@ export default function Game({
 
     if (selectedBox) {
       return selectedBox.correct ? (
-        <img className="h-10" src={emoji} alt="egg" />
+        <img className="tower-tile__egg" src={emoji} alt="egg" />
       ) : (
         ""
       );
     }
 
-    if (showResult && rightIndices[rowIndex]?.includes(colIndex)) {
-      return <img className="h-10" src={emoji} alt="egg" />;
+    const cell = serverGrid[rowIndex]?.[colIndex];
+    if (
+      (showResult || gameOver || gameWon) &&
+      cell?.revealed &&
+      cell?.isCorrect
+    ) {
+      return <img className="tower-tile__egg" src={emoji} alt="egg" />;
     }
 
     return bwEmoji;
   };
+
+  const tileShellClass =
+    "tower-tile tower-tile-shimmer flex items-center justify-center relative overflow-hidden transition-colors duration-300";
+
+  const renderManualTile = (rowIndex, colIndex) => (
+    <div
+      key={`col-${colIndex}`}
+      onClick={() => handleBoxClick(rowIndex * cols + colIndex)}
+      className={`${tileShellClass} cursor-pointer ${getBoxColor(rowIndex, colIndex)} ${getbg(
+        rowIndex,
+        colIndex
+      )}`}
+    >
+      {getBoxContent(rowIndex, colIndex)}
+    </div>
+  );
+
+  const renderAutoPlayTile = (rowIndex, colIndex) => (
+    <div
+      key={`col-${colIndex}`}
+      className={`${tileShellClass} ${getBoxColor(rowIndex, colIndex)} ${getbg(
+        rowIndex,
+        colIndex
+      )} ${getAutobg(rowIndex, colIndex)} ${
+        startAutoBet ? getIsTrue(rowIndex, colIndex) : ""
+      }`}
+    >
+      {getBoxContent(rowIndex, colIndex)}
+    </div>
+  );
+
+  const renderAutoPickTile = (rowIndex, colIndex) => (
+    <div
+      key={`col-${colIndex}`}
+      onClick={() => handleAutoClick(rowIndex, colIndex)}
+      className={`${tileShellClass} cursor-pointer ${getAutoBoxColor(
+        rowIndex,
+        colIndex
+      )} ${getAutobg(rowIndex, colIndex)}`}
+    />
+  );
 
   const getBoxColor = (rowIndex, colIndex) => {
     const selected = selectedBoxes.find(
@@ -401,7 +677,7 @@ export default function Game({
 
     if (selected) {
       return selected.correct
-        ? "bg-[#1a2c38] border-2 bg-opacity-1 border-[#56687A]"
+        ? "bg-[#1a2c38] border border-[#56687A]"
         : "!bg-red-500 bg-opacity-75";
     }
 
@@ -441,7 +717,7 @@ export default function Game({
     );
 
     return selected
-      ? "bg-black border-2 border-[#56687A] bg-opacity-10"
+      ? "bg-black border border-[#56687A] bg-opacity-10"
       : "bg-[#213743] border-1";
   };
 
@@ -484,142 +760,116 @@ export default function Game({
       return;
     }
 
-    const towerSocket = getTowerSocket();
-    if (towerSocket) {
-      startTowerGame(parseFloat(bet), Difficulty, "demo");
-      console.log("Emitted add_game event");
-    } else {
-      console.error("Tower socket not initialized");
-      toast.error("Failed to join game: Socket not connected");
-      return;
-    }
-    setCurrentRow(rows - 1);
-    const indices = generateRightIndices(rows, cols, right);
-    setRightIndices(indices);
-    setShowResult(false);
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    toast.info("Tower autobet still uses the legacy client path.");
+    setStartAutoBet(false);
+  };
 
-    for (let i = 0; i < autoSelectedBoxes.length; i++) {
-      const { row, col } = autoSelectedBoxes[i];
+  const shouldShowRowMultiplier = (rowIndex) =>
+    bettingStarted &&
+    !gameOver &&
+    !gameWon &&
+    !roundLocked &&
+    currentRow != null &&
+    rowIndex === currentRow;
 
-      const end = handleBoxClick(row * cols + col);
+  const renderGridRow = (rowIndex, renderTiles) => (
+    <div key={`row-${rowIndex}`} className="tower-row">
+      {renderTiles()}
+    </div>
+  );
 
-      if (end) {
-        setShowResult(true);
-        break;
+  const renderGridRows = () => {
+    if (mode === "auto") {
+      if (startAutoBet) {
+        return Array.from({ length: rows }).map((_, rowIndex) =>
+          renderGridRow(rowIndex, () =>
+            Array.from({ length: cols }).map((_, colIndex) =>
+              renderAutoPlayTile(rowIndex, colIndex)
+            )
+          )
+        );
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      return autoArray.map((colArray, rowIndex) =>
+        renderGridRow(rowIndex, () =>
+          colArray.map((_, colIndex) => renderAutoPickTile(rowIndex, colIndex))
+        )
+      );
     }
 
-    setShowResult(true);
-    setTimeout(() => {
-      setGameOver(false);
-      setGameWon(false);
-      setSelectedBoxes([]);
-      setRightIndices([]);
-      autoBet(remaining - 1);
-    }, 2000);
+    return Array.from({ length: rows }).map((_, rowIndex) =>
+      renderGridRow(rowIndex, () =>
+        Array.from({ length: cols }).map((_, colIndex) =>
+          renderManualTile(rowIndex, colIndex)
+        )
+      )
+    );
   };
 
   return (
-    <div className="w-full h-full flex flex-col items-center justify-center">
-      <img src="/tower.gif" className="-mb-14" alt="Tower Animation" />{" "}
-      <div className="bg-[#56687A] rounded-2xl lg:w-[60%] w-[90%] mb-5 p-2">
-        <div className="bg-[#1a2c38] w-[100%] h-full p-1 rounded grid place-items-center">
-          <div className="w-[98%]">
-            <>
-              {mode === "auto" ? (
-                <>
-                  {startAutoBet ? (
-                    <>
-                      {Array.from({ length: rows }).map((_, rowIndex) => (
-                        <div
-                          key={`row-${rowIndex}`}
-                          className="flex justify-between "
-                        >
-                          {Array.from({ length: cols }).map((_, colIndex) => (
-                            <div
-                              key={`col-${colIndex}`}
-                              className={`w-full h-11 cursor-pointer ${getBoxColor(
-                                rowIndex,
-                                colIndex
-                              )} m-1 rounded-lg transition-colors duration-300 flex items-center justify-center relative overflow-hidden before:absolute before:content-[''] before:inset-0 before:opacity-10 before:bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.2)_1px,transparent_0),linear-gradient(45deg,rgba(255,255,255,0.1)_25%,transparent_25%,transparent_75%,rgba(255,255,255,0.1)_75%),linear-gradient(-45deg,rgba(255,255,255,0.1)_25%,transparent_25%,transparent_75%,rgba(255,255,255,0.1)_75%)] before:bg-[size:10px_10px,20px_20px,20px_20px] before:animate-[shimmer_3s_linear_infinite] before:pointer-events-none after:absolute after:content-[''] after:inset-0  ${getbg(
-                                rowIndex,
-                                colIndex
-                              )} ${getAutobg(rowIndex, colIndex)} ${
-                                startAutoBet && getIsTrue(rowIndex, colIndex)
-                              } after:bg-[size:30px_30px]`}
-                            >
-                              {getBoxContent(rowIndex, colIndex)}
-                            </div>
-                          ))}
-                        </div>
-                      ))}
-                    </>
-                  ) : (
-                    <>
-                      {autoArray.map((colArray, rowIndex) => (
-                        <div
-                          key={`row-${rowIndex}`}
-                          className="flex justify-between"
-                        >
-                          {colArray.map((_, colIndex) => (
-                            <div
-                              key={`col-${colIndex}`}
-                              onClick={() =>
-                                handleAutoClick(rowIndex, colIndex)
-                              }
-                              className={`w-full h-11 cursor-pointer ${getAutoBoxColor(
-                                rowIndex,
-                                colIndex
-                              )} m-1 rounded-lg transition-colors duration-300 flex items-center justify-center relative overflow-hidden before:absolute before:content-[''] before:inset-0 before:opacity-10 before:bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.2)_1px,transparent_0),linear-gradient(45deg,rgba(255,255,255,0.1)_25%,transparent_25%,transparent_75%,rgba(255,255,255,0.1)_75%),linear-gradient(-45deg,rgba(255,255,255,0.1)_25%,transparent_25%,transparent_75%,rgba(255,255,255,0.1)_75%)] before:bg-[size:10px_10px,20px_20px,20px_20px] before:animate-[shimmer_3s_linear_infinite] before:pointer-events-none after:absolute after:content-[''] after:inset-0  ${getAutobg(
-                                rowIndex,
-                                colIndex
-                              )} after:bg-[size:30px_30px]`}
-                            ></div>
-                          ))}
-                        </div>
-                      ))}
-                    </>
-                  )}
-                </>
-              ) : (
-                <>
-                  {Array.from({ length: rows }).map((_, rowIndex) => (
-                    <div
-                      key={`row-${rowIndex}`}
-                      className="flex justify-between "
-                    >
-                      {Array.from({ length: cols }).map((_, colIndex) => (
-                        <div
-                          key={`col-${colIndex}`}
-                          onClick={() =>
-                            handleBoxClick(rowIndex * cols + colIndex)
-                          }
-                          className={`w-full h-11 cursor-pointer ${getBoxColor(
-                            rowIndex,
-                            colIndex
-                          )} m-1 rounded-lg transition-colors duration-300 flex items-center justify-center relative overflow-hidden before:absolute before:content-[''] before:inset-0 before:opacity-10 before:bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.2)_1px,transparent_0),linear-gradient(45deg,rgba(255,255,255,0.1)_25%,transparent_25%,transparent_75%,rgba(255,255,255,0.1)_75%),linear-gradient(-45deg,rgba(255,255,255,0.1)_25%,transparent_25%,transparent_75%,rgba(255,255,255,0.1)_75%)] before:bg-[size:10px_10px,20px_20px,20px_20px] before:animate-[shimmer_3s_linear_infinite] before:pointer-events-none after:absolute after:content-[''] after:inset-0  ${getbg(
-                            rowIndex,
-                            colIndex
-                          )} after:bg-[size:30px_30px]`}
-                        >
-                          {getBoxContent(rowIndex, colIndex)}
-                        </div>
-                      ))}
-                    </div>
-                  ))}
-                </>
-              )}
-            </>
+    <div className="tower-play relative flex h-full w-full flex-col items-center justify-end">
+      <div className="tower-board-layout">
+        <div className="tower-board-column">
+          <div className="tower-board-shell bg-[#56687A]">
+            <img src="/tower.gif" className="tower-hero" alt="Tower" />
+            <div className="tower-board-inner rounded bg-[#1a2c38]">
+              <div className="tower-grid" style={{ "--tower-cols": cols }}>
+                {renderGridRows()}
+              </div>
+            </div>
           </div>
+          {endMultiplier != null && (
+            <div className="tower-settle-overlay" aria-live="polite">
+              <span
+                className={`tower-settle-multiplier ${
+                  endMultiplier > 0
+                    ? "tower-settle-multiplier--win"
+                    : "tower-settle-multiplier--loss"
+                }`}
+              >
+                {formatTowerMultiplier(endMultiplier)}x
+              </span>
+            </div>
+          )}
+        </div>
+        <div className="tower-mult-rail" aria-hidden={!bettingStarted}>
+          {Array.from({ length: rows }).map((_, rowIndex) => (
+            <div
+              key={`mult-${rowIndex}`}
+              className={`tower-row-mult-slot ${
+                shouldShowRowMultiplier(rowIndex)
+                  ? "tower-row-mult-slot--active"
+                  : ""
+              }`}
+            >
+              {shouldShowRowMultiplier(rowIndex) && (
+                <span className="tower-row-mult__value">
+                  {formatTowerMultiplier(
+                    getTowerRowMultiplier(Difficulty, rowIndex, rows)
+                  )}
+                  x
+                </span>
+              )}
+            </div>
+          ))}
         </div>
       </div>
+      {roundFairness && (
+        <button
+          type="button"
+          className="tower-pf text-center text-label hover:text-white"
+          onClick={() => onFairnessUpdate?.({ ...roundFairness, open: true })}
+        >
+          Fair · nonce {roundFairness.nonce} · step {roundFairness.step}
+          {roundFairness.checkoutMultiplier != null && (
+            <> · cashout {formatTowerMultiplier(roundFairness.checkoutMultiplier)}x</>
+          )}
+        </button>
+      )}
       {showDisconnectModal && (
-        <div className="absolute top-0 left-0 w-full h-full bg-black bg-opacity-75 flex items-center justify-center z-50">
-          <div className="p-6 bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4">
-            <h2 className="text-2xl font-bold text-white mb-4">
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/75 p-3">
+          <div className="mx-auto w-full max-w-md rounded-lg bg-gray-800 p-4 shadow-xl sm:p-6">
+            <h2 className="mb-3 text-xl font-bold text-white sm:mb-4 sm:text-2xl">
               {isDisconnected ? "Disconnected from Game" : "Session Expired"}
             </h2>
             <p className="text-gray-300 text-lg mb-6">
@@ -653,68 +903,10 @@ export default function Game({
           </div>
         </div>
       )}
-      {showGameOverModal && (
-        <div className="absolute top-0 left-0 w-full h-full bg-black bg-opacity-75 flex items-center justify-center z-50">
-          <div className="p-6 bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4">
-            <h2 className="text-2xl font-bold text-white mb-4">Game Over</h2>
-            <div className="text-gray-300 text-lg mb-6">
-              <p className="mb-2">Your loss:</p>
-              <p className="text-2xl font-bold text-red-500">
-                {loss.toFixed(8)} BTC
-              </p>
-            </div>
-            <div className="flex gap-4 justify-center">
-              <button
-                className="px-6 py-3 text-lg bg-green-600 hover:bg-green-700 text-white rounded-md font-semibold"
-                onClick={() => {
-                  setShowGameOverModal(false);
-                  setBettingStarted(false);
-                }}
-              >
-                Play Again
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      {showCheckoutModal && (
-        <div className="absolute top-0 left-0 w-full h-full bg-black bg-opacity-75 flex items-center justify-center z-50">
-          <div className="p-6 bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4">
-            <h2 className="text-2xl font-bold text-white mb-4">
-              {gameWon ? "Congratulations!" : "Checkout Complete"}
-            </h2>
-            <div className="text-gray-300 text-lg mb-6">
-              <p className="mb-2">Your {gameWon ? "profit" : "result"}:</p>
-              <p
-                className={`text-2xl font-bold ${
-                  gameWon
-                    ? "text-green-500"
-                    : profit > 0
-                    ? "text-green-500"
-                    : "text-red-500"
-                }`}
-              >
-                {profit.toFixed(8)} BTC
-              </p>
-            </div>
-            <div className="flex gap-4 justify-center">
-              <button
-                className="px-6 py-3 text-lg bg-green-600 hover:bg-green-700 text-white rounded-md font-semibold"
-                onClick={() => {
-                  setShowCheckoutModal(false);
-                  setBettingStarted(false);
-                }}
-              >
-                Play Again
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       {showExistingGameModal && (
-        <div className="absolute top-0 left-0 w-full h-full bg-black bg-opacity-75 flex items-center justify-center z-50">
-          <div className="p-6 bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4">
-            <h2 className="text-2xl font-bold text-white mb-4">
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/75 p-3">
+          <div className="mx-auto w-full max-w-md rounded-lg bg-gray-800 p-4 shadow-xl sm:p-6">
+            <h2 className="mb-3 text-xl font-bold text-white sm:mb-4 sm:text-2xl">
               Active Game Found
             </h2>
             <p className="text-gray-300 text-lg mb-6">
@@ -728,8 +920,13 @@ export default function Game({
                 Continue Game
               </button>
               <button
-                className="px-6 py-3 text-lg bg-blue-600 hover:bg-blue-700 text-white rounded-md font-semibold"
+                className={`px-6 py-3 text-lg rounded-md font-semibold ${
+                  canCheckout
+                    ? "bg-blue-600 hover:bg-blue-700 text-white"
+                    : "cursor-not-allowed bg-gray-600 text-gray-300 opacity-60"
+                }`}
                 onClick={handleCheckout}
+                disabled={!canCheckout}
               >
                 Checkout
               </button>

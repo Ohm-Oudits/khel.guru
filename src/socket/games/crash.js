@@ -50,7 +50,11 @@ export const disconnectCrashSocket = () => {
 };
 
 // Commit a stake to the current round (debits the wallet server-side).
-export const placeCrashBet = (betAmount, walletType = "demo") => {
+export const placeCrashBet = (
+  betAmount,
+  walletType = "demo",
+  autoCashoutAt = null
+) => {
   if (
     !crashSocket ||
     betAmount == null ||
@@ -58,7 +62,7 @@ export const placeCrashBet = (betAmount, walletType = "demo") => {
     betAmount < 0
   )
     return false;
-  crashSocket.emit("place_bet", { betAmount, walletType });
+  crashSocket.emit("place_bet", { betAmount, walletType, autoCashoutAt });
   return true;
 };
 

@@ -1,12 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import "../../../styles/Frame.css";
-import FairnessModal from "../../Frame/FairnessModal";
+import KenoFairnessModal from "./KenoFairnessModal";
 import FrameFooter from "../../Frame/FrameFooter";
 import HotKeysModal from "../../Frame/HotKeysModal";
 import GameInfoModal from "../../Frame/GameInfoModal";
 import MaxBetModal from "../../Frame/MaxBetModal";
 import SideBar from "./SideBar";
 import Game from "./Game";
+import History from "../../Frame/History";
 import { chances } from "./constants";
 import Chances from "./Chances";
 import { useNavigate } from "react-router-dom";
@@ -17,12 +18,13 @@ import {
 import checkLoggedIn from "../../../utils/isloggedIn";
 import { useSelector } from "react-redux";
 import { toast } from "react-toastify";
+import { addToGameHistory, getGameHistory } from "../../../utils/gameHistory";
 
 const Frame = () => {
   const [isFav, setIsFav] = useState(false);
   const [betMode, setBetMode] = useState("manual");
   const [nbets, setNBets] = useState(0);
-  const [bet, setBet] = useState("0.01");
+  const [bet, setBet] = useState("");
   const [loss, setLoss] = useState("0.000000");
   const [profit, setProfit] = useState("0.000000");
   const [Risk, setRisk] = useState("Low");
@@ -51,84 +53,90 @@ const Frame = () => {
   const [valid, setValid] = useState(false);
   const [things, setThings] = useState([]);
   const [socketConnected, setSocketConnected] = useState(false);
+  const [fairnessPrefill, setFairnessPrefill] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [betLocked, setBetLocked] = useState(false);
+  const resetTimerRef = useRef(null);
+  const autoPickTimerRef = useRef(null);
 
   const navigate = useNavigate();
   const token = useSelector((state) => state.auth?.token);
 
   useEffect(() => {
-    if (token) {
-      const socket = initializeKenoSocket(token);
-      if (socket) {
-        console.log("Socket initialized in Frame, status:", socket.connected);
-        setSocketConnected(socket.connected);
-        socket.on("connect", () => {
-          console.log("Socket connected in Frame, ID:", socket.id);
-          setSocketConnected(true);
-        });
-        socket.on("disconnect", () => {
-          console.log("Socket disconnected in Frame");
-          setSocketConnected(false);
-        });
-      }
+    if (!token) {
+      setSocketConnected(false);
+      return undefined;
     }
+
+    const socket = initializeKenoSocket(token);
+    const onConnect = () => setSocketConnected(true);
+    const onDisconnect = () => setSocketConnected(false);
+
+    setSocketConnected(Boolean(socket?.connected));
+    socket.on("connect", onConnect);
+    socket.on("disconnect", onDisconnect);
+
     return () => {
-      const kenoSocket = getKenoSocket();
-      if (kenoSocket) {
-        kenoSocket.off("connect");
-        kenoSocket.off("disconnect");
-        console.log("Cleaned up socket listeners in Frame");
-      }
+      socket.off("connect", onConnect);
+      socket.off("disconnect", onDisconnect);
     };
   }, [token]);
+
+  useEffect(() => {
+    setHistory(getGameHistory("keno_game_history"));
+    return () => {
+      if (resetTimerRef.current) {
+        clearTimeout(resetTimerRef.current);
+        resetTimerRef.current = null;
+      }
+      if (autoPickTimerRef.current) {
+        clearTimeout(autoPickTimerRef.current);
+        autoPickTimerRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     setThings(chances(Risk));
   }, [Risk]);
 
   const handleMineBet = () => {
-    if (gameOver) {
-      console.log("Game over, resetting states for new bet");
-      setGameOver(false);
-      setBettingStarted(false);
-      setGifts([]);
-      if (!randomSelect) {
-        setCheckecdBoxes([]);
-      }
+    if (betStarted || betLocked || AutoPick) return;
+
+    if (!checkLoggedIn()) {
+      navigate(`?tab=${"login"}`, { replace: true });
+      return;
     }
 
-    if (!betStarted && valid) {
-      if (!checkLoggedIn()) {
-        navigate(`?tab=${"login"}`, { replace: true });
-        return;
-      }
-
-      const parsedBet = parseFloat(bet);
-      if (isNaN(parsedBet) || parsedBet < 0) {
-        toast.error("Bet amount must be 0 or greater");
-        return;
-      }
-
-      const kenoSocket = getKenoSocket();
-      if (!kenoSocket || !kenoSocket.connected) {
-        console.error("Socket not connected");
-        toast.error("Socket disconnected, please try again");
-        return;
-      }
-      setBettingStarted(true);
-      setWinnedGifts(-1);
-      setGameOver(false);
-      setGifts([]);
-
-      console.log("Emitting add_game:", { checkedBoxes, bet, risk: Risk });
-      kenoSocket.emit("add_game", {
-        checkedBoxes,
-        bet,
-        risk: Risk,
-        walletType: "demo",
-      });
-    } else if (!valid) {
+    if (!valid) {
       toast.error("Please select at least one number to bet.");
+      return;
     }
+
+    const parsedBet = parseFloat(bet);
+    if (isNaN(parsedBet) || parsedBet < 0) {
+      toast.error("Bet amount must be 0 or greater");
+      return;
+    }
+
+    const kenoSocket = getKenoSocket();
+    if (!kenoSocket || !kenoSocket.connected) {
+      toast.error("Socket disconnected, please try again");
+      return;
+    }
+
+    setBettingStarted(true);
+    setWinnedGifts(-1);
+    setGameOver(false);
+    setGifts([]);
+    setBetLocked(false);
+
+    kenoSocket.emit("add_game", {
+      checkedBoxes,
+      bet,
+      risk: Risk,
+      walletType: "demo",
+    });
   };
 
   const handleRandomSelect = () => {
@@ -214,13 +222,40 @@ const Frame = () => {
   }, [startAutoBet, nbets, checkedBoxes, bet, randomSelect]);
 
   useEffect(() => {
-    if (AutoPick) {
-      const randomNumbers = Array.from({ length: 10 }, () =>
-        Math.floor(Math.random() * 40)
-      );
-      setCheckecdBoxes(randomNumbers);
-      setAutoPick(false); // Reset AutoPick after setting numbers
+    if (!AutoPick) return undefined;
+
+    const pool = Array.from({ length: 40 }, (_, index) => index);
+    const order = [];
+    while (order.length < 10) {
+      const next = Math.floor(Math.random() * pool.length);
+      order.push(pool.splice(next, 1)[0]);
     }
+
+    setCheckecdBoxes([]);
+    setGifts([]);
+    setGameOver(false);
+    setWinnedGifts(-1);
+
+    let step = 0;
+    const pickNext = () => {
+      setCheckecdBoxes((prev) => [...prev, order[step]]);
+      step += 1;
+      if (step < order.length) {
+        autoPickTimerRef.current = setTimeout(pickNext, 95);
+      } else {
+        autoPickTimerRef.current = null;
+        setAutoPick(false);
+      }
+    };
+
+    autoPickTimerRef.current = setTimeout(pickNext, 50);
+
+    return () => {
+      if (autoPickTimerRef.current) {
+        clearTimeout(autoPickTimerRef.current);
+        autoPickTimerRef.current = null;
+      }
+    };
   }, [AutoPick]);
 
   useEffect(() => {
@@ -240,7 +275,7 @@ const Frame = () => {
         }}
       >
         <div
-          className={`my-12 rounded mx-auto bg-primary w-[96%] max-w-[1400px] max-md:max-w-[450px] ${
+          className={`my-12 max-lg:my-3 rounded mx-auto bg-primary w-[96%] max-w-[1400px] max-md:max-w-[450px] ${
             theatreMode ? "max-w-[100%] max-h-screen" : "max-lg:max-w-[450px]"
           }`}
         >
@@ -263,7 +298,7 @@ const Frame = () => {
                 valid={valid}
                 setRisk={setRisk}
                 handleMineBet={handleMineBet}
-                bettingStarted={betStarted}
+                bettingStarted={betStarted || betLocked || AutoPick}
                 totalprofit={totalProfit}
                 handleRandomSelect={handleRandomSelect}
                 AutoPick={AutoPick}
@@ -279,17 +314,18 @@ const Frame = () => {
                   theatreMode
                     ? "md:col-span-8 md:order-2"
                     : "lg:col-span-8 lg:order-2"
-                } xl:col-span-9 bg-gray-900 order-1`}
+                } xl:col-span-9 bg-gray-900 order-1 max-lg:h-auto`}
               >
-                <div className="w-full relative text-white h-full flex items-center justify-center text-3xl">
+                <div className="relative flex h-full w-full flex-col text-white max-lg:min-h-0 lg:min-h-[520px]">
+                  <div className="pointer-events-none absolute inset-x-0 top-1 z-10">
+                    <History list={history} />
+                  </div>
                   {loading ? (
-                    <h1 className="text-xl font-semibold">Loading...</h1>
-                  ) : !socketConnected ? (
-                    <h1 className="text-xl font-semibold">
-                      Connecting to Server...
+                    <h1 className="px-3 py-8 text-center text-xl font-semibold">
+                      Loading...
                     </h1>
                   ) : (
-                    <div className="mb-20">
+                    <div className="flex w-full flex-1 flex-col items-center justify-center px-2 pt-14 max-lg:px-1.5 max-lg:pt-12 lg:pt-16">
                       <Game
                         mines={Risk}
                         randomSelect={randomSelect}
@@ -306,15 +342,40 @@ const Frame = () => {
                         setWinnedGifts={setWinnedGifts}
                         things={things}
                         arrayLength={checkedBoxes.length || 0}
+                        setFairnessPrefill={setFairnessPrefill}
+                        socketReady={socketConnected}
+                        autoPicking={AutoPick}
+                        onRoundResult={({ payout }) => {
+                          const multiplier = Number(payout) || 0;
+                          setHistory(
+                            addToGameHistory("keno_game_history", {
+                              number: multiplier,
+                              isWin: multiplier > 0,
+                            })
+                          );
+                          setBetLocked(true);
+                          if (resetTimerRef.current) {
+                            clearTimeout(resetTimerRef.current);
+                          }
+                          resetTimerRef.current = setTimeout(() => {
+                            setGifts([]);
+                            setGameOver(false);
+                            setWinnedGifts(-1);
+                            setBettingStarted(false);
+                            setBetLocked(false);
+                            resetTimerRef.current = null;
+                          }, 3000);
+                        }}
                       />
                     </div>
                   )}
-                  <div className="h-[100px] mt-10"></div>
-                  <Chances
-                    things={things}
-                    arrayLength={checkedBoxes.length || 0}
-                    winlength={winnedGifts}
-                  />
+                  <div className="mx-auto mt-3 w-[92%] max-w-[680px] shrink-0 pb-3 max-lg:mt-2 max-lg:w-[96%] max-lg:pb-2 lg:mt-4 lg:pb-4">
+                    <Chances
+                      things={things}
+                      arrayLength={checkedBoxes.length || 0}
+                      winlength={winnedGifts}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -341,6 +402,9 @@ const Frame = () => {
               setMaxBetEnable={setMaxBetEnable}
               theatreMode={theatreMode}
               setTheatreMode={setTheatreMode}
+              betMode={betMode}
+              onBetModeChange={setBetMode}
+              modeSwitchDisabled={startAutoBet || betStarted || betLocked || AutoPick}
             />
 
             {isGameSettings && (
@@ -360,7 +424,10 @@ const Frame = () => {
                     className="max-h-[90%] custom-scrollbar overflow-y-auto w-[95%] pt-3 rounded max-w-[500px] bg-primary"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <FairnessModal setIsFairness={setIsFairness} />
+                    <KenoFairnessModal
+                      setIsFairness={setIsFairness}
+                      prefill={fairnessPrefill}
+                    />
                   </div>
                 </div>
               </div>

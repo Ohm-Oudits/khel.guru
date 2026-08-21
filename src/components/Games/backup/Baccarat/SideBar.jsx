@@ -35,7 +35,6 @@ const SideBar = ({
             <div className="order-1 md:order-2 my-2 w-full">
               <div className="flex items-center mb-[-4px] pl-[2px] justify-between w-full font-semibold text-label">
                 <label htmlFor="betAmount">Bet Amount</label>
-                <h1 className="text-sm">$0.00</h1>
               </div>
               <div className="w-full mt-1 bg-inactive shadow-md flex rounded">
                 <div className="w-full relative">
@@ -90,7 +89,7 @@ const SideBar = ({
                 className={`order-2 max-md:mb-2 md:order-20 transition-all duration-300 ease-in-out transform active:scale-90 flex items-center justify-center w-full mx-auto py-1.5 mt-3 max-lg:mt-4 rounded text-lg font-semibold bg-button-primary text-black cursor-pointer`}
                 onClick={handleBet}
               >
-                Bet
+                Place Bet
               </div>
             )}
           </>

@@ -4,10 +4,10 @@ import { SOCKET_URL as API_URL } from "../../config/backendUrls";
 let baccaratSocket = null;
 
 export const initializeBaccaratSocket = (token) => {
-  // Reuse a live socket instead of churning a new connection on every mount —
-  // recreating it mid-handshake dropped in-flight bets ("closed before
-  // established").
-  if (baccaratSocket) return baccaratSocket;
+  if (baccaratSocket) {
+    if (!baccaratSocket.connected) baccaratSocket.connect();
+    return baccaratSocket;
+  }
 
   baccaratSocket = io(`${API_URL}/baccarat`, {
     auth: {
@@ -15,7 +15,7 @@ export const initializeBaccaratSocket = (token) => {
     },
     transports: ["websocket"],
     reconnection: true,
-    reconnectionAttempts: 3,
+    reconnectionAttempts: 5,
   });
 
   baccaratSocket.on("connect", () => {
@@ -36,6 +36,8 @@ export const initializeBaccaratSocket = (token) => {
   baccaratSocket.on("disconnect", () => {
     console.log("Baccarat namespace disconnected");
   });
+
+  return baccaratSocket;
 };
 
 export const getBaccaratSocket = () => {

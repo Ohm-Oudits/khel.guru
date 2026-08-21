@@ -1,19 +1,28 @@
 /* eslint-disable */
 import BetAmount from "../../Frame/BetAmount";
+import NumberOfBets from "../../Frame/NumberOfBets";
 import {
-  GameLabeledSliderRow,
-  GameRiskAutoRow,
-  RISK_LOW_MEDIUM_HIGH,
+  GameLabeledSegmentRow,
+  PLINKO_RISK_OPTIONS,
 } from "../../Frame/GamePanelControls";
 
 const MIN_ROWS = 8;
 const MAX_ROWS = 16;
-
-const fieldLabel = "mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-label";
+const ROW_OPTIONS = Array.from(
+  { length: MAX_ROWS - MIN_ROWS + 1 },
+  (_, index) => {
+    const count = MIN_ROWS + index;
+    return {
+      value: count,
+      label: String(count),
+      shortLabel: String(count),
+      tone: "neutral",
+    };
+  }
+);
 
 const LeftSection = ({
   theatreMode,
-  setBetMode,
   betMode,
   bet,
   setBet,
@@ -32,7 +41,6 @@ const LeftSection = ({
 }) => {
   const boardLocked = isBallInMotion || startAutoBet;
   const bettingLocked = startAutoBet;
-  const modeSwitchDisabled = bettingLocked;
 
   return (
     <div
@@ -40,29 +48,27 @@ const LeftSection = ({
         theatreMode ? "md:col-span-4 md:order-1" : "lg:col-span-4 lg:order-1"
       } xl:col-span-3 bg-inactive order-2 max-lg:h-fit lg:h-[600px] overflow-auto`}
     >
-      <div className="my-4 flex h-full flex-col gap-1 px-3">
-        <GameRiskAutoRow
-          options={RISK_LOW_MEDIUM_HIGH}
+        <div className="my-4 flex flex-col px-3">
+        <GameLabeledSegmentRow
+          label="Risk"
+          options={PLINKO_RISK_OPTIONS}
           value={risk}
           onChange={setRisk}
-          segmentDisabled={boardLocked}
-          betMode={betMode}
-          setBetMode={setBetMode}
-          modeSwitchDisabled={modeSwitchDisabled}
+          disabled={boardLocked}
           className="mb-0 mt-0 shrink-0"
         />
 
-        <GameLabeledSliderRow
+        <GameLabeledSegmentRow
           label="Rows"
-          min={MIN_ROWS}
-          max={MAX_ROWS}
+          options={ROW_OPTIONS}
           value={rows}
-          onChange={setRows}
+          onChange={(next) => setRows(Number(next))}
           disabled={boardLocked}
+          className="mb-1 mt-1 shrink-0"
           ariaLabel="Plinko rows"
         />
 
-        <div className="order-2 shrink-0">
+        <div className="w-full">
           <BetAmount
             bet={bet}
             setBet={setBet}
@@ -71,48 +77,36 @@ const LeftSection = ({
           />
         </div>
 
-        <div className="order-4 flex flex-col gap-1 lg:order-3">
-          {betMode === "auto" && (
-            <div>
-              <label htmlFor="plinko-nbets" className={fieldLabel}>
-                Number of bets
-              </label>
-              <input
-                id="plinko-nbets"
-                type="number"
-                min="1"
-                value={nbets}
-                disabled={bettingLocked}
-                onChange={(e) => !bettingLocked && setNBets(e.target.value)}
-                className={`h-10 w-full rounded-lg border border-input bg-secondry px-3 text-sm text-white outline-none transition ${
-                  bettingLocked
-                    ? "cursor-not-allowed opacity-50"
-                    : "hover:border-primary-4 focus:border-button-primary"
-                }`}
-              />
-            </div>
-          )}
-        </div>
+        {betMode === "auto" && (
+          <div className="w-full">
+            <NumberOfBets
+              nbets={nbets}
+              setNBets={setNBets}
+              disabled={bettingLocked}
+              id="plinko-nbets"
+            />
+          </div>
+        )}
 
         {betMode === "manual" ? (
           <button
             type="button"
             disabled={!bettingStarted || bettingLocked}
             onClick={() => !bettingLocked && handleBetClick()}
-            className={`order-3 w-full rounded-lg py-3 text-base font-bold transition lg:order-4 lg:mt-auto ${
+            className={`mt-3 w-full rounded-[1rem] py-2.5 text-[0.98rem] font-semibold transition-all duration-300 ease-out ${
               !bettingStarted || bettingLocked
                 ? "cursor-not-allowed bg-[#2a2a2a] text-white/50"
                 : "cursor-pointer bg-button-primary text-black hover:brightness-110 active:scale-[0.98]"
             }`}
           >
-            Bet
+            Place Bet
           </button>
         ) : (
           <button
             type="button"
             disabled={bettingLocked}
             onClick={handleAutoBet}
-            className={`order-3 w-full rounded-lg py-3 text-base font-bold transition lg:order-4 lg:mt-auto ${
+            className={`mt-3 w-full rounded-[1rem] py-2.5 text-[0.98rem] font-semibold transition-all duration-300 ease-out ${
               bettingLocked
                 ? "cursor-not-allowed bg-[#2a2a2a] text-white/50"
                 : "cursor-pointer bg-button-primary text-black hover:brightness-110 active:scale-[0.98]"

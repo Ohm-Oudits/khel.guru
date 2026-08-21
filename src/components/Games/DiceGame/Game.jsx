@@ -15,19 +15,28 @@ const Game = ({
   calculateMultiplier,
   winChance,
   targetPosition,
+  roundOutcome,
 }) => {
   const draggingRef = useRef(false);
   const trackRef = useRef(null);
-  const [resultValue, setResultValue] = useState(null);
+  const [showPop, setShowPop] = useState(false);
 
   useEffect(() => {
     setFixedPosition(rollover);
   }, [rollover]);
 
+  useEffect(() => {
+    if (!roundOutcome) {
+      setShowPop(false);
+      return undefined;
+    }
+    const timer = setTimeout(() => setShowPop(true), 1000);
+    return () => clearTimeout(timer);
+  }, [roundOutcome]);
+
   const applyPosition = (raw) => {
     const rounded = Math.round(Math.max(0, Math.min(100, raw)) * 10) / 10;
     setGameResult("");
-    setResultValue(null);
     setFixedPosition(rounded);
     setRollover(rounded);
     const newMultiplier = calculateMultiplier(winChance);
@@ -64,29 +73,16 @@ const Game = ({
   useEffect(() => {
     if (Start && targetPosition !== null) {
       setDicePosition(targetPosition);
-      setResultValue({
-        percentage: targetPosition.toFixed(1),
-        multiplier: parseFloat(calculateMultiplier(winChance)).toFixed(2),
-      });
     }
-  }, [Start, targetPosition, winChance]);
+  }, [Start, targetPosition]);
+
+  const rollLabel = roundOutcome
+    ? Number(roundOutcome.roll ?? dicePosition).toFixed(2)
+    : "";
 
   return (
-    <div className="relative flex w-full flex-col items-center justify-center px-3 pt-8 pb-2 lg:px-8 lg:pt-4 lg:pb-2">
-      {resultValue && (
-        <div className="mb-2 flex h-10 w-full max-w-2xl items-center justify-center">
-          <div className="rounded-lg bg-gray-800/80 px-4 py-1.5 text-center backdrop-blur-sm">
-            <div className="text-base font-bold leading-tight">
-              {resultValue.percentage}
-            </div>
-            <div className="text-xs text-gray-400">
-              {resultValue.multiplier}x
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="mb-1 flex w-full max-w-2xl justify-between px-1 text-[11px] text-white/60 lg:text-sm">
+    <div className="relative flex w-full flex-col items-center justify-center pt-8 pb-2 lg:pt-4 lg:pb-2">
+      <div className="mb-1 flex w-full justify-between px-1 text-[11px] text-white/60 lg:text-sm">
         <span>0</span>
         <span>25</span>
         <span>50</span>
@@ -96,7 +92,7 @@ const Game = ({
 
       <div
         ref={trackRef}
-        className={`relative h-12 w-full max-w-2xl overflow-visible rounded-lg bg-gray-700 lg:h-16 ${
+        className={`relative h-12 w-full overflow-visible rounded-lg bg-gray-700 lg:h-16 ${
           locked ? "cursor-not-allowed" : "cursor-pointer"
         }`}
         onPointerDown={handlePointerDown}
@@ -134,6 +130,21 @@ const Game = ({
             style={{ left: `${dicePosition}%` }}
           >
             🎲
+          </div>
+        )}
+
+        {roundOutcome && (
+          <div
+            className={`pointer-events-none absolute z-20 -translate-x-1/2 rounded-lg px-2 py-0.5 text-sm font-black shadow-lg transition-all duration-300 ease-out tabular-nums ${
+              showPop ? "scale-100 opacity-100" : "scale-50 opacity-0"
+            } ${
+              roundOutcome.isWin
+                ? "bg-emerald-500 text-black"
+                : "bg-red-500 text-white"
+            }`}
+            style={{ left: `${dicePosition}%`, top: "-2.1rem" }}
+          >
+            {rollLabel}
           </div>
         )}
       </div>

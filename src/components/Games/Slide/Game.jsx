@@ -276,7 +276,7 @@ const Game = ({
   const showCountdownBar = phase === "waiting" && timeLeft != null;
 
   return (
-    <div className="relative flex h-full min-h-[260px] w-full flex-col items-center justify-center overflow-hidden bg-gray-900 text-white max-lg:min-h-[240px] lg:min-h-[360px]">
+    <div className="relative flex h-full min-h-[260px] w-full flex-col items-center justify-center overflow-hidden bg-gray-900 pb-4 text-white max-lg:min-h-[240px] lg:min-h-[360px]">
       <div ref={viewportRef} className="relative h-52 w-full overflow-hidden max-lg:h-48 lg:h-64">
         <div
           ref={containerRef}

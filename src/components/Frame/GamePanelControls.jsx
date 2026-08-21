@@ -8,6 +8,13 @@ export const RISK_LOW_MEDIUM_HIGH = [
   { value: "High", label: "High", shortLabel: "High", tone: "high" },
 ];
 
+export const PLINKO_RISK_OPTIONS = [
+  { value: "Easy", label: "Easy", shortLabel: "Easy", tone: "low" },
+  { value: "Medium", label: "Medium", shortLabel: "Med", tone: "medium" },
+  { value: "Hard", label: "Hard", shortLabel: "Hard", tone: "high" },
+  { value: "Expert", label: "Expert", shortLabel: "Exp", tone: "high" },
+];
+
 export const DIFFICULTY_LOW_MEDIUM_HIGH = [
   { value: "low", label: "Low", shortLabel: "Low", tone: "low" },
   { value: "medium", label: "Medium", shortLabel: "Med", tone: "medium" },
@@ -241,6 +248,99 @@ export const GameLabeledSliderRow = ({
     <span className="game-labeled-slider-row__value">{value}</span>
   </div>
 );
+
+export const GameDifficultySelectRow = ({
+  label = "Difficulty",
+  options,
+  value,
+  onChange,
+  disabled = false,
+  className = "",
+  ariaLabel,
+}) => (
+  <div className={`mb-3 mt-1 w-full ${className}`.trim()}>
+    <div className="mb-1.5 pl-[2px] text-[11px] font-semibold uppercase tracking-wide text-label">
+      {label}
+    </div>
+    <select
+      value={value}
+      disabled={disabled}
+      aria-label={ariaLabel ?? label}
+      onChange={(event) => onChange(event.target.value)}
+      className="game-difficulty-select w-full"
+    >
+      {options.map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+  </div>
+);
+
+export const GameDifficultyDropdownRow = ({
+  label = "Difficulty",
+  options,
+  value,
+  onChange,
+  segmentDisabled = false,
+  betMode,
+  setBetMode,
+  modeSwitchDisabled = false,
+  onModeSwitch,
+  className = "",
+  ariaLabel,
+}) => {
+  const isAuto = betMode === "auto";
+
+  const toggleAutoMode = () => {
+    if (modeSwitchDisabled) return;
+    const next = isAuto ? "manual" : "auto";
+    if (onModeSwitch) {
+      onModeSwitch(next);
+      return;
+    }
+    setBetMode(next);
+  };
+
+  return (
+    <div className={`order-1 mb-3 mt-1 w-full ${className}`.trim()}>
+      <div className="mb-1.5 pl-[2px] text-[11px] font-semibold uppercase tracking-wide text-label">
+        {label}
+      </div>
+      <div className="flex items-center gap-2.5">
+        <select
+          value={value}
+          disabled={segmentDisabled}
+          aria-label={ariaLabel ?? label}
+          onChange={(event) => onChange(event.target.value)}
+          className="game-difficulty-select"
+        >
+          {options.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+
+        <div className="flex shrink-0 flex-col items-center gap-1">
+          <span
+            className={`game-auto-switch-label ${
+              isAuto ? "game-auto-switch-label--on" : "game-auto-switch-label--off"
+            }`}
+          >
+            Auto
+          </span>
+          <GameAutoModeSwitch
+            enabled={isAuto}
+            disabled={modeSwitchDisabled}
+            onToggle={toggleAutoMode}
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export const GameRiskAutoRow = ({
   label = "Risk",

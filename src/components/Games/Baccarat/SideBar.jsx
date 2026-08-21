@@ -1,30 +1,13 @@
-import { useState, useRef } from "react";
+import { useRef } from "react";
 const SideBar = ({
-  theatreMode,
-  setBetMode,
-  betMode,
-  bet,
-  setBet,
   chipBet,
   setChipBet,
-  maxBetEnable,
   bettingStarted,
+  betLocked,
   handleBet,
-  handleCheckout,
-  totalBet,
 }) => {
   const chipContainerRef = useRef(null);
-  const chipValues = [
-    "1",
-    "10",
-    "100",
-    "1K",
-    "10K",
-    "100K",
-    "1M",
-    "10M",
-    "100M",
-  ];
+  const chipValues = ["20", "30", "50", "100", "200", "500", "1K", "5K"];
 
   const parseChipValue = (chip) => {
     const suffixes = { K: 1e3, M: 1e6 };
@@ -48,25 +31,9 @@ const SideBar = ({
   return (
     <>
       <div
-        className={`col-span-12 ${
-          theatreMode ? "md:col-span-4 md:order-1" : "lg:col-span-4 lg:order-1"
-        } xl:col-span-3 bg-inactive order-2 max-lg:h-[fit-content] lg:h-[600px] overflow-auto`}
+        className={`order-2 col-span-12 flex h-full flex-col overflow-auto border-[#1a2c38] bg-inactive max-md:border-t md:order-1 md:col-span-4 md:border-r md:border-t-0 xl:col-span-3`}
       >
-        <div className="my-4 px-3 flex flex-col">
-          {/* Manual and auto  */}
-          <div className="sticky top-0 z-[1] bg-inactive py-0 rounded-md">
-            <div className="order-[100] max-lg:mt-2 lg:order-1 switch mb-4 w-full bg-primary rounded-full p-1.5 grid grid-cols-1 gap-1">
-              <div
-                onClick={() => setBetMode("manual")}
-                className={`${
-                  betMode === "manual" ? "bg-inactive scale-95" : ""
-                } cursor-pointer col-span-1 flex items-center justify-center py-2 text-white font-semibold rounded-full transition-all duration-300 ease-in-out transform active:scale-90`}
-              >
-                Manual
-              </div>
-            </div>
-          </div>
-
+        <div className="flex h-full flex-col px-3 py-3 md:py-4">
           <>
             {/* Chip Selector */}
             <div className="mb-4">
@@ -121,59 +88,19 @@ const SideBar = ({
               </div>
             </div>
 
-            <div className="order-1 md:order-2 my-2 w-full">
-              <div className="flex items-center mb-[-4px] pl-[2px] justify-between w-full font-semibold text-label">
-                <label htmlFor="betAmount">Bet Amount</label>
+            {bettingStarted ? (
+              <div className="order-2 mt-3 mb-2 flex w-full cursor-default items-center justify-center rounded-[1rem] bg-button-primary py-2.5 text-[0.98rem] font-semibold text-black opacity-70 md:order-last">
+                Dealing
               </div>
-
-              <div className="w-full mt-1 bg-inactive shadow-md flex rounded">
-                <div className="w-full relative">
-                  <input
-                    type="text"
-                    value={totalBet.toFixed(2)}
-                    id="betAmount"
-                    readOnly
-                    //  onChange={(e) => {
-                    //    const inputValue = e.target.value;
-                    //    if (/^\d*\.?\d*$/.test(inputValue)) { // Allow only numbers and decimals
-                    //      setBet(inputValue);
-                    //  }
-                    // }}
-                    className="w-full h-full rounded bg-secondry outline-none text-white px-2 pr-6 border border-inactive hover:border-primary-4"
-                  />
-                  <div className="absolute top-1.5 right-2"></div>
-                </div>
-                <div className="cursor-pointer hover:bg-activeHover inline-flex relative items-center gap-2 justify-center rounded-sm font-semibold whitespace-nowrap ring-offset-background transition disabled:pointer-events-none disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-[0.98] bg-grey-400 text-white hover:bg-grey-300 hover:text-white focus-visible:outline-white text-sm leading-none py-[0.8125rem] px-[1rem] shadow-none">
-                  1/2
-                </div>
-                <div className="cursor-pointer hover:bg-activeHover inline-flex relative items-center gap-2 justify-center rounded-sm font-semibold whitespace-nowrap ring-offset-background transition disabled:pointer-events-none disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-[0.98] bg-grey-400 text-white hover:bg-grey-300 hover:text-white focus-visible:outline-white text-sm leading-none py-[0.8125rem] px-[1rem] shadow-none">
-                  2x
-                </div>
-                {maxBetEnable && (
-                  <div className="cursor-pointer hover:bg-activeHover inline-flex relative items-center gap-2 justify-center rounded-sm font-semibold whitespace-nowrap ring-offset-background transition disabled:pointer-events-none disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-[0.98] bg-grey-400 text-white hover:bg-grey-300 hover:text-white focus-visible:outline-white text-sm leading-none py-[0.8125rem] px-[1rem] shadow-none">
-                    Max
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {bettingStarted && (
-              <div
-                className={`order-2 max-md:mb-2 md:order-20 transition-all duration-300 ease-in-out transform active:scale-90 flex items-center justify-center w-full mx-auto py-1.5 mt-3 max-lg:mt-4 rounded text-lg font-semibold bg-button-primary text-black cursor-pointer`}
-                // onClick={handleCheckout}
-              >
-                Checkout
-              </div>
-            )}
-
-            {/* Bet button */}
-            {!bettingStarted && (
-              <div
-                className={`order-2 max-md:mb-2 md:order-20 transition-all duration-300 ease-in-out transform active:scale-90 flex items-center justify-center w-full mx-auto py-1.5 mt-3 max-lg:mt-4 rounded text-lg font-semibold bg-button-primary text-black cursor-pointer`}
+            ) : (
+              <button
+                type="button"
+                disabled={betLocked}
+                className="order-2 mt-3 mb-2 flex w-full items-center justify-center rounded-[1rem] bg-button-primary py-2.5 text-[0.98rem] font-semibold text-black transition-all duration-300 ease-out enabled:cursor-pointer enabled:active:scale-90 disabled:cursor-not-allowed disabled:opacity-60 md:order-last"
                 onClick={handleBet}
               >
-                Bet
-              </div>
+                Place Bet
+              </button>
             )}
           </>
         </div>

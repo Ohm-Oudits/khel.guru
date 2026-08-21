@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import "../../../styles/Frame.css";
 import "../../../styles/Wheel.css";
-import FairnessModal from "../../Frame/FairnessModal";
+import PumpFairnessModal from "./PumpFairnessModal";
 import FrameFooter from "../../Frame/FrameFooter";
 import HotKeysModal from "../../Frame/HotKeysModal";
 import GameInfoModal from "../../Frame/GameInfoModal";
@@ -58,6 +58,7 @@ const Frame = () => {
   const [balloonNumber, setBalloonNumber] = useState(1.01);
   const [isPopped, setIsPopped] = useState(false);
   const [roundLocked, setRoundLocked] = useState(false);
+  const [fairnessPrefill, setFairnessPrefill] = useState(null);
   const [pumpMultipler, setPumpMultipler] = useState([
     1.01, 1.23, 1.55, 1.98, 2.56, 3.36, 4.48, 6.08, 12.0, 35.0, 50.0, 73.0,
     144.0, 200.0,
@@ -208,7 +209,8 @@ const Frame = () => {
       }
     };
 
-    const onRoundStarted = ({ multiplier, ladder }) => {
+    const onRoundStarted = ({ multiplier, ladder, fairness }) => {
+      if (fairness) setFairnessPrefill(fairness);
       if (Array.isArray(ladder) && ladder.length) {
         setPumpMultipler(ladder);
       }
@@ -240,7 +242,13 @@ const Frame = () => {
       setTimeout(() => runAutoPumpStepRef.current(), 350);
     };
 
-    const onBalloonPopped = ({ multiplier, history }) => {
+    const onBalloonPopped = ({ multiplier, history, fairness, popAt }) => {
+      if (fairness || popAt != null) {
+        setFairnessPrefill({
+          ...(fairness || {}),
+          popAt: fairness?.popAt ?? popAt,
+        });
+      }
       applyServerHistoryRef.current(history, multiplier);
       handleRoundSettle();
       if (Number.isFinite(Number(multiplier))) {
@@ -257,7 +265,13 @@ const Frame = () => {
       }, 900);
     };
 
-    const onCashoutSuccess = ({ multiplier, payout, popAt, history }) => {
+    const onCashoutSuccess = ({ multiplier, payout, popAt, history, fairness }) => {
+      if (fairness || popAt != null) {
+        setFairnessPrefill({
+          ...(fairness || {}),
+          popAt: fairness?.popAt ?? popAt,
+        });
+      }
       applyServerHistoryRef.current(history, popAt);
       handleRoundSettle();
       activeBetRef.current = false;
@@ -543,6 +557,9 @@ const Frame = () => {
               setMaxBetEnable={setMaxBetEnable}
               theatreMode={theatreMode}
               setTheatreMode={setTheatreMode}
+              betMode={betMode}
+              onBetModeChange={setBetMode}
+              modeSwitchDisabled={startAutoBet || bettingStarted || roundLocked}
             />
 
             {isGameSettings && (
@@ -564,7 +581,10 @@ const Frame = () => {
                       className="max-h-[90%] custom-scrollbar overflow-y-auto w-[95%] pt-3 rounded max-w-[500px] bg-primary"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <FairnessModal setIsFairness={setIsFairness} />
+                      <PumpFairnessModal
+                        setIsFairness={setIsFairness}
+                        prefill={fairnessPrefill}
+                      />
                     </div>
                   </div>
                 </div>

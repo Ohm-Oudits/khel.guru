@@ -1,22 +1,135 @@
 .main {
-    background: linear-gradient(to right, #000, #000000);
-    /* Linear gradient for rectangular background */
-    box-shadow: 0 0 40px rgb(0, 0, 0),
-        0 0 120px rgb(0, 0, 0),
-        0 0 200px rgb(0, 0, 0);
-    /* Star-like glowing effect */
-    animation: zoom 16s alternate infinite;
-    transform: translate(-50%, -50%);
+  background: linear-gradient(to right, #000, #000000);
+  box-shadow:
+    0 0 40px rgb(0, 0, 0),
+    0 0 120px rgb(0, 0, 0),
+    0 0 200px rgb(0, 0, 0);
+  animation: twist-main-zoom 16s alternate infinite;
 }
 
-@keyframes zoom {
-    0% {
-        transform: scale(1);
-    }
-    50% {
-        transform: scale(1.01);
-    }
-    100% {
-        transform: scale(1);
-    }
+@keyframes twist-main-zoom {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.01);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.twist-panel {
+  gap: 0.35rem;
+}
+
+.twist-wheel-host {
+  min-height: 0;
+  width: 100%;
+  overflow: hidden;
+}
+
+.twist-wheel-stage {
+  position: relative;
+  width: min(calc(100vw - 2rem), 280px);
+  height: min(calc(100vw - 2rem), 280px);
+  margin: 0 auto;
+}
+
+.twist-wheel-inner {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 490px;
+  height: 490px;
+  transform: translate(-50%, -50%) scale(0.57);
+  transform-origin: center center;
+}
+
+.twist-wheel-bg {
+  z-index: 0;
+}
+
+.twist-wheel-rings {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.twist-wheel-canvas {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: block;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.twist-wheel-gems {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.twist-wheel-gem-pill {
+  position: absolute;
+  left: 50%;
+  width: 45px;
+  margin-left: -22.5px;
+  background: linear-gradient(to right, #000, #000000);
+  box-shadow:
+    0 4px 30px rgba(0, 0, 0, 0.6),
+    0 0 40px rgb(0, 0, 0);
+}
+
+.twist-wheel-gem-slot {
+  position: absolute;
+  left: 50%;
+  display: flex;
+  width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  transform: translate(-50%, -50%);
+}
+
+.twist-wheel-gem-slot img {
+  display: block;
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
+
+.twist-wheel-center {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 4;
+  width: 200px;
+  height: 200px;
+  transform: translate(-50%, -50%);
+}
+
+@media (min-width: 640px) {
+  .twist-wheel-stage {
+    width: min(calc(100vw - 2rem), 340px);
+    height: min(calc(100vw - 2rem), 340px);
+  }
+
+  .twist-wheel-inner {
+    transform: translate(-50%, -50%) scale(0.69);
+  }
+}
+
+@media (min-width: 1024px) {
+  .twist-wheel-stage {
+    width: 490px;
+    height: 490px;
+  }
+
+  .twist-wheel-inner {
+    transform: translate(-50%, -50%) scale(1);
+  }
 }
