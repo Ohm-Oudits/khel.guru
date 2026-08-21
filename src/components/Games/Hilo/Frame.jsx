@@ -1,14 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import "../../../styles/Frame.css";
-import FairnessModal from "../../Frame/FairnessModal";
+import CardFairnessModal from "../../Frame/CardFairnessModal";
 import FrameFooter from "../../Frame/FrameFooter";
 import HotKeysModal from "../../Frame/HotKeysModal";
 import GameInfoModal from "../../Frame/GameInfoModal";
 import MaxBetModal from "../../Frame/MaxBetModal";
-import { GameResultModal, ActiveGameModal } from "./GameResultModal";
 import SideBar from "./SideBar";
 import Game from "./Game";
-import { CARD_SUITS, CARD_VALUES } from "./constant";
 
 import { useSelector } from "react-redux";
 import {
@@ -17,6 +15,7 @@ import {
   initializeHiloSocket,
   getActiveGame,
   addGame,
+  shufflePreview,
   predict,
   skip,
   checkout,
@@ -51,15 +50,14 @@ const Frame = () => {
   const [gameInfo, setGameInfo] = useState(false);
   const [hotkeys, setHotkeys] = useState(false);
   const [hotkeysEnabled, setHotkeysEnabled] = useState(false);
-
-  const [showResultModal, setShowResultModal] = useState(false);
-  const [showActiveGameModal, setShowActiveGameModal] = useState(false);
-  const [gameResult, setGameResult] = useState({
-    isGameOver: false,
-    profit: 0,
-  });
   const [isWaitingForCard, setIsWaitingForCard] = useState(false);
   const [isGameStarting, setIsGameStarting] = useState(false);
+  const [roundMultiplier, setRoundMultiplier] = useState(1);
+  const [settledMultiplier, setSettledMultiplier] = useState(null);
+  const [betLocked, setBetLocked] = useState(false);
+  const resetTimerRef = useRef(null);
+
+  const [fairnessPrefill, setFairnessPrefill] = useState(null);
 
   const navigate = useNavigate();
   const token = useSelector((state) => state.auth?.token);
@@ -67,50 +65,103 @@ const Frame = () => {
   const [currentCard, setCurrentCard] = useState(null);
   const [historyCards, setHistoryCards] = useState([]);
 
+  const clearResetTimer = () => {
+    if (resetTimerRef.current) {
+      clearTimeout(resetTimerRef.current);
+      resetTimerRef.current = null;
+    }
+  };
+
+  const applyPreview = (game) => {
+    if (!game?.currentCard) return false;
+    setCurrentCard(game.currentCard);
+    setHistoryCards(
+      game.historyCards?.length ? game.historyCards : [game.currentCard]
+    );
+    setBettingStarted(false);
+    if (game.fairness) setFairnessPrefill(game.fairness);
+    return true;
+  };
+
+  const applyRound = (game) => {
+    if (!game?.currentCard || game.gameOver || game.checkedOut) return false;
+    clearResetTimer();
+    setBetLocked(false);
+    setCurrentCard(game.currentCard);
+    setHistoryCards(
+      game.historyCards?.length ? game.historyCards : [game.currentCard]
+    );
+    setBettingStarted(true);
+    setSettledMultiplier(null);
+    setRoundMultiplier(Number(game.multiplier) || 1);
+    if (game.betAmount != null && game.stakeLocked !== false) {
+      setBet(String(game.betAmount));
+    }
+    if (game.fairness) setFairnessPrefill(game.fairness);
+    return true;
+  };
+
+  const ensurePreview = () => {
+    shufflePreview((payload) => {
+      if (payload?.game?.currentCard && payload.game.stakeLocked === false) {
+        applyPreview(payload.game);
+      }
+    });
+  };
+
+  const hydrateGame = (game) => {
+    if (!game || game.gameOver || game.checkedOut) {
+      ensurePreview();
+      return;
+    }
+    if (game.stakeLocked === false) {
+      applyPreview(game);
+      return;
+    }
+    applyRound(game);
+  };
+
+  const settleRound = (multiplier, game) => {
+    if (game?.currentCard) setCurrentCard(game.currentCard);
+    if (game?.historyCards?.length) setHistoryCards(game.historyCards);
+    setBettingStarted(false);
+    setIsWaitingForCard(false);
+    setIsGameStarting(false);
+    setRoundMultiplier(Number(multiplier) || 0);
+    setSettledMultiplier(Number(multiplier) || 0);
+    setBetLocked(true);
+    clearResetTimer();
+    resetTimerRef.current = setTimeout(() => {
+      setBetLocked(false);
+      setSettledMultiplier(null);
+      setRoundMultiplier(1);
+      ensurePreview();
+      resetTimerRef.current = null;
+    }, 3000);
+  };
+
   useEffect(() => {
     if (token) {
       initializeHiloSocket(token);
-      getActiveGame((gameState) => {
-        console.log("Active game state received:", gameState); // Debug log
-        if (gameState) {
-          if (gameState.gameOver) {
-            console.log("Game is over, showing result modal"); // Debug log
-            setGameResult({ isGameOver: true, profit: gameState.profit || 0 });
-            setShowResultModal(true);
-          } else {
-            console.log("Active game found, showing active game modal"); // Debug log
-            setShowActiveGameModal(true);
-            // For existing games, we should have valid card data
-            setCurrentCard(gameState.currentCard);
-            setHistoryCards(gameState.historyCards || []);
-            setBettingStarted(true);
-          }
-          setIsWaitingForCard(false);
-        } else {
-          console.log("No active game found"); // Debug log
-        }
+      getActiveGame((payload) => {
+        hydrateGame(payload?.game);
       });
 
       onGameOver(({ game }) => {
-        console.log("Game over event received:", game); // Debug log
-        // The round settled as a loss (stake kept): refresh the balance.
         requestWalletRefresh();
-        setBettingStarted(false);
-        setIsWaitingForCard(false);
-        setGameResult({ isGameOver: true, profit: game.profit || 0 });
-        setShowResultModal(true);
+        settleRound(0, game);
       });
 
       onError(({ message }) => {
-        console.error("Socket error:", message); // Debug log
-        // A rejected action left the wallet untouched; resync the readout.
         requestWalletRefresh();
         setIsWaitingForCard(false);
+        setIsGameStarting(false);
         toast.error(message);
       });
     }
 
     return () => {
+      clearResetTimer();
       removeGameOverListener();
       removeErrorListener();
       disconnectHiloSocket();
@@ -123,6 +174,8 @@ const Frame = () => {
       return;
     }
 
+    if (betLocked) return;
+
     // Allow a 0 bet (testing); reject only an empty/NaN or negative amount.
     const parsedBet = parseFloat(bet);
     if (isNaN(parsedBet) || parsedBet < 0) {
@@ -130,47 +183,32 @@ const Frame = () => {
       return;
     }
 
-    // Close any open modals
-    setShowResultModal(false);
-    setShowActiveGameModal(false);
-    setGameResult({ isGameOver: false, profit: 0 });
+    setSettledMultiplier(null);
 
-    // Reset game state
-    setCurrentCard(null);
-    setHistoryCards([]);
     setIsGameStarting(true);
     setIsWaitingForCard(true);
 
-    console.log("Starting new game with bet:", bet); // Debug log
     addGame(
       bet,
       (gameState) => {
-        console.log("New game state received:", gameState); // Debug log
-
         if (!gameState) {
-          console.error("No game state received from server");
           toast.error("Failed to start game. Please try again.");
           setIsWaitingForCard(false);
           setIsGameStarting(false);
           return;
         }
 
-        // Check if we have an active game
         if (gameState.error) {
-          console.error("Server error:", gameState.error);
           toast.error(gameState.error);
           setIsWaitingForCard(false);
           setIsGameStarting(false);
           return;
         }
 
-        // The stake was just debited (new round): refresh the balance.
-        requestWalletRefresh();
-
-        // Set the game state
-        setCurrentCard(gameState.currentCard);
-        setHistoryCards([gameState.currentCard]);
-        setBettingStarted(true);
+        applyRound(gameState);
+        if (!gameState.hasActiveGame) {
+          requestWalletRefresh();
+        }
         setIsWaitingForCard(false);
         setIsGameStarting(false);
       },
@@ -178,14 +216,39 @@ const Frame = () => {
     );
   };
 
+  const handleShufflePreview = (done) => {
+    if (betStarted || betLocked || settledMultiplier != null) {
+      done?.(null);
+      return;
+    }
+    if (!checkLoggedIn()) {
+      done?.(null);
+      return;
+    }
+    shufflePreview((payload) => {
+      if (!payload?.game?.currentCard) {
+        done?.(null);
+        return;
+      }
+      applyPreview(payload.game);
+      done?.(payload.game.currentCard);
+    });
+  };
+
   const handleHigh = () => {
     if (betStarted) {
       setIsWaitingForCard(true);
       predict("high", (gameState) => {
-        if (gameState) {
-          setCurrentCard(gameState.currentCard);
-          setHistoryCards(gameState.historyCards);
-          setIsWaitingForCard(false);
+        if (!gameState) return;
+        setCurrentCard(gameState.currentCard);
+        setHistoryCards(gameState.historyCards);
+        setIsWaitingForCard(false);
+        if (gameState.fairness) setFairnessPrefill(gameState.fairness);
+        if (gameState.gameOver) {
+          settleRound(0, gameState);
+          requestWalletRefresh();
+        } else if (gameState.multiplier != null) {
+          setRoundMultiplier(Number(gameState.multiplier));
         }
       });
     }
@@ -195,10 +258,16 @@ const Frame = () => {
     if (betStarted) {
       setIsWaitingForCard(true);
       predict("low", (gameState) => {
-        if (gameState) {
-          setCurrentCard(gameState.currentCard);
-          setHistoryCards(gameState.historyCards);
-          setIsWaitingForCard(false);
+        if (!gameState) return;
+        setCurrentCard(gameState.currentCard);
+        setHistoryCards(gameState.historyCards);
+        setIsWaitingForCard(false);
+        if (gameState.fairness) setFairnessPrefill(gameState.fairness);
+        if (gameState.gameOver) {
+          settleRound(0, gameState);
+          requestWalletRefresh();
+        } else if (gameState.multiplier != null) {
+          setRoundMultiplier(Number(gameState.multiplier));
         }
       });
     }
@@ -212,6 +281,7 @@ const Frame = () => {
           setCurrentCard(gameState.currentCard);
           setHistoryCards(gameState.historyCards);
           setIsWaitingForCard(false);
+          if (gameState.fairness) setFairnessPrefill(gameState.fairness);
         }
       });
     }
@@ -222,53 +292,23 @@ const Frame = () => {
       setIsWaitingForCard(true);
       checkout((gameState) => {
         if (gameState.checkedOut) {
-          // The cashout was just credited: refresh the balance.
           requestWalletRefresh();
-          setBettingStarted(false);
-          setGameResult({ isGameOver: false, profit: gameState.profit });
-          setShowResultModal(true);
-          setIsWaitingForCard(false);
+          settleRound(gameState.multiplier, gameState);
         }
       });
     }
-  };
-
-  const handleContinueGame = () => {
-    setShowActiveGameModal(false);
-  };
-
-  const handleCheckoutGame = () => {
-    if (betStarted) {
-      setIsWaitingForCard(true);
-      checkout((gameState) => {
-        if (gameState.checkedOut) {
-          // The cashout was just credited: refresh the balance.
-          requestWalletRefresh();
-          setBettingStarted(false);
-          setGameResult({ isGameOver: false, profit: gameState.profit });
-          setShowResultModal(true);
-          setIsWaitingForCard(false);
-        }
-      });
-    }
-    setShowActiveGameModal(false);
   };
 
   return (
     <>
-      <div
-        className="w-full bg-secondry pt-[1px] pb-[12px] max-lg:pb-[36px]"
-        style={{
-          minHeight: "calc(100vh - 70px)",
-        }}
-      >
+      <div className="w-full bg-secondry pt-[1px] pb-3">
         <div
-          className={`my-12 rounded mx-auto bg-primary w-[96%] max-w-[1400px] max-md:max-w-[450px] ${
-            theatreMode ? "max-w-[100%] max-h-screen" : "max-lg:max-w-[450px]"
+          className={`mx-auto my-3 flex w-[98%] flex-col overflow-hidden rounded bg-primary max-w-[1400px] max-md:my-0 max-md:w-full max-md:rounded-none ${
+            theatreMode ? "max-w-full" : ""
           }`}
         >
-          <div className="flex flex-col gap-[0.15rem] relative">
-            <div className="grid grid-cols-12 lg:h-[600px]">
+          <div className="relative flex min-h-0 flex-1 flex-col">
+            <div className="grid min-h-0 flex-1 grid-cols-12 md:min-h-[520px]">
               {/* Left Section */}
               <SideBar
                 theatreMode={theatreMode}
@@ -284,17 +324,16 @@ const Frame = () => {
                 handleLow={handleLow}
                 handleSkip={handleSkip}
                 handleCheckout={handleCheckout}
+                currentCard={currentCard}
+                roundMultiplier={roundMultiplier}
+                betLocked={
+                  betLocked || Boolean(token && !currentCard && !betStarted)
+                }
               />
 
               {/* Right Section */}
-              <div
-                className={`col-span-12 rounded-tr relative ${
-                  theatreMode
-                    ? "md:col-span-8 md:order-2"
-                    : "lg:col-span-8 lg:order-2"
-                } xl:col-span-9 bg-gray-900 order-1`}
-              >
-                <div className="w-full text-white rounded-tr h-full justify-center text-3xl">
+              <div className="relative order-1 col-span-12 bg-[#0f212e] md:order-2 md:col-span-8 md:min-h-[520px] xl:col-span-9">
+                <div className="relative flex h-full w-full items-stretch text-white">
                   {loading ? (
                     <h1 className="text-xl font-semibold">Loading...</h1>
                   ) : (
@@ -303,19 +342,9 @@ const Frame = () => {
                         historyCards={historyCards}
                         currentCard={currentCard}
                         isGameStarting={isGameStarting}
-                        isWaitingForCard={isWaitingForCard}
-                      />
-                      <GameResultModal
-                        isOpen={showResultModal}
-                        onClose={() => setShowResultModal(false)}
-                        isGameOver={gameResult.isGameOver}
-                        profit={gameResult.profit}
-                      />
-                      <ActiveGameModal
-                        isOpen={showActiveGameModal}
-                        onClose={() => setShowActiveGameModal(false)}
-                        onContinue={handleContinueGame}
-                        onCheckout={handleCheckoutGame}
+                        bettingStarted={betStarted}
+                        settledMultiplier={settledMultiplier}
+                        onShufflePreview={handleShufflePreview}
                       />
                     </>
                   )}
@@ -323,6 +352,7 @@ const Frame = () => {
               </div>
             </div>
 
+            <div className="border-t border-[#1a2c38] [&>div]:max-md:!py-3">
             <FrameFooter
               isFav={isFav}
               isGameSettings={isGameSettings}
@@ -346,6 +376,7 @@ const Frame = () => {
               theatreMode={theatreMode}
               setTheatreMode={setTheatreMode}
             />
+            </div>
 
             {isGameSettings && (
               <div
@@ -365,7 +396,11 @@ const Frame = () => {
                     className="max-h-[90%] custom-scrollbar overflow-y-auto w-[95%] pt-3 rounded max-w-[500px] bg-primary"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <FairnessModal setIsFairness={setIsFairness} />
+                      <CardFairnessModal
+                        setIsFairness={setIsFairness}
+                        gameKey="hilo"
+                        prefill={fairnessPrefill}
+                      />
                   </div>
                 </div>
               </div>

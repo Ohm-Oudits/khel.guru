@@ -33,8 +33,17 @@ export const disconnectHiloSocket = () => {
 export const getActiveGame = (callback) => {
   if (hiloSocket) {
     hiloSocket.emit("get_active_game");
-    hiloSocket.once("game_state", callback);
+    hiloSocket.once("active_game", callback);
   }
+};
+
+export const shufflePreview = (callback) => {
+  if (!hiloSocket) {
+    callback?.({ error: "Not connected" });
+    return;
+  }
+  hiloSocket.emit("shuffle_preview");
+  hiloSocket.once("preview_state", callback);
 };
 
 export const addGame = (betAmount, callback, walletType = "demo") => {
