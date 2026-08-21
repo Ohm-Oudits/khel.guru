@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import "../../../styles/Frame.css";
-import FairnessModal from "../../Frame/FairnessModal";
+import CardFairnessModal from "../../Frame/CardFairnessModal";
 import FrameFooter from "../../Frame/FrameFooter";
 import HotKeysModal from "../../Frame/HotKeysModal";
 import GameInfoModal from "../../Frame/GameInfoModal";
@@ -38,6 +38,7 @@ const Frame = () => {
   const [animations, setAnimations] = useState(true);
   const [maxBet, setMaxBet] = useState(false);
   const [gameInfo, setGameInfo] = useState(false);
+  const [fairnessPrefill, setFairnessPrefill] = useState(null);
   const [hotkeys, setHotkeys] = useState(false);
 
   const [playerBet, setPlayerBet] = useState(0);
@@ -72,8 +73,12 @@ const Frame = () => {
       baccaratSocket.on("error", ({ message }) => {
         console.error("Join game error:", message);
         toast.error(`Error joining game: ${message}`);
-        // A rejected bet left the wallet untouched; resync the readout.
         requestWalletRefresh();
+      });
+      baccaratSocket.on("game_state_update", (update) => {
+        if (update?.fairness) {
+          setFairnessPrefill(update.fairness);
+        }
       });
     }
 
@@ -83,6 +88,7 @@ const Frame = () => {
       const baccaratSocket = getBaccaratSocket();
       if (baccaratSocket) {
         baccaratSocket.off("error");
+        baccaratSocket.off("game_state_update");
       }
     };
   }, []);
@@ -138,11 +144,14 @@ const Frame = () => {
     try {
       // Join the table, stake each selected bet from the demo wallet, then
       // ask the server to deal and settle the round.
-      await emitAndWait(
+      const joined = await emitAndWait(
         baccaratSocket,
         () => joinBaccaratGame(),
         "game_joined"
       );
+      if (joined?.fairness) {
+        setFairnessPrefill(joined.fairness);
+      }
 
       // Send a stake for every selected spot, including 0-amount ones (testing).
       const bets = [
@@ -286,7 +295,11 @@ const Frame = () => {
                       className="max-h-[90%] custom-scrollbar overflow-y-auto w-[95%] pt-3 rounded max-w-[500px] bg-primary"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <FairnessModal setIsFairness={setIsFairness} />
+                      <CardFairnessModal
+                        setIsFairness={setIsFairness}
+                        gameKey="baccarat"
+                        prefill={fairnessPrefill}
+                      />
                     </div>
                   </div>
                 </div>
