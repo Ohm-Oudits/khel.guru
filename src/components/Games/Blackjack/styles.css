@@ -189,11 +189,18 @@
 }
 
 .flip-card {
-  width: 6rem;
-  height: 9rem;
+  width: 4.5rem;
+  height: 6.75rem;
   transform-style: preserve-3d;
   transition: transform 0.6s;
   position: relative;
+}
+
+@media (min-width: 1024px) {
+  .flip-card {
+    width: 6rem;
+    height: 9rem;
+  }
 }
 
 .flip-card.flipped {

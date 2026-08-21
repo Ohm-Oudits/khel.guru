@@ -39,7 +39,7 @@ const Card = ({
         small
           ? "h-[8.4rem] w-[5.6rem] rounded"
           : medium
-          ? "w-24 h-36 rounded"
+          ? "w-24 h-36 rounded max-lg:h-[6.75rem] max-lg:w-[4.5rem]"
           : "w-28 h-[10.5rem] rounded-xl"
       } shadow-lg ${isRed ? "text-red-600" : "text-black"} ${
         shrink

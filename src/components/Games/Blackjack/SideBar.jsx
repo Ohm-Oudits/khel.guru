@@ -6,31 +6,27 @@ const SideBar = ({
   setBet,
   maxBetEnable,
   bettingStarted,
+  playing,
+  insuranceOpen,
   handleMineBet,
-  handleCheckout,
   handleHit,
   handleStand,
   handleSplit,
   handleDouble,
-  isSmt,
+  handleInsurance,
   split,
   double,
   activeHand,
-  splitHands,
-  splitValues,
-  splitResults,
   splitBets,
-  handleSplitHit,
-  handleSplitStand,
   userCards,
 }) => {
-  const canSplit = bettingStarted && !split && userCards?.length === 2;
+  const canSplit =
+    playing && !split && userCards?.length === 2;
   const isPair =
     userCards?.length === 2 && userCards[0]?.value === userCards[1]?.value;
-  // Allow a 0 bet (testing); an empty input parses to NaN and stays disabled.
   const canBet = !bettingStarted && parseFloat(bet) >= 0;
+  const actionsOpen = playing && !insuranceOpen;
 
-  // Helper function to determine button state
   const getButtonClass = (isActive, isDisabled) => {
     if (isDisabled) {
       return "bg-[#2f4553] text-white";
@@ -47,10 +43,9 @@ const SideBar = ({
           theatreMode ? "md:col-span-4 md:order-1" : "lg:col-span-4 lg:order-1"
         } xl:col-span-3 bg-inactive order-2 max-lg:h-[fit-content] lg:h-[600px] overflow-auto`}
       >
-        <div className="my-4 px-3 flex flex-col">
-          {/* Manual and auto */}
+        <div className="my-3 max-lg:my-2 px-3 flex flex-col">
           <div className="sticky top-0 z-[1] bg-inactive py-0 rounded-md">
-            <div className="order-[100] max-lg:mt-2 lg:order-1 switch mb-4 w-full bg-primary rounded-full p-1.5 grid grid-cols-1 gap-1">
+            <div className="order-[100] max-lg:mt-1 lg:order-1 switch mb-3 w-full bg-primary rounded-full p-1.5 grid grid-cols-1 gap-1">
               <div
                 onClick={() => setBetMode("manual")}
                 className={`${
@@ -63,9 +58,8 @@ const SideBar = ({
           </div>
 
           <>
-            {/* Split Hand Indicator */}
             {split && (
-              <div className="order-1 mb-4 text-center">
+              <div className="order-1 mb-3 text-center">
                 <h2 className="text-white font-semibold">
                   Playing Hand {activeHand + 1}
                 </h2>
@@ -95,13 +89,7 @@ const SideBar = ({
                     disabled={bettingStarted}
                     onChange={(e) => {
                       if (!bettingStarted) {
-                        if (split) {
-                          const newBets = [...splitBets];
-                          newBets[activeHand] = e.target.value;
-                          setSplitBets(newBets);
-                        } else {
-                          setBet(e.target.value);
-                        }
+                        setBet(e.target.value);
                       }
                     }}
                     className="w-full h-full rounded bg-secondry outline-none text-white px-2 pr-6 border border-inactive hover:border-primary-4"
@@ -148,54 +136,68 @@ const SideBar = ({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 order-2 md:order-20">
-              <div
-                className={`order-2 md:order-20 flex items-center justify-center w-full mx-auto py-2.5 mt-3 max-lg:mt-4 rounded font-semibold ${getButtonClass(
-                  !isSmt && bettingStarted,
-                  isSmt || !bettingStarted
-                )} text-[0.9rem]`}
-                onClick={split ? handleSplitHit : handleHit}
-                disabled={isSmt || !bettingStarted}
-              >
-                Hit
+            {insuranceOpen ? (
+              <div className="grid grid-cols-2 gap-3 order-2 md:order-20">
+                <button
+                  type="button"
+                  className="order-2 mt-3 flex w-full items-center justify-center rounded bg-button py-2.5 text-[0.9rem] font-semibold text-black"
+                  onClick={() => handleInsurance(true)}
+                >
+                  Insurance
+                </button>
+                <button
+                  type="button"
+                  className="order-2 mt-3 flex w-full items-center justify-center rounded bg-[#2f4553] py-2.5 text-[0.9rem] font-semibold text-white"
+                  onClick={() => handleInsurance(false)}
+                >
+                  No Insurance
+                </button>
               </div>
-              <div
-                className={`order-2 md:order-20 flex items-center justify-center w-full mx-auto py-2.5 mt-3 max-lg:mt-4 rounded font-semibold ${getButtonClass(
-                  !isSmt && bettingStarted,
-                  isSmt || !bettingStarted
-                )} text-[0.9rem]`}
-                onClick={split ? handleSplitStand : handleStand}
-                disabled={isSmt || !bettingStarted}
-              >
-                Stand
-              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3 order-2 md:order-20">
+                <div
+                  className={`order-2 md:order-20 flex items-center justify-center w-full mx-auto py-2.5 mt-3 max-lg:mt-3 rounded font-semibold ${getButtonClass(
+                    actionsOpen,
+                    !actionsOpen
+                  )} text-[0.9rem]`}
+                  onClick={handleHit}
+                >
+                  Hit
+                </div>
+                <div
+                  className={`order-2 md:order-20 flex items-center justify-center w-full mx-auto py-2.5 mt-3 max-lg:mt-3 rounded font-semibold ${getButtonClass(
+                    actionsOpen,
+                    !actionsOpen
+                  )} text-[0.9rem]`}
+                  onClick={handleStand}
+                >
+                  Stand
+                </div>
 
-              <div
-                className={`order-2 mb-2 md:order-20 flex items-center justify-center w-full mx-auto py-2.5 rounded font-semibold ${getButtonClass(
-                  canSplit && isPair,
-                  !canSplit || !isPair
-                )} text-[0.9rem]`}
-                onClick={handleSplit}
-                disabled={!canSplit || !isPair}
-              >
-                Split
+                <div
+                  className={`order-2 mb-2 md:order-20 flex items-center justify-center w-full mx-auto py-2.5 rounded font-semibold ${getButtonClass(
+                    canSplit && isPair,
+                    !canSplit || !isPair
+                  )} text-[0.9rem]`}
+                  onClick={handleSplit}
+                >
+                  Split
+                </div>
+                <div
+                  className={`order-2 mb-2 md:order-20 flex items-center justify-center w-full mx-auto py-2.5 rounded font-semibold ${getButtonClass(
+                    actionsOpen && double,
+                    !actionsOpen || !double
+                  )} text-[0.9rem]`}
+                  onClick={handleDouble}
+                >
+                  Double
+                </div>
               </div>
-              <div
-                className={`order-2 mb-2 md:order-20 flex items-center justify-center w-full mx-auto py-2.5 rounded font-semibold ${getButtonClass(
-                  !isSmt && double && bettingStarted,
-                  isSmt || !double || !bettingStarted
-                )} text-[0.9rem]`}
-                onClick={handleDouble}
-                disabled={isSmt || !double || !bettingStarted}
-              >
-                Double
-              </div>
-            </div>
+            )}
 
-            {/* Bet button */}
             <button
               onClick={handleMineBet}
-              className={`order-2 max-md:mb-2 md:order-20 transition-all duration-300 ease-in-out transform flex items-center justify-center w-full mx-auto py-1.5 mt-4 max-lg:mt-4 rounded text-lg font-semibold text-black ${
+              className={`order-2 max-md:mb-2 md:order-20 transition-all duration-300 ease-in-out transform flex items-center justify-center w-full mx-auto py-1.5 mt-3 max-lg:mt-3 rounded text-lg font-semibold text-black ${
                 !canBet
                   ? "bg-primary text-white"
                   : "bg-button-primary cursor-pointer hover:bg-button-primary/90 active:scale-90"

@@ -1,126 +1,67 @@
-import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
 import { CardBack, FlippableCard } from "./Components";
 
+const SHOE = [3, 11, 7];
+
+const formatMultiplier = (value) => {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "0.00x";
+  return `${n.toFixed(2)}x`;
+};
+
+const resultTone = (result) => {
+  if (result === "win" || result === "blackjack") return "bg-green-500 text-black";
+  if (result === "lose") return "bg-red-500 text-white";
+  if (result) return "bg-orange-500 text-black";
+  return "bg-gray-50/10";
+};
+
 const Game = ({
-  deck,
   userCards,
   dealerCards,
   userValue,
   dealerValue,
   userResult,
-  dealerResult,
   isSplit,
   activeHand,
   splitHands,
   splitValues,
   splitResults,
+  settlement,
+  phase,
 }) => {
-  const [isLargeScreen, setIsLargeScreen] = useState(window.innerWidth >= 1024);
-  const [animatedCards, setAnimatedCards] = useState({
-    user: [],
-    dealer: [],
-    split1: [],
-    split2: [],
-  });
-  const [animationComplete, setAnimationComplete] = useState(false);
-
-  useEffect(() => {
-    const handleResize = () => {
-      setIsLargeScreen(window.innerWidth >= 1024);
-    };
-
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
-
-  // Handle card animations
-  useEffect(() => {
-    setAnimationComplete(false);
-
-    const animateCards = async () => {
-      // Reset animated cards
-      setAnimatedCards({
-        user: [],
-        dealer: [],
-        split1: [],
-        split2: [],
-      });
-
-      // Animate dealer cards first
-      for (let i = 0; i < dealerCards.length; i++) {
-        await new Promise((resolve) => setTimeout(resolve, 300));
-        setAnimatedCards((prev) => ({
-          ...prev,
-          dealer: [...prev.dealer, dealerCards[i]],
-        }));
-      }
-
-      // Then animate user cards
-      if (isSplit) {
-        // Animate split hands
-        for (let hand = 0; hand < 2; hand++) {
-          const currentHand = splitHands[hand];
-          for (let i = 0; i < currentHand.length; i++) {
-            await new Promise((resolve) => setTimeout(resolve, 300));
-            setAnimatedCards((prev) => ({
-              ...prev,
-              [`split${hand + 1}`]: [
-                ...prev[`split${hand + 1}`],
-                currentHand[i],
-              ],
-            }));
-          }
-        }
-      } else {
-        // Animate regular hand
-        for (let i = 0; i < userCards.length; i++) {
-          await new Promise((resolve) => setTimeout(resolve, 300));
-          setAnimatedCards((prev) => ({
-            ...prev,
-            user: [...prev.user, userCards[i]],
-          }));
-        }
-      }
-
-      setAnimationComplete(true);
-    };
-
-    animateCards();
-  }, [userCards, dealerCards, isSplit, splitHands]);
+  const complete = phase === "complete";
+  const showBadge = complete && settlement;
+  const winTone =
+    Number(settlement?.multiplier) > 1
+      ? "bg-emerald-500 text-black"
+      : Number(settlement?.multiplier) === 1
+        ? "bg-amber-500 text-black"
+        : "bg-red-500 text-white";
 
   return (
-    <div className="relative w-full h-[600px] max-lg:h-[600px] text-base text-white overflow-hidden">
-      {/* DeckPile */}
-      <div className="absolute right-28 top-[-85px] z-10">
-        {deck.map((card, i) => (
-          <motion.div
-            key={card.id}
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{
-              opacity: 1,
-              scale: 1 - i * 0.02,
-            }}
-            transition={{ duration: 0.2, delay: i * 0.1 }}
+    <div className="relative w-full overflow-hidden text-base text-white h-[340px] max-lg:h-[340px] lg:h-[600px]">
+      <div className="absolute right-4 top-12 z-10 hidden lg:block xl:right-10">
+        {SHOE.map((rand, i) => (
+          <div
+            key={rand}
             className="absolute"
             style={{
               zIndex: 10 - i,
-              transform: `rotate(${i % 2 === 0 ? i : -i}deg)`,
+              transform: `rotate(${i % 2 === 0 ? i * 2 : -i * 2}deg)`,
             }}
           >
-            <CardBack top={"75%"} rand={card.rand} />
-          </motion.div>
+            <CardBack top="75%" rand={rand} compact />
+          </div>
         ))}
       </div>
 
-      <div className="w-full h-[600px] relative">
-        {/* Split Hands Display */}
+      <div className="absolute inset-x-0 top-10 bottom-0 max-lg:top-11 lg:top-12">
         {isSplit && (
-          <div className="absolute top-[4%] left-[50%] transform -translate-x-1/2 flex gap-4">
-            {splitHands.map((hand, index) => (
+          <div className="absolute left-1/2 top-1 z-10 flex -translate-x-1/2 gap-2">
+            {splitHands.map((_, index) => (
               <div
                 key={index}
-                className={`px-3 py-1 rounded ${
+                className={`rounded px-3 py-1 text-sm ${
                   activeHand === index
                     ? "bg-button text-black"
                     : "bg-gray-50/10"
@@ -132,147 +73,114 @@ const Game = ({
           </div>
         )}
 
-        {/* User Cards */}
         {isSplit ? (
-          // Display both split hands
-          <div className="absolute top-0 left-0 w-full h-1/2 flex justify-center items-center">
-            {/* First Split Hand */}
-            <div className={`mt-20 ${activeHand === 0 ? "z-2" : "z-1"}`}>
-              {splitHands[0]?.map((card, index) => (
-                <FlippableCard
-                  key={card.id}
-                  card={card}
-                  position={{
-                    top: isLargeScreen ? 22 + index * 4 : 26 + index * 4,
-                    left: isLargeScreen ? 20 + index * 5 : 15 + index * 5,
-                  }}
-                  isFlipped={card.flipped}
-                />
-              ))}
-            </div>
-            {/* Second Split Hand */}
-            <div className={`mt-20 ${activeHand === 1 ? "z-2" : "z-1"}`}>
-              {splitHands[1]?.map((card, index) => (
-                <FlippableCard
-                  key={card.id}
-                  card={card}
-                  position={{
-                    top: isLargeScreen ? 22 + index * 4 : 26 + index * 4,
-                    left: isLargeScreen ? 60 + index * 5 : 55 + index * 5,
-                  }}
-                  isFlipped={card.flipped}
-                />
-              ))}
-            </div>
-          </div>
+          <>
+            {splitHands[0]?.map((card, index) => (
+              <FlippableCard
+                key={card.id || `s0-${index}`}
+                card={card}
+                position={{
+                  top: 10 + index * 5,
+                  left: 14 + index * 6,
+                }}
+                isFlipped={!card.hidden && card.flipped !== false}
+              />
+            ))}
+            {splitHands[1]?.map((card, index) => (
+              <FlippableCard
+                key={card.id || `s1-${index}`}
+                card={card}
+                position={{
+                  top: 10 + index * 5,
+                  left: 56 + index * 6,
+                }}
+                isFlipped={!card.hidden && card.flipped !== false}
+              />
+            ))}
+          </>
         ) : (
-          // Regular hand display
           userCards.map((card, index) => (
             <FlippableCard
-              key={card.id}
+              key={card.id || `p-${index}`}
               card={card}
               position={{
-                top: 12 + index * 4,
-                left: isLargeScreen ? 40 + index * 5 : 30 + index * 5,
+                top: 8 + index * 5,
+                left: 32 + index * 6,
               }}
-              isFlipped={card.flipped}
+              isFlipped={!card.hidden && card.flipped !== false}
             />
           ))
         )}
 
-        {/* Dealer Cards */}
         {dealerCards.map((card, index) => (
           <FlippableCard
-            key={card.id}
+            key={card.id || `d-${index}`}
             card={card}
             position={{
-              top: 64 + index * 4,
-              left: isLargeScreen ? 40 + index * 5 : 30 + index * 5,
+              top: 52 + index * 5,
+              left: 32 + index * 6,
             }}
-            isFlipped={card.flipped}
+            isFlipped={!card.hidden && card.flipped !== false}
           />
         ))}
 
-        {/* Player Score(s) */}
         {isSplit ? (
-          // Split hand scores
           <>
-            <div
-              className={`absolute left-[20%] max-lg:left-[16%] ${
-                isLargeScreen ? "top-[4%]" : "top-[40%]"
-              }`}
-            >
+            <div className="absolute left-[10%] top-1 z-10 max-lg:left-[4%]">
               <h1
-                className={`font-semibold text-[0.9rem] px-5 py-0.5 rounded ${
-                  splitResults[0] &&
-                  (splitResults[0] === "win"
-                    ? "bg-green-500 text-black"
-                    : splitResults[0] === "lose"
-                    ? "bg-red-500"
-                    : "bg-orange-500")
-                }`}
+                className={`rounded px-3 py-0.5 text-[0.8rem] font-semibold ${resultTone(
+                  splitResults[0]
+                )}`}
               >
                 Hand 1 : {splitValues[0]}
               </h1>
             </div>
-            <div
-              className={`absolute left-[60%] max-lg:left-[56%] ${
-                isLargeScreen ? "top-[4%]" : "top-[40%]"
-              }`}
-            >
+            <div className="absolute left-[56%] top-1 z-10 max-lg:left-[50%]">
               <h1
-                className={`font-semibold text-[0.9rem] px-5 py-0.5 rounded ${
-                  splitResults[1] &&
-                  (splitResults[1] === "win"
-                    ? "bg-green-500 text-black"
-                    : splitResults[1] === "lose"
-                    ? "bg-red-500"
-                    : "bg-orange-500")
-                }`}
+                className={`rounded px-3 py-0.5 text-[0.8rem] font-semibold ${resultTone(
+                  splitResults[1]
+                )}`}
               >
                 Hand 2 : {splitValues[1]}
               </h1>
             </div>
           </>
         ) : (
-          // Regular score
-          <div className="absolute top-[4%] left-[20%] max-lg:left-[16%]">
+          <div className="absolute left-[8%] top-1 z-10 max-lg:left-[3%]">
             <h1
-              className={`font-semibold text-[0.9rem] px-5 py-0.5 rounded bg-gray-50/10 ${
-                userResult &&
-                (userResult === "win"
-                  ? "bg-green-500 text-black"
-                  : userResult === "lose"
-                  ? "bg-red-500"
-                  : "bg-orange-500")
-              }`}
+              className={`rounded px-3 py-0.5 text-[0.8rem] font-semibold ${resultTone(
+                userResult
+              )}`}
             >
               Player: {userValue}
             </h1>
           </div>
         )}
 
-        {/* Blackjack payouts */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center flex-col font-semibold text-zinc-400 text-[0.9rem]">
-          <h1>Blackjack Pays 3 to 2</h1>
-          <h1 className="mt-[-5px]">Insurance Pays 2 to 1</h1>
-        </div>
-
-        {/* Dealer Score */}
-        <div className="absolute top-[56%] left-[20%] max-lg:left-[16%]">
-          <h1
-            className={`font-semibold text-[0.9rem] px-5 py-0.5 rounded bg-gray-50/10 ${
-              dealerResult &&
-              (dealerResult === "win"
-                ? "bg-green-500 text-black "
-                : dealerResult === "lose"
-                ? "bg-red-500"
-                : "bg-orange-500")
-            }`}
-          >
+        <div className="absolute left-[8%] top-[46%] z-10 max-lg:left-[3%]">
+          <h1 className="rounded bg-gray-50/10 px-3 py-0.5 text-[0.8rem] font-semibold">
             Dealer: {dealerValue}
           </h1>
         </div>
+
+        <div className="pointer-events-none absolute bottom-2 left-0 right-0 z-[5] hidden text-center text-[0.8rem] font-semibold text-zinc-400 lg:block">
+          <p>Blackjack Pays 3 to 2</p>
+          <p className="-mt-0.5">Insurance Pays 2 to 1</p>
+        </div>
+
+        {phase === "insurance" && (
+          <p className="absolute left-1/2 top-[42%] z-20 w-[90%] -translate-x-1/2 rounded bg-amber-500/20 px-3 py-1 text-center text-sm text-amber-300">
+            Dealer shows Ace — take insurance?
+          </p>
+        )}
+
+        {showBadge && (
+          <div
+            className={`absolute left-1/2 top-[38%] z-20 -translate-x-1/2 rounded-md px-4 py-1.5 text-lg font-bold shadow-lg ${winTone}`}
+          >
+            {formatMultiplier(settlement.multiplier)}
+          </div>
+        )}
       </div>
     </div>
   );
