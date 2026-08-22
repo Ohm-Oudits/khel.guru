@@ -11,7 +11,7 @@ const Sidebar = () => {
   const location = useLocation();
 
   return (
-    <aside className="fixed left-0 top-[84px] z-30 hidden h-[calc(100vh-84px)] w-[288px] border-r border-white/5 bg-[linear-gradient(180deg,_rgba(9,13,11,1)_0%,_rgba(13,18,16,0.98)_100%)] shadow-[24px_0_80px_rgba(0,0,0,0.26)] xl:block">
+    <aside className="fixed left-0 top-[100px] z-30 hidden h-[calc(100vh-100px)] w-[288px] border-r border-white/5 bg-[linear-gradient(180deg,_rgba(9,13,11,1)_0%,_rgba(13,18,16,0.98)_100%)] shadow-[24px_0_80px_rgba(0,0,0,0.26)] xl:block">
       <div className="flex h-full flex-col overflow-y-auto px-4 pb-8 pt-8">
           <div className="space-y-2">
             {primaryNavigation.map((item) => {

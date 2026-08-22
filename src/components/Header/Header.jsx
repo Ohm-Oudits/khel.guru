@@ -9,7 +9,7 @@ import {
   FaUser,
   FaWallet,
 } from "react-icons/fa";
-import logo from "../../assets/logo.svg";
+import logo from "../../assets/khel-guru-logo.png";
 import apiService from "../../config/api";
 import { onWalletRefresh } from "../../utils/walletEvents";
 import { readWalletMode, setWalletMode as persistWalletMode } from "../../utils/activeWallet";
@@ -140,23 +140,15 @@ const Header = () => {
 
   return (
     <>
-      <div className="border-b border-white/5 bg-[linear-gradient(180deg,_rgba(9,13,11,0.95)_0%,_rgba(9,13,11,0.8)_100%)] px-4 py-2 shadow-[0_14px_40px_rgba(0,0,0,0.22)] backdrop-blur max-lg:py-2 md:px-6 lg:py-3.5 xl:px-6">
+      <div className="border-b border-white/5 bg-[linear-gradient(180deg,_rgba(9,13,11,0.95)_0%,_rgba(9,13,11,0.8)_100%)] px-4 py-2 shadow-[0_14px_40px_rgba(0,0,0,0.22)] backdrop-blur max-lg:py-2 md:px-6 lg:py-3.5 xl:px-0 xl:pr-6">
         <div className="flex w-full items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <Link to="/" className="flex items-center gap-3">
+          <div className="flex items-center xl:w-[288px] xl:justify-center">
+            <Link to="/" className="flex shrink-0 items-center" aria-label="Khel Guru home">
               <img
                 src={logo}
-                alt="Khel Guru logo"
-                className="h-[43px] w-[43px] rounded-xl object-contain lg:h-[57px] lg:w-[57px] lg:rounded-2xl"
+                alt="Khel Guru"
+                className="h-12 w-auto object-contain object-left sm:h-14 lg:h-16 xl:h-[72px]"
               />
-              <div className="hidden sm:block">
-                <p className="text-xs uppercase tracking-[0.22em] text-brand-accent">
-                  Khel Guru
-                </p>
-                <h1 className="text-base font-black text-white">
-                  Casino & Sports
-                </h1>
-              </div>
             </Link>
           </div>
 

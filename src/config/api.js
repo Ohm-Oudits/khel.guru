@@ -99,6 +99,8 @@ export const API_ENDPOINTS = {
     FAIRNESS_OVERVIEW: "/casino/fairness/overview",
     FAIRNESS_VERIFY: "/casino/fairness/verify",
     FAIRNESS_SEEDS: "/casino/fairness/seeds",
+    SLOTS: "/casino/slots",
+    LIVE: "/casino/live",
   },
 
   // Sports endpoints
@@ -197,16 +199,38 @@ export const apiService = {
       apiClient.post(`/casino/fairness/${gameKey}/rotate`, data),
     verifyFairness: (data) =>
       apiClient.post(API_ENDPOINTS.GAMES.FAIRNESS_VERIFY, data),
+    getSlots: (params) =>
+      apiClient.get(API_ENDPOINTS.GAMES.SLOTS, { params }),
+    getSlot: (slug) => apiClient.get(`${API_ENDPOINTS.GAMES.SLOTS}/${slug}`),
+    launchSlot: (slug, data = {}) =>
+      apiClient.post(`${API_ENDPOINTS.GAMES.SLOTS}/${slug}/launch`, data),
+    spinSlot: (slug, data = {}) =>
+      apiClient.post(`${API_ENDPOINTS.GAMES.SLOTS}/${slug}/spin`, data),
+    getLive: (params) =>
+      apiClient.get(API_ENDPOINTS.GAMES.LIVE, { params }),
+    getLiveTable: (slug) =>
+      apiClient.get(`${API_ENDPOINTS.GAMES.LIVE}/${slug}`),
+    launchLive: (slug, data = {}) =>
+      apiClient.post(`${API_ENDPOINTS.GAMES.LIVE}/${slug}/launch`, data),
+    playLive: (slug, data = {}) =>
+      apiClient.post(`${API_ENDPOINTS.GAMES.LIVE}/${slug}/play`, data),
   },
 
   // Sports services
   sports: {
     getCatalog: () => apiClient.get(API_ENDPOINTS.SPORTS.CATALOG),
     getEvents: (params) =>
-      apiClient.get(API_ENDPOINTS.SPORTS.EVENTS, { params }),
+      apiClient.get(API_ENDPOINTS.SPORTS.EVENTS, {
+        params: { ...params, _ts: Date.now() },
+      }),
     getLiveEvents: () =>
-      apiClient.get(API_ENDPOINTS.SPORTS.EVENTS, { params: { status: "live" } }),
-    getEvent: (eventId) => apiClient.get(`${API_ENDPOINTS.SPORTS.EVENTS}/${eventId}`),
+      apiClient.get(API_ENDPOINTS.SPORTS.EVENTS, {
+        params: { status: "live", _ts: Date.now() },
+      }),
+    getEvent: (eventId) =>
+      apiClient.get(`${API_ENDPOINTS.SPORTS.EVENTS}/${eventId}`, {
+        params: { _ts: Date.now() },
+      }),
     getEventMarkets: (eventId) =>
       apiClient.get(`${API_ENDPOINTS.SPORTS.EVENTS}/${eventId}/markets`),
     placeBet: (betData) => apiClient.post(API_ENDPOINTS.SPORTS.BET, betData),

@@ -15,12 +15,17 @@ const SideBar = ({
   currentBets,
   chipBet,
   setChipBet,
+  onClearBets,
 }) => {
   const panelLocked = Boolean(isDisabled) || Boolean(bettingStarted);
   const currentTotalBet = Object.values(currentBets).reduce(
     (sum, amount) => sum + parseFloat(amount),
     0
   );
+  const hasBets = Object.values(currentBets).some(
+    (amount) => parseFloat(amount) > 0
+  );
+  const canClear = hasBets && !panelLocked;
 
   return (
     <>
@@ -35,6 +40,21 @@ const SideBar = ({
             setChipBet={setChipBet}
             disabled={panelLocked}
           />
+
+          <button
+            type="button"
+            className={`mt-1 flex w-full items-center justify-center rounded-[1rem] py-2.5 text-[0.98rem] font-semibold transition-all duration-300 ease-out ${
+              canClear
+                ? "cursor-pointer bg-button-primary text-black active:scale-90"
+                : "cursor-not-allowed bg-primary text-white opacity-60"
+            }`}
+            onClick={() => {
+              if (canClear) onClearBets?.();
+            }}
+            disabled={!canClear}
+          >
+            Clear
+          </button>
 
           {betMode === "manual" && (
             <button

@@ -70,23 +70,6 @@ export function BettingBoard({
 
   return (
     <div className="relative mx-auto mt-1 w-full min-w-0 max-w-full max-lg:-mt-1 max-lg:mt-0">
-      {Object.values(currentBets).some((bet) => bet > 0) && (
-        <div className="flex justify-end mb-2 max-lg:mb-1">
-          <button
-            type="button"
-            className={`text-sm max-lg:text-xs font-medium px-4 max-lg:px-3 py-1.5 rounded-sm ${
-              isProcessing
-                ? "bg-gray-700 cursor-not-allowed"
-                : "bg-gray-800 hover:bg-gray-700"
-            }`}
-            onClick={() => !isProcessing && onPlaceBet("clear")}
-            disabled={isProcessing}
-          >
-            Clear
-          </button>
-        </div>
-      )}
-
       <div className="grid min-w-0 grid-cols-12 gap-0.5 max-lg:gap-px">
         <button
           type="button"

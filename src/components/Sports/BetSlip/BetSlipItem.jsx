@@ -13,24 +13,24 @@ const BetSlipItem = ({ item, onPlace }) => {
     : null;
 
   return (
-    <div className="rounded-lg bg-primary-1 p-3">
+    <div className="rounded-lg bg-background-surface p-3">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-white">
             {item.selectionName}
             {item.line !== null ? ` ${item.line}` : ""}
           </p>
-          <p className="truncate text-xs text-gray-400">
+          <p className="truncate text-xs text-text-tertiary">
             {item.marketTitle} · {item.eventName}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="font-semibold text-[#4391E7]">
+          <span className="font-semibold text-brand-primary">
             {Number(item.priceDecimal).toFixed(2)}
           </span>
           <IoClose
             onClick={() => removeSelection(item.id)}
-            className="cursor-pointer text-lg text-gray-400 hover:text-white"
+            className="cursor-pointer text-lg text-text-tertiary hover:text-white"
           />
         </div>
       </div>
@@ -62,7 +62,7 @@ const BetSlipItem = ({ item, onPlace }) => {
               placeholder="Stake (INR)"
               value={item.stake}
               onChange={(e) => setStake(item.id, e.target.value)}
-              className="w-full rounded-md bg-secondry px-3 py-2 text-sm text-white outline-none"
+              className="w-full rounded-md bg-background-secondary px-3 py-2 text-sm text-white outline-none"
             />
             <button
               type="button"
@@ -70,15 +70,15 @@ const BetSlipItem = ({ item, onPlace }) => {
               onClick={() => onPlace(item)}
               className={`whitespace-nowrap rounded-md px-4 py-2 text-sm font-semibold transition-colors ${
                 validStake && item.status !== "placing"
-                  ? "bg-[#4391E7] text-white hover:bg-[#3a7fca]"
-                  : "cursor-not-allowed bg-primary text-gray-500"
+                  ? "bg-brand-primary text-text-inverse hover:bg-interactive-primaryHover"
+                  : "cursor-not-allowed bg-background-secondary text-text-muted"
               }`}
             >
               {item.status === "placing" ? "Placing…" : "Place bet"}
             </button>
           </div>
           {potentialPayout && (
-            <p className="mt-1 text-xs text-gray-400">
+            <p className="mt-1 text-xs text-text-tertiary">
               Potential payout: ₹{potentialPayout}
             </p>
           )}

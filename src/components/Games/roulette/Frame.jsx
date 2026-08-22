@@ -531,6 +531,12 @@ const Frame = () => {
                 currentBets={currentBets}
                 chipBet={chipBet}
                 setChipBet={setChipBet}
+                onClearBets={() => {
+                  if (isProcessing || !isBettingEnabled || betStarted) return;
+                  setCurrentBets({});
+                  setBettingStarted(false);
+                  setIsProcessing(false);
+                }}
               />
 
               {/* Right Section */}
@@ -539,9 +545,9 @@ const Frame = () => {
                   theatreMode
                     ? "md:col-span-8 md:order-2"
                     : "lg:col-span-8 lg:order-2"
-                } xl:col-span-9 order-1 relative min-w-0 overflow-x-hidden bg-gray-900`}
+                } xl:col-span-9 order-1 relative min-w-0 overflow-x-hidden bg-gray-900 lg:h-[600px]`}
               >
-                <div className="relative flex h-full min-h-[320px] w-full min-w-0 flex-col text-white max-lg:min-h-0 lg:min-h-[560px]">
+                <div className="relative flex h-full min-h-[320px] w-full min-w-0 flex-col bg-gray-900 text-white max-lg:min-h-0 lg:h-full lg:min-h-0">
                   <div className="absolute inset-x-0 top-2 z-10">
                     <History list={currentHistory} palette="roulette" />
                   </div>

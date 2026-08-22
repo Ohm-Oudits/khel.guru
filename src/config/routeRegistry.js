@@ -108,6 +108,14 @@ export const gameRouteModules = [
     path: "/game/slide",
     loader: () => import("../components/Games/Slide/Slide"),
   },
+  {
+    path: "/casino/slots/:slug",
+    loader: () => import("../pages/platform/SlotSandboxPage"),
+  },
+  {
+    path: "/casino/live/:slug",
+    loader: () => import("../pages/platform/LiveTablePage"),
+  },
 ];
 
 export const sportRouteModules = [
@@ -142,6 +150,22 @@ export const sportRouteModules = [
   {
     path: "/sports/badminton/bet",
     loader: () => import("../pages/SportBetBadminton"),
+  },
+  {
+    path: "/sports/:sportKey/leagues/:leagueKey",
+    loader: () => import("../pages/SportsLeagueByKey"),
+  },
+  {
+    path: "/sports/:sportKey/leagues/:leagueKey/bet",
+    loader: () => import("../pages/SportBetLeagueByKey"),
+  },
+  {
+    path: "/sports/:sportKey",
+    loader: () => import("../pages/SportsByKey"),
+  },
+  {
+    path: "/sports/:sportKey/bet",
+    loader: () => import("../pages/SportBetByKey"),
   },
 ];
 

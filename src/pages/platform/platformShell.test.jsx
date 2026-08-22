@@ -20,9 +20,21 @@ describe("platform shell pages", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("heading", {
-        name: /top games and sports/i,
+        name: /top originals/i,
       })
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", {
+        name: /top sports/i,
+      })
+    ).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: /see all/i })[0]).toHaveAttribute(
+      "href",
+      "/casino"
+    );
+    expect(screen.getByText("Basketball")).toBeInTheDocument();
+    expect(screen.getByText("American Football")).toBeInTheDocument();
+    expect(screen.getByText("MMA")).toBeInTheDocument();
   });
 
   it("renders the casino lobby with category filters and games", () => {
@@ -34,12 +46,21 @@ describe("platform shell pages", () => {
     expect(
       screen.getByRole("button", { name: /^originals$/i })
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /^slots$/i })
+    ).toBeInTheDocument();
   });
 
   it("renders the sportsbook hub browse tiles", () => {
     renderWithProviders(<SportsbookHub />, { route: "/sports" });
 
-    expect(screen.getByText("Cricket")).toBeInTheDocument();
+    expect(screen.getAllByText("Cricket").length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: /^live/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^stumps/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^upcoming/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^completed/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /^live/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /^upcoming/i })).not.toBeInTheDocument();
   });
 
   it("renders the signed-out wallet shell and action prompts", () => {

@@ -1,8 +1,13 @@
+import { useLocation } from "react-router-dom";
 import Footer from "../Footer/Footer";
 import Header from "../Header/Header";
 import Sidebar from "../Header/Sidebar";
+import GameBackButton, { isGameRoute } from "../platform/GameBackButton";
 
 const Layout = ({ children }) => {
+  const { pathname } = useLocation();
+  const showGameBack = isGameRoute(pathname);
+
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-background-primary text-text-primary">
       <div className="pointer-events-none fixed inset-0 -z-10">
@@ -19,7 +24,16 @@ const Layout = ({ children }) => {
           <Header />
         </div>
 
-        <main className="min-h-screen pb-28 pt-[69px] lg:pt-[92px] xl:pb-0">{children}</main>
+        <main
+          className={
+            showGameBack
+              ? "game-route min-h-screen pb-28 pt-[72px] lg:h-screen lg:overflow-hidden lg:pb-0 lg:pt-[100px] xl:pt-[108px]"
+              : "min-h-screen pb-28 pt-[72px] lg:pt-[100px] xl:pt-[108px] xl:pb-0"
+          }
+        >
+          {showGameBack ? <GameBackButton /> : null}
+          {children}
+        </main>
         <Footer />
       </div>
     </div>

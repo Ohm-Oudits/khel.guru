@@ -24,6 +24,7 @@ describe("routeRegistry", () => {
     expect(redirectMap).toEqual({
       "/browse": "/",
       "/game": "/casino",
+      "/game/scratch": "/game/balloons",
       "/promotions": "/rewards",
       "/vip-club": "/rewards",
       "/live-support": "/support",
@@ -38,6 +39,10 @@ describe("routeRegistry", () => {
         "/sports/football",
         "/sports/tennis",
         "/sports/badminton",
+        "/sports/:sportKey",
+        "/sports/:sportKey/bet",
+        "/sports/:sportKey/leagues/:leagueKey",
+        "/sports/:sportKey/leagues/:leagueKey/bet",
       ])
     );
   });

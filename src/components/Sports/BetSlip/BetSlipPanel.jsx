@@ -19,6 +19,7 @@ const BetSlipPanel = () => {
   const clearPlaced = useBetSlipStore((state) => state.clearPlaced);
 
   // Slip prices track the live feed while the user hesitates.
+  // HTTP is the source of truth so a late socket cannot freeze an old price.
   useEffect(
     () =>
       onOddsUpdateHandler((update) => {
@@ -28,6 +29,34 @@ const BetSlipPanel = () => {
       }),
     [updateLivePrice]
   );
+
+  useEffect(() => {
+    if (!items.length) return undefined;
+    const eventIds = [...new Set(items.map((item) => item.eventId).filter(Boolean))];
+    let cancelled = false;
+    const refresh = async () => {
+      for (const eventId of eventIds) {
+        try {
+          const res = await apiService.sports.getEvent(eventId);
+          if (cancelled) return;
+          for (const market of res.data?.markets || []) {
+            for (const selection of market.selections || []) {
+              if (selection.priceDecimal == null) continue;
+              updateLivePrice(market._id, selection.key, selection.priceDecimal);
+            }
+          }
+        } catch {
+          // Keep the last slip price if a quiet poll fails.
+        }
+      }
+    };
+    refresh();
+    const timer = window.setInterval(refresh, 5000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [items, updateLivePrice]);
 
   const placeBet = async (item) => {
     const stake = Number(item.stake);
@@ -68,11 +97,11 @@ const BetSlipPanel = () => {
         <button
           type="button"
           onClick={toggleOpen}
-          className="fixed bottom-24 right-4 z-40 flex items-center gap-2 rounded-full bg-[#4391E7] px-4 py-3 font-semibold text-white shadow-lg lg:bottom-6"
+          className="fixed bottom-24 right-4 z-40 flex items-center gap-2 rounded-full bg-brand-primary px-4 py-3 font-semibold text-text-inverse shadow-lg lg:bottom-6"
         >
           <FaReceipt />
           Bet slip
-          <span className="rounded-full bg-white/20 px-2 text-sm">
+          <span className="rounded-full bg-black/20 px-2 text-sm">
             {items.length}
           </span>
         </button>
@@ -80,10 +109,10 @@ const BetSlipPanel = () => {
 
       {/* Panel: right drawer on desktop, bottom sheet on mobile */}
       {isOpen && (
-        <div className="fixed inset-x-0 bottom-0 z-40 max-h-[70vh] overflow-y-auto rounded-t-2xl bg-secondry p-4 shadow-2xl max-lg:pb-[90px] lg:inset-x-auto lg:right-4 lg:top-24 lg:bottom-auto lg:max-h-[70vh] lg:w-[340px] lg:rounded-2xl">
+        <div className="fixed inset-x-0 bottom-0 z-40 max-h-[70vh] overflow-y-auto rounded-t-2xl border border-white/5 bg-background-tertiary p-4 shadow-2xl max-lg:pb-[90px] lg:inset-x-auto lg:right-4 lg:top-24 lg:bottom-auto lg:max-h-[70vh] lg:w-[340px] lg:rounded-2xl">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="flex items-center gap-2 font-semibold text-white">
-              <FaReceipt className="text-[#4391E7]" />
+              <FaReceipt className="text-brand-primary" />
               Bet slip
             </h2>
             <div className="flex items-center gap-3 text-xs">
@@ -91,7 +120,7 @@ const BetSlipPanel = () => {
                 <button
                   type="button"
                   onClick={clearPlaced}
-                  className="text-gray-400 hover:text-white"
+                  className="text-text-tertiary hover:text-white"
                 >
                   Clear placed
                 </button>
@@ -99,7 +128,7 @@ const BetSlipPanel = () => {
               <button
                 type="button"
                 onClick={toggleOpen}
-                className="text-gray-400 hover:text-white"
+                className="text-text-tertiary hover:text-white"
               >
                 Minimize
               </button>
@@ -112,7 +141,7 @@ const BetSlipPanel = () => {
             ))}
           </div>
 
-          <p className="mt-3 text-center text-[11px] text-gray-500">
+          <p className="mt-3 text-center text-[11px] text-text-muted">
             Single bets · cash wallet · odds may move until placement
           </p>
         </div>

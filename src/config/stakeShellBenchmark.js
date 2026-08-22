@@ -22,7 +22,7 @@ export const stakeShellBenchmark = {
       "Support",
       "Settings",
     ],
-    mobileNavigation: ["Home", "Casino", "Rewards", "Sports", "Support"],
+    mobileNavigation: ["Support", "Casino", "Home", "Sports", "Rewards"],
     casinoBrowse: ["Originals", "Live Casino", "Roulette", "Blackjack"],
     sportsbookBrowse: ["Cricket", "Football", "Tennis", "In-Play"],
     supportSurfaces: [

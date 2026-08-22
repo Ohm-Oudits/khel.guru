@@ -7,6 +7,9 @@ let sportsSocket = null;
 // sports feed at once (event lists, event detail, the bet slip), so each
 // event type keeps a Set of handlers and registration returns a cleanup.
 const eventHandlers = {
+  sport_snapshot: new Set(),
+  live_board: new Set(),
+  event_update: new Set(),
   odds_update: new Set(),
   event_state: new Set(),
   scoreboard_update: new Set(),
@@ -83,30 +86,38 @@ export const disconnectSportsSocket = () => {
 export const getSportsSocket = () => sportsSocket;
 
 export const subscribeEvent = (eventId) => {
-  if (!sportsSocket || !eventId) return false;
+  if (!eventId) return false;
   joinedEventRooms.add(eventId);
-  sportsSocket.emit("subscribe_event", { eventId });
+  if (sportsSocket?.connected) {
+    sportsSocket.emit("subscribe_event", { eventId });
+  }
   return true;
 };
 
 export const unsubscribeEvent = (eventId) => {
-  if (!sportsSocket || !eventId) return false;
+  if (!eventId) return false;
   joinedEventRooms.delete(eventId);
-  sportsSocket.emit("unsubscribe_event", { eventId });
+  if (sportsSocket?.connected) {
+    sportsSocket.emit("unsubscribe_event", { eventId });
+  }
   return true;
 };
 
 export const subscribeSport = (sportKey) => {
-  if (!sportsSocket || !sportKey) return false;
+  if (!sportKey) return false;
   joinedSportRooms.add(sportKey);
-  sportsSocket.emit("subscribe_sport", { sportKey });
+  if (sportsSocket?.connected) {
+    sportsSocket.emit("subscribe_sport", { sportKey });
+  }
   return true;
 };
 
 export const unsubscribeSport = (sportKey) => {
-  if (!sportsSocket || !sportKey) return false;
+  if (!sportKey) return false;
   joinedSportRooms.delete(sportKey);
-  sportsSocket.emit("unsubscribe_sport", { sportKey });
+  if (sportsSocket?.connected) {
+    sportsSocket.emit("unsubscribe_sport", { sportKey });
+  }
   return true;
 };
 
@@ -114,6 +125,15 @@ const registerHandler = (eventName, callback) => {
   eventHandlers[eventName].add(callback);
   return () => eventHandlers[eventName].delete(callback);
 };
+
+export const onSportSnapshotHandler = (callback) =>
+  registerHandler("sport_snapshot", callback);
+
+export const onLiveBoardHandler = (callback) =>
+  registerHandler("live_board", callback);
+
+export const onEventUpdateHandler = (callback) =>
+  registerHandler("event_update", callback);
 
 export const onOddsUpdateHandler = (callback) =>
   registerHandler("odds_update", callback);

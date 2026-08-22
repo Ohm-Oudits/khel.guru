@@ -182,3 +182,65 @@ a {
   font-size: 0.875rem;
   margin-top: 0.25rem;
 }
+
+/* Hide native scrollbars on mobile swipe rails */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Keep originals, slots, and live on one web viewport: same panel height. */
+@media (min-width: 1024px) {
+  .game-route {
+    --game-panel-height: 660px;
+  }
+
+  .game-route .my-12,
+  .game-route .lg\:my-12 {
+    margin-top: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .game-route .min-h-screen {
+    min-height: 0;
+  }
+
+  .game-route .max-w-\[1400px\],
+  .game-route .game-stage {
+    width: 96%;
+    max-width: 1200px;
+  }
+
+  /* Height only — do not shrink inner columns or the canvas loses its fill. */
+  .game-route .lg\:h-\[600px\],
+  .game-route .lg\:h-\[650px\],
+  .game-route .lg\:min-h-\[600px\],
+  .game-route .lg\:min-h-\[640px\],
+  .game-route .lg\:min-h-\[580px\],
+  .game-route .lg\:min-h-\[560px\],
+  .game-route .lg\:min-h-\[520px\],
+  .game-route .h-\[600px\],
+  .game-route .game-stage {
+    height: var(--game-panel-height);
+    min-height: var(--game-panel-height);
+    max-height: var(--game-panel-height);
+  }
+
+  .game-route .grid.grid-cols-12 > .bg-gray-900,
+  .game-route .game-stage .bg-gray-900 {
+    background-color: rgb(17 24 39);
+    width: 100%;
+    max-width: none;
+    height: 100%;
+    min-height: 100%;
+  }
+
+  .game-route canvas {
+    background-color: rgb(17 24 39);
+  }
+}

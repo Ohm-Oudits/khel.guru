@@ -356,7 +356,7 @@ function Game({
   const redNumbers = ROULETTE_RED_NUMBERS;
 
   return (
-    <div className="roulette-game-root w-full min-w-0 max-w-full overflow-x-hidden py-2 text-white max-lg:px-0 max-lg:py-1 lg:py-6">
+    <div className="roulette-game-root h-full w-full min-w-0 max-w-full overflow-x-hidden bg-gray-900 py-2 text-white max-lg:px-0 max-lg:py-1 lg:py-6">
       <div className="mx-auto flex w-full min-w-0 max-w-full flex-col items-center gap-2 max-lg:gap-0">
         <div className="roulette-wheel-scene flex justify-center w-full">
           <Roulette

@@ -79,7 +79,7 @@ const useBetSlipStore = create((set, get) => ({
   updateLivePrice: (marketId, selectionKey, priceDecimal) =>
     set((state) => ({
       items: state.items.map((item) =>
-        item.marketId === marketId &&
+        String(item.marketId) === String(marketId) &&
         item.selectionKey === selectionKey &&
         item.status !== "placed"
           ? { ...item, priceDecimal }

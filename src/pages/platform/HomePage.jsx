@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from "react";
 import { FaHeart } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
 import LiveWinFeed from "../../components/platform/LiveWinFeed";
@@ -5,53 +6,110 @@ import PlatformFeatureTile from "../../components/platform/PlatformFeatureTile";
 import PlatformHero from "../../components/platform/PlatformHero";
 import PlatformPage from "../../components/platform/PlatformPage";
 import PlatformPanel from "../../components/platform/PlatformPanel";
+import SwipeRail from "../../components/platform/SwipeRail";
 import { originals } from "../../constants";
 import {
   casinoBrowseLinks,
   heroMetrics,
   rewardPrograms,
-  sportsbookBrowseLinks,
   supportLinks,
 } from "../../config/platformNavigation";
+import { useSportsbookGroups } from "../../hooks/useSportsbookGroups";
+import {
+  GAME_LIKES_KEY,
+  SPORT_LIKES_KEY,
+  applyLikeToggle,
+  formatLikeCount,
+  likeCountOf,
+  readLikesMap,
+  writeLikesMap,
+} from "../../utils/storedLikes";
 
-const featuredSports = sportsbookBrowseLinks.slice(0, 4);
+const GAME_FAVORITES_KEY = "kg.favorite.originals";
+const SPORT_FAVORITES_KEY = "kg.favorite.sports";
+const TOP_SECTION_LIMIT = 10;
 
-const gameLikes = (game) => {
-  const seed = String(game.name)
-    .split("")
-    .reduce((sum, char) => sum + char.charCodeAt(0), game.id || 0);
-  return 4200 + (seed * 733) % 95000;
+const safeReadList = (key) => {
+  try {
+    const value = localStorage.getItem(key);
+    const parsed = value ? JSON.parse(value) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
 };
 
-const sportLikes = (sport) => {
-  const seed = String(sport.label)
-    .split("")
-    .reduce((sum, char) => sum + char.charCodeAt(0), 0);
-  return 6100 + (seed * 911) % 88000;
+const safeWriteList = (key, value) => {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Ignore storage write failures in unsupported environments.
+  }
 };
-
-const formatCount = (count) =>
-  count >= 1000 ? `${(count / 1000).toFixed(1)}K` : String(count);
-
-const trendingItems = [
-  ...originals.map((game) => ({
-    kind: "game",
-    key: game.link,
-    likes: gameLikes(game),
-    game,
-  })),
-  ...featuredSports.map((sport) => ({
-    kind: "sport",
-    key: sport.label,
-    likes: sportLikes(sport),
-    sport,
-  })),
-]
-  .sort((a, b) => b.likes - a.likes)
-  .slice(0, 10);
 
 const HomePage = () => {
   const navigate = useNavigate();
+  const [gameLikes, setGameLikes] = useState({});
+  const [sportLikes, setSportLikes] = useState({});
+  const [favoriteGames, setFavoriteGames] = useState([]);
+  const [favoriteSports, setFavoriteSports] = useState([]);
+  const featuredSports = useSportsbookGroups();
+
+  useEffect(() => {
+    setGameLikes(readLikesMap(GAME_LIKES_KEY));
+    setSportLikes(readLikesMap(SPORT_LIKES_KEY));
+    setFavoriteGames(safeReadList(GAME_FAVORITES_KEY));
+    setFavoriteSports(safeReadList(SPORT_FAVORITES_KEY));
+  }, []);
+
+  const rankedOriginals = useMemo(
+    () =>
+      [...originals].sort(
+        (a, b) => likeCountOf(gameLikes, b.link) - likeCountOf(gameLikes, a.link)
+      ),
+    [gameLikes]
+  );
+  const rankedSports = useMemo(
+    () =>
+      [...featuredSports].sort(
+        (a, b) =>
+          likeCountOf(sportLikes, b.label) - likeCountOf(sportLikes, a.label)
+      ),
+    [featuredSports, sportLikes]
+  );
+
+  const topOriginals = rankedOriginals.slice(0, TOP_SECTION_LIMIT);
+  const topSports = rankedSports.slice(0, TOP_SECTION_LIMIT);
+  const hasMoreOriginals = rankedOriginals.length > TOP_SECTION_LIMIT;
+  const hasMoreSports = rankedSports.length > TOP_SECTION_LIMIT;
+
+  const toggleGameLike = (event, link) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const isLiked = favoriteGames.includes(link);
+    const nextFavorites = isLiked
+      ? favoriteGames.filter((entry) => entry !== link)
+      : [link, ...favoriteGames].slice(0, 12);
+    const nextLikes = applyLikeToggle(gameLikes, link, isLiked);
+    setFavoriteGames(nextFavorites);
+    setGameLikes(nextLikes);
+    safeWriteList(GAME_FAVORITES_KEY, nextFavorites);
+    writeLikesMap(GAME_LIKES_KEY, nextLikes);
+  };
+
+  const toggleSportLike = (event, label) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const isLiked = favoriteSports.includes(label);
+    const nextFavorites = isLiked
+      ? favoriteSports.filter((entry) => entry !== label)
+      : [label, ...favoriteSports];
+    const nextLikes = applyLikeToggle(sportLikes, label, isLiked);
+    setFavoriteSports(nextFavorites);
+    setSportLikes(nextLikes);
+    safeWriteList(SPORT_FAVORITES_KEY, nextFavorites);
+    writeLikesMap(SPORT_LIKES_KEY, nextLikes);
+  };
 
   return (
     <PlatformPage className="text-text-primary">
@@ -104,7 +162,7 @@ const HomePage = () => {
           to="/sports"
           eyebrow="Sports"
           title="India-first event flow"
-          description="Cricket-led markets plus football, tennis, and fast in-play discovery."
+          description="Cricket-first boards plus football, tennis, NBA, NFL, and live in-play discovery."
           className="p-6"
         />
         <PlatformFeatureTile
@@ -116,65 +174,119 @@ const HomePage = () => {
         />
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[1.75fr_0.7fr]">
+      <section className="grid min-w-0 gap-6 xl:grid-cols-[1.75fr_0.7fr]">
         <PlatformPanel>
-          <div>
-            <p className="text-xs uppercase tracking-[0.22em] text-brand-accent">
-              Trending
-            </p>
-            <h2 className="mt-2 text-2xl font-black leading-tight text-white md:text-3xl xl:text-4xl">
-              Top games and sports
+          <p className="text-xs uppercase tracking-[0.22em] text-brand-accent">
+            Trending
+          </p>
+
+          <div className="mt-2 md:mt-5">
+            <h2 className="text-xl font-black leading-tight text-white md:text-2xl">
+              Top Originals
             </h2>
-          </div>
-
-          <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-            {trendingItems.map((item) => {
-              if (item.kind === "game") {
-                return (
-                  <Link
-                    key={item.key}
-                    to={item.game.link}
-                    className="group overflow-hidden rounded-[20px] border border-white/10 bg-background-tertiary transition hover:-translate-y-1 hover:border-brand-primary/40"
-                  >
-                    <div
-                      className="aspect-[4/5] bg-cover bg-center"
-                      style={{ backgroundImage: `url(${item.game.img})` }}
-                    />
-                    <div className="flex items-center justify-between gap-1 p-2">
-                      <h3 className="truncate text-sm font-bold text-white">
-                        {item.game.name}
-                      </h3>
-                      <span className="flex shrink-0 items-center gap-1 text-[11px] text-text-tertiary">
-                        {formatCount(item.likes)}
-                        <FaHeart className="text-[10px] text-red-500" />
-                      </span>
-                    </div>
-                  </Link>
-                );
-              }
-
-              const SportIcon = item.sport.icon;
-              return (
+            <SwipeRail
+              alwaysSwipe
+              contained
+              label="Top originals"
+              moreTo="/casino"
+              moreLabel="See all"
+              hasMore={hasMoreOriginals}
+              itemClassName="w-[30vw] sm:w-[22vw] lg:w-[18%] xl:w-[14%]"
+              className="mt-2 md:mt-3"
+            >
+              {topOriginals.map((game) => (
                 <Link
-                  key={item.key}
-                  to={item.sport.path}
-                  className="group overflow-hidden rounded-[20px] border border-white/10 bg-background-tertiary transition hover:-translate-y-1 hover:border-brand-primary/40"
+                  key={game.link}
+                  to={game.link}
+                  className="group flex h-full flex-col overflow-hidden rounded-[20px] border border-white/10 bg-background-tertiary transition hover:-translate-y-1 hover:border-brand-primary/40"
                 >
-                  <div className="flex aspect-[4/5] items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(0,212,170,0.25),_transparent_55%),linear-gradient(180deg,_rgba(8,8,8,0.9),_rgba(18,18,18,1))]">
-                    <SportIcon className="text-4xl text-brand-primary" />
-                  </div>
+                  <div
+                    className="aspect-[4/5] bg-cover bg-center"
+                    style={{ backgroundImage: `url(${game.img})` }}
+                  />
                   <div className="flex items-center justify-between gap-1 p-2">
                     <h3 className="truncate text-sm font-bold text-white">
-                      {item.sport.label}
+                      {game.name}
                     </h3>
-                    <span className="flex shrink-0 items-center gap-1 text-[11px] text-text-tertiary">
-                      {formatCount(item.likes)}
-                      <FaHeart className="text-[10px] text-red-500" />
-                    </span>
+                    <button
+                      type="button"
+                      onClick={(event) => toggleGameLike(event, game.link)}
+                      className="flex shrink-0 items-center gap-1 text-[11px] text-text-tertiary"
+                      aria-label={
+                        favoriteGames.includes(game.link)
+                          ? `Unlike ${game.name}`
+                          : `Like ${game.name}`
+                      }
+                    >
+                      {formatLikeCount(likeCountOf(gameLikes, game.link))}
+                      <FaHeart
+                        className={`text-[10px] ${
+                          favoriteGames.includes(game.link)
+                            ? "text-brand-primary"
+                            : "text-red-500"
+                        }`}
+                      />
+                    </button>
                   </div>
                 </Link>
-              );
-            })}
+              ))}
+            </SwipeRail>
+          </div>
+
+          <div className="mt-3 md:mt-6">
+            <h2 className="text-xl font-black leading-tight text-white md:text-2xl">
+              Top Sports
+            </h2>
+            <SwipeRail
+              alwaysSwipe
+              contained
+              label="Top sports"
+              moreTo="/sports"
+              moreLabel="See all"
+              hasMore={hasMoreSports}
+              itemClassName="w-[30vw] sm:w-[22vw] lg:w-[18%] xl:w-[14%]"
+              className="mt-2 md:mt-3"
+            >
+              {topSports.map((sport) => (
+                  <Link
+                    key={sport.label}
+                    to={sport.path}
+                    className="group flex h-full flex-col overflow-hidden rounded-[20px] border border-white/10 bg-background-tertiary transition hover:-translate-y-1 hover:border-brand-primary/40"
+                  >
+                    <div
+                      className="flex aspect-[4/5] items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(0,212,170,0.25),_transparent_55%),linear-gradient(180deg,_rgba(8,8,8,0.9),_rgba(18,18,18,1))] bg-cover bg-center"
+                      style={{
+                        backgroundImage: `url(${sport.cover || "/sports/default.png"})`,
+                      }}
+                    >
+                    </div>
+                    <div className="flex items-center justify-between gap-1 p-2">
+                      <h3 className="truncate text-sm font-bold text-white">
+                        {sport.label}
+                      </h3>
+                      <button
+                        type="button"
+                        onClick={(event) => toggleSportLike(event, sport.label)}
+                        className="flex shrink-0 items-center gap-1 text-[11px] text-text-tertiary"
+                        aria-label={
+                          favoriteSports.includes(sport.label)
+                            ? `Unlike ${sport.label}`
+                            : `Like ${sport.label}`
+                        }
+                      >
+                        {formatLikeCount(likeCountOf(sportLikes, sport.label))}
+                        <FaHeart
+                          className={`text-[10px] ${
+                            favoriteSports.includes(sport.label)
+                              ? "text-brand-primary"
+                              : "text-red-500"
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  </Link>
+              ))}
+            </SwipeRail>
           </div>
         </PlatformPanel>
 
